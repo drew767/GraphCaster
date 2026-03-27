@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from graph_caster.__main__ import main
@@ -178,3 +179,64 @@ def test_main_context_json_invalid_returns_2(capsys, tmp_path: Path) -> None:
     bad.write_text("not-json", encoding="utf-8")
     assert main(["run", "-d", str(_PARTIAL_FIXTURE), "--context-json", str(bad)]) == 2
     assert "context-json" in capsys.readouterr().err
+
+
+def _step_cache_cli_doc(gid: str, cwd: Path) -> dict:
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": gid, "title": "cli-step-cache"},
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+        "nodes": [
+            {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {
+                "id": "t1",
+                "type": "task",
+                "position": {"x": 0, "y": 0},
+                "data": {
+                    "command": [sys.executable, "-c", "print(1)"],
+                    "cwd": str(cwd),
+                    "stepCache": True,
+                },
+            },
+            {"id": "x1", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+        ],
+        "edges": [
+            {
+                "id": "e1",
+                "source": "s1",
+                "sourceHandle": "out_default",
+                "target": "t1",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+            {
+                "id": "e2",
+                "source": "t1",
+                "sourceHandle": "out_default",
+                "target": "x1",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+        ],
+    }
+
+
+def test_main_step_cache_requires_artifacts_base(capsys, tmp_path: Path) -> None:
+    gid = "30303030-3030-4303-8303-303030303030"
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps(_step_cache_cli_doc(gid, tmp_path)), encoding="utf-8")
+    assert main(["run", "-d", str(p), "--step-cache"]) == 2
+    assert "artifacts-base" in capsys.readouterr().err.lower()
+
+
+def test_main_step_cache_second_run_emits_cache_hit(capsys, tmp_path: Path) -> None:
+    gid = "40404040-4040-4404-8404-404040404040"
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps(_step_cache_cli_doc(gid, tmp_path)), encoding="utf-8")
+    base = tmp_path / "ws"
+    base.mkdir()
+    assert main(["run", "-d", str(p), "--artifacts-base", str(base), "--step-cache"]) == 0
+    assert "node_cache_miss" in capsys.readouterr().out
+    assert main(["run", "-d", str(p), "--artifacts-base", str(base), "--step-cache"]) == 0
+    out2 = capsys.readouterr().out
+    assert "node_cache_hit" in out2

@@ -211,9 +211,22 @@
 | **`until`** указывает на ноду типа **`exit`** | **`success`** (нормальное завершение графа), не **`partial`** — см. `test_stop_after_exit_node_is_success_not_partial` |
 | Остановка на **`comment`** (и др. «пустых» по исполнению) | Узел всё равно посещается; при совпадении **`id`** — **`partial`** |
 
-**Связь с каталогом F17** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): этот раздел закрывает отладочный partial и ручной pin **`node_outputs`**; полный межпрогонный кэш выходов нод по хэшу / **dirty**-узлы (как у Comfy / n8n) остаётся в **§22.2** того документа.
+**Связь с F17:** отладочный partial и ручной pin — в таблице выше; межпрогонный кэш выходов **`task`** (headless) — подраздел ниже.
 
 Код: `python/graph_caster/runner.py`, `__main__.py`; тесты: `python/tests/test_runner_partial.py`, `test_cli_main.py`; фикстура `schemas/test-fixtures/partial-run-linear.json`.
+
+### Межпрогонный кэш выходов **`task`** (F17 — ключ в духе Comfy + **dirty** в духе n8n)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Comfy: стабильная сигнатура входов + состояние графа | **`graph_document_revision(doc)`** — SHA-256 канонического снимка документа (ноды, рёбра, **`data`**); участвует в **`compute_step_cache_key`** вместе с **`graphId`**, id ноды, **`node_data_for_cache_key`** (без флага **`stepCache`**) и **`upstream_outputs_fingerprint`** (SHA-256 от **`normalize_outputs_for_cache_key`** среза **`node_outputs`** предков по входам не из **`out_error`**) — без встраивания полного среза в JSON ключа |
+| n8n: принудительное перевыполнение выбранных нод | **`StepCachePolicy.dirty_nodes`**; CLI **`--step-cache-dirty`**; событие **`node_cache_miss`** с **`reason: dirty`** |
+| Персистентность | **`StepCacheStore`** под **`artifacts_base`**: **`runs/<graphId>/step-cache/v1/<shard>/<key>.json`**; опция **`context["tenant_id"]`** — опциональный суффикс ключа |
+| Чтение с диска | **`StepCacheStore.get`** возвращает запись только если **`nodeType`** — строка **`task`**, **`data`** — объект, в **`processResult`** есть ключ **`success`**; иначе **`None`** (промах) |
+| Узел участвует только явно | Поле **`data.stepCache`** truthy у ноды **`task`**; без флага при включённой политике кэш-событий нет |
+| Наблюдаемость | **`node_cache_hit`**, **`node_cache_miss`** в **`schemas/run-event.schema.json`** (**`keyPrefix`** — 16 hex, без полного ключа в потоке) |
+
+Код: `python/graph_caster/document_revision.py`, `node_output_cache.py`, `runner.py`, `__main__.py`. Тесты: `test_document_revision.py`, `test_node_output_cache.py`, `test_runner_step_cache.py`, `test_run_event_schema.py`, `test_cli_main.py`. Документация CLI: `python/README.md`.
 
 ---
 

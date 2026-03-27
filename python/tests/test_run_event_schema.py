@@ -86,6 +86,25 @@ def test_process_like_events_validate() -> None:
             "incomingEdges": 1,
             "graphId": "g1",
         },
+        {
+            "type": "node_cache_hit",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "keyPrefix": "a1b2c3d4e5f67890",
+        },
+        {
+            "type": "node_cache_miss",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "keyPrefix": "a1b2c3d4e5f67890",
+            "reason": "dirty",
+        },
+        {
+            "type": "node_cache_miss",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "reason": "upstream_incomplete",
+        },
     ]
     for ev in samples:
         validator.validate(ev)

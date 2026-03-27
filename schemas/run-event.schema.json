@@ -28,7 +28,9 @@
         "process_complete",
         "process_failed",
         "process_retry",
-        "structure_warning"
+        "structure_warning",
+        "node_cache_hit",
+        "node_cache_miss"
       ]
     },
     "runId": {
@@ -158,6 +160,45 @@
           "nodeId": { "type": "string", "minLength": 1 },
           "nodeType": { "type": "string" },
           "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_cache_hit" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "keyPrefix"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "keyPrefix": {
+            "type": "string",
+            "minLength": 1,
+            "description": "First 16 hex chars of SHA-256 step cache key (no full key in stream)."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_cache_miss" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "keyPrefix": {
+            "type": "string",
+            "description": "Present when a cache key was computed (Comfy-style lookup)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "dirty: forced re-exec (n8n dirtyNodeNames); upstream_incomplete; not_stored: miss after exec."
+          }
         }
       }
     },

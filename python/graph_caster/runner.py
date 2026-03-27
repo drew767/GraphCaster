@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import uuid
 from collections.abc import Callable
@@ -9,9 +10,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from graph_caster.document_revision import graph_document_revision
 from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.node_output_cache import (
+    StepCachePolicy,
+    StepCacheStore,
+    compute_step_cache_key,
+    step_cache_root,
+)
 from graph_caster.run_event_sink import RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
 from graph_caster.step_queue import ExecutionFrame, StepQueue
@@ -54,6 +62,21 @@ def _evaluate_next_edge(edges: list[Edge], context: dict[str, Any]) -> tuple[Edg
 def _task_has_process_command(node: Node) -> bool:
     d = node.data
     return d.get("command") is not None or d.get("argv") is not None
+
+
+def _node_wants_step_cache(node: Node) -> bool:
+    v = node.data.get("stepCache")
+    if v is True:
+        return True
+    if v in (1, "1", "true", "True", "yes", "Yes"):
+        return True
+    return False
+
+
+def _cache_key_prefix(key_hex: str) -> str:
+    if len(key_hex) >= 16:
+        return key_hex[:16]
+    return key_hex
 
 
 _RUN_MODE_MAX_LEN = 128
@@ -107,6 +130,7 @@ class GraphRunner:
         run_id: str | None = None,
         session_registry: RunSessionRegistry | None = None,
         stop_after_node_id: str | None = None,
+        step_cache: StepCachePolicy | None = None,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -118,6 +142,45 @@ class GraphRunner:
         self._run_id = run_id
         self._session_registry = session_registry
         self._stop_after_node_id = stop_after_node_id
+        self._step_cache = step_cache
+        self._step_cache_store: StepCacheStore | None = None
+        self._step_cache_no_artifacts: bool = False
+
+    def _ensure_step_cache_store(self) -> StepCacheStore | None:
+        pol = self._step_cache
+        if pol is None or not pol.enabled:
+            return None
+        if self._step_cache_store is not None:
+            return self._step_cache_store
+        if self._step_cache_no_artifacts:
+            return None
+        ab = self._host.artifacts_base
+        if ab is None:
+            self._step_cache_no_artifacts = True
+            return None
+        self._step_cache_store = StepCacheStore(step_cache_root(ab, self._doc.graph_id))
+        return self._step_cache_store
+
+    def _incoming_success_sources(self, node_id: str) -> list[str]:
+        src: list[str] = []
+        for e in self._doc.edges:
+            if e.target == node_id and e.source_handle != EDGE_SOURCE_OUT_ERROR:
+                src.append(e.source)
+        return sorted(frozenset(src))
+
+    def _upstream_outputs_for_step_cache(
+        self,
+        node_id: str,
+        ctx: dict[str, Any],
+    ) -> tuple[dict[str, Any], str | None]:
+        preds = self._incoming_success_sources(node_id)
+        outs = ctx.get("node_outputs") or {}
+        up: dict[str, Any] = {}
+        for pid in preds:
+            if pid not in outs:
+                return {}, "upstream_incomplete"
+            up[pid] = outs[pid]
+        return up, None
 
     def emit(self, event_type: str, **payload: Any) -> None:
         ev: RunEventDict = {"type": event_type, **payload}
@@ -232,6 +295,7 @@ class GraphRunner:
                     incomingEdges=w["incomingEdges"],
                     graphId=self._doc.graph_id,
                 )
+            ctx["graph_rev"] = graph_document_revision(self._doc)
             node_by_id: dict[str, Node] = {n.id: n for n in self._doc.nodes}
             step_q = StepQueue(start_node_id)
             visited_guard = 0
@@ -281,14 +345,102 @@ class GraphRunner:
                     def _should_cancel() -> bool:
                         return sess is not None and sess.cancel_event.is_set()
 
-                    ok = run_task_process(
-                        node_id=node.id,
-                        graph_id=self._doc.graph_id,
-                        data=dict(node.data),
-                        ctx=ctx,
-                        emit=self.emit,
-                        should_cancel=_should_cancel if sess is not None else None,
+                    used_step_cache = False
+                    cache_key: str | None = None
+                    pol = self._step_cache
+                    store = self._ensure_step_cache_store()
+                    want_cache = _node_wants_step_cache(node)
+                    cache_active = (
+                        want_cache
+                        and pol is not None
+                        and pol.enabled
+                        and store is not None
                     )
+                    gid = self._doc.graph_id
+                    graph_rev = str(ctx.get("graph_rev") or "")
+                    tenant_id = ctx.get("tenant_id")
+                    tenant_s = str(tenant_id).strip() if tenant_id is not None else None
+                    dirty = bool(pol and pol.enabled and node.id in pol.dirty_nodes)
+                    upstream_incomplete = False
+
+                    if cache_active:
+                        up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+                        if inc_reason:
+                            upstream_incomplete = True
+                            self.emit(
+                                "node_cache_miss",
+                                nodeId=node.id,
+                                graphId=gid,
+                                reason=inc_reason,
+                            )
+                        elif dirty:
+                            cache_key = compute_step_cache_key(
+                                graph_rev=graph_rev,
+                                graph_id=gid,
+                                node_id=node.id,
+                                node_data=node.data,
+                                upstream_outputs=up,
+                                tenant_id=tenant_s,
+                            )
+                            self.emit(
+                                "node_cache_miss",
+                                nodeId=node.id,
+                                graphId=gid,
+                                keyPrefix=_cache_key_prefix(cache_key),
+                                reason="dirty",
+                            )
+                        else:
+                            cache_key = compute_step_cache_key(
+                                graph_rev=graph_rev,
+                                graph_id=gid,
+                                node_id=node.id,
+                                node_data=node.data,
+                                upstream_outputs=up,
+                                tenant_id=tenant_s,
+                            )
+                            cached = store.get(cache_key)
+                            if cached is not None:
+                                outs_map[node.id] = copy.deepcopy(cached)
+                                pr = cached.get("processResult")
+                                if isinstance(pr, dict):
+                                    ctx["last_result"] = bool(pr.get("success"))
+                                else:
+                                    ctx["last_result"] = True
+                                self.emit(
+                                    "node_cache_hit",
+                                    nodeId=node.id,
+                                    graphId=gid,
+                                    keyPrefix=_cache_key_prefix(cache_key),
+                                )
+                                used_step_cache = True
+                            else:
+                                self.emit(
+                                    "node_cache_miss",
+                                    nodeId=node.id,
+                                    graphId=gid,
+                                    keyPrefix=_cache_key_prefix(cache_key),
+                                )
+
+                    ok = True
+                    if not used_step_cache:
+                        ok = run_task_process(
+                            node_id=node.id,
+                            graph_id=self._doc.graph_id,
+                            data=dict(node.data),
+                            ctx=ctx,
+                            emit=self.emit,
+                            should_cancel=_should_cancel if sess is not None else None,
+                        )
+                    if (
+                        ok
+                        and not used_step_cache
+                        and cache_active
+                        and cache_key is not None
+                        and store is not None
+                        and not upstream_incomplete
+                    ):
+                        store.put(cache_key, copy.deepcopy(outs_map[node.id]))
+
                     if not ok:
                         if ctx.get("_gc_process_cancelled"):
                             ctx["_run_cancelled"] = True
@@ -413,6 +565,7 @@ class GraphRunner:
             run_id=self._run_id,
             session_registry=self._session_registry,
             stop_after_node_id=None,
+            step_cache=self._step_cache,
         )
         child.run(context=child_ctx)
 

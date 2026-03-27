@@ -102,6 +102,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Merge node_outputs from this JSON object (key node_outputs: { nodeId: … }) into run context before start",
     )
+    run.add_argument(
+        "--step-cache",
+        action="store_true",
+        help="Enable cross-run step cache for task nodes with data.stepCache (requires --artifacts-base)",
+    )
+    run.add_argument(
+        "--step-cache-dirty",
+        default="",
+        metavar="NODE_IDS",
+        help="Comma-separated node ids that skip cache read (re-exec like n8n dirtyNodeNames); requires --step-cache",
+    )
 
     sz = sub.add_parser("artifacts-size", help="Print total artifact size in bytes under runs/")
     sz.add_argument("--base", type=Path, required=True, help="Workspace root (parent of runs/)")
@@ -178,6 +189,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
             print(f"graph-caster: --until-node {until!r} is not a node id in the document", file=sys.stderr)
             return 2
 
+    if args.step_cache and args.artifacts_base is None:
+        print("graph-caster run: --step-cache requires --artifacts-base", file=sys.stderr)
+        return 2
+
+    from graph_caster.node_output_cache import StepCachePolicy
+
+    dirty_csv = str(args.step_cache_dirty or "").strip()
+    dirty_nodes = frozenset(p.strip() for p in dirty_csv.split(",") if p.strip())
+    step_cache_pol = (
+        StepCachePolicy(enabled=True, dirty_nodes=dirty_nodes) if args.step_cache else None
+    )
+
     stop_after = until
     runner = GraphRunner(
         doc,
@@ -185,6 +208,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         host=host,
         session_registry=reg,
         stop_after_node_id=stop_after,
+        step_cache=step_cache_pol,
     )
     try:
         ctx: dict = {"last_result": True}

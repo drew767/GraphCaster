@@ -10,9 +10,20 @@ from graph_caster.artifacts import (
     create_root_run_artifact_dir,
     tree_bytes,
 )
+from graph_caster.document_revision import graph_document_revision
 from graph_caster.handle_contract import find_handle_compatibility_violations
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
+from graph_caster.node_output_cache import (
+    StepCachePolicy,
+    StepCacheStore,
+    compute_step_cache_key,
+    node_data_for_cache_key,
+    normalize_outputs_for_cache_key,
+    stable_json,
+    step_cache_root,
+    upstream_outputs_fingerprint,
+)
 from graph_caster.run_event_sink import NdjsonStdoutSink, RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import (
@@ -44,6 +55,8 @@ __all__ = [
     "build_workspace_graph_ref_adjacency",
     "find_workspace_graph_ref_cycle",
     "find_handle_compatibility_violations",
+    "compute_step_cache_key",
+    "graph_document_revision",
     "GraphDocument",
     "GraphRunner",
     "NdjsonStdoutSink",
@@ -54,7 +67,13 @@ __all__ = [
     "RunSession",
     "RunSessionRegistry",
     "get_default_run_registry",
+    "node_data_for_cache_key",
+    "normalize_outputs_for_cache_key",
     "reset_default_run_registry",
+    "stable_json",
+    "StepCachePolicy",
+    "StepCacheStore",
+    "step_cache_root",
     "GraphStructureError",
     "WorkspaceIndexError",
     "artifacts_runs_total_bytes",
@@ -64,6 +83,7 @@ __all__ = [
     "create_root_run_artifact_dir",
     "clear_graph_index_cache",
     "tree_bytes",
+    "upstream_outputs_fingerprint",
     "resolve_graph_path",
     "load_graph_documents_index",
     "scan_graphs_directory",
