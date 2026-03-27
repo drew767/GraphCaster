@@ -19,7 +19,11 @@ from graph_caster.run_sessions import (
     get_default_run_registry,
     reset_default_run_registry,
 )
-from graph_caster.validate import GraphStructureError, validate_graph_structure
+from graph_caster.validate import (
+    GraphStructureError,
+    find_unreachable_out_error_sources,
+    validate_graph_structure,
+)
 from graph_caster.workspace import (
     WorkspaceIndexError,
     clear_graph_index_cache,
@@ -47,6 +51,7 @@ __all__ = [
     "resolve_graph_path",
     "scan_graphs_directory",
     "validate_graph_structure",
+    "find_unreachable_out_error_sources",
     "__version__",
 ]
 

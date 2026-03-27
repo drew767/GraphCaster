@@ -1,0 +1,72 @@
+// Copyright GraphCaster. All Rights Reserved.
+
+import { describe, expect, it } from "vitest";
+
+import { findBranchAmbiguities } from "./branchWarnings";
+import type { GraphDocumentJson } from "./types";
+
+describe("findBranchAmbiguities", () => {
+  it("flags out_error from start and task without command", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t0", type: "task", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source: "s1",
+          sourceHandle: "out_error",
+          target: "t0",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "e2",
+          source: "t0",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues.map((x) => x.sourceId).sort()).toEqual(["s1", "t0"]);
+  });
+
+  it("does not flag out_error from graph_ref", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "g1", type: "graph_ref", position: { x: 0, y: 0 }, data: { targetGraphId: "x" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "g1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "eerr",
+          source: "g1",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+});

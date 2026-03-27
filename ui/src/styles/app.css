@@ -442,6 +442,11 @@ body {
   word-break: break-word;
 }
 
+.gc-flow-node .gc-flow-node__handle--error {
+  background: #ff3b30;
+  border-color: color-mix(in srgb, #ff3b30 75%, var(--gc-border));
+}
+
 .gc-inspector-detail {
   display: flex;
   flex-direction: column;

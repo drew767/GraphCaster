@@ -74,12 +74,15 @@
         "id": { "type": "string", "minLength": 1 },
         "source": { "type": "string", "minLength": 1 },
         "target": { "type": "string", "minLength": 1 },
-        "sourceHandle": { "type": "string" },
+        "sourceHandle": {
+          "type": "string",
+          "description": "Source handle id: out_default (success path) or out_error (failure path after task/graph_ref failure; Dify FAIL_BRANCH-style). See python/README.md."
+        },
         "targetHandle": { "type": "string" },
         "source_handle": { "type": "string" },
         "target_handle": { "type": "string" },
         "condition": {
-          "description": "Empty/null: unconditional edge (first such edge wins). Max length after trim: 65536 chars (longer evaluates false). Legacy tokens: true/false/1/0/yes/no. Other non-JSON strings: truthiness of run context last_result. JSON object {\"op\":...}: JSON Logic subset; only top-level context keys prefixed with _ are hidden from var (nested keys under node_outputs are not). See python/README.md.",
+          "description": "Empty/null: unconditional edge (first such edge wins). Max length after trim: 65536 chars (longer evaluates false). Legacy tokens: true/false/1/0/yes/no. Other non-JSON strings: truthiness of run context last_result. JSON object {\"op\":...}: JSON Logic subset; only top-level context keys prefixed with _ are hidden from var (nested keys under node_outputs are not). Success fan-out: edges whose sourceHandle is not out_error. Error fan-out: only out_error. See python/README.md.",
           "oneOf": [{ "type": "null" }, { "type": "string" }]
         }
       }

@@ -91,6 +91,21 @@ def test_process_like_events_validate() -> None:
             "graphId": "g1",
         },
         {
+            "type": "branch_taken",
+            "edgeId": "e_err",
+            "fromNode": "t1",
+            "toNode": "r1",
+            "graphId": "g1",
+            "route": "error",
+        },
+        {
+            "type": "edge_traverse",
+            "edgeId": "e_err",
+            "fromNode": "t1",
+            "toNode": "r1",
+            "route": "error",
+        },
+        {
             "type": "branch_skipped",
             "edgeId": "e0",
             "fromNode": "a",

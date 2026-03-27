@@ -40,6 +40,8 @@ python -m graph_caster artifacts-clear --base . --graph-id '<uuid>'
 - После успешного шага (флаг успеха subprocess): `{"==":[{"var":"last_result"},true]}`
 - По коду выхода ноды **`t1`**: `{"==":[{"var":"node_outputs.t1.processResult.exitCode"},0]}`
 
+**Ветка после ошибки (`sourceHandle` → `out_error`, аналог FAIL_BRANCH у Dify):** при неуспехе **`task`** после исчерпания ретраев или при неуспешном **`graph_ref`** (без отмены) раннер сначала обрабатывает только рёбра с **`out_error`**; порядок и условия — как у обычного ветвления. Рёбра с любым другим **`sourceHandle`** (в т.ч. **`out_default`**) используются на **успешном** выходе из ноды. В **`branch_taken`** / **`edge_traverse`** для такого перехода задаётся **`route":"error"`**. **Отмена** (**`cancel_requested`**, флаг процесса) **не** направляет по **`out_error`**.
+
 После каждого завершения попытки **`task`** с подпроцессом в **`node_outputs[nodeId].processResult`** пишутся **`exitCode`**, **`success`**, **`timedOut`**, **`cancelled`**, объёмы stdout/stderr (в символах), в том числе при финальной ошибке или **`spawn_error`** (**`exitCode`**: **`-1`**).
 
 **Сессии и отмена:** передайте **`session_registry=RunSessionRegistry()`** или **`get_default_run_registry()`** в **`GraphRunner`**. Методы реестра: **`register`** / **`complete`** (вызывается раннером), **`get`**, **`request_cancel`**, **`running_sessions`**. При отмене между шагами эмитится **`run_end`** с **`reason`** **`cancel_requested`**, затем **`run_finished`** с **`status: "cancelled"`**.

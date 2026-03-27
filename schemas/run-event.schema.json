@@ -147,7 +147,12 @@
         "properties": {
           "edgeId": { "type": "string", "minLength": 1 },
           "fromNode": { "type": "string", "minLength": 1 },
-          "toNode": { "type": "string", "minLength": 1 }
+          "toNode": { "type": "string", "minLength": 1 },
+          "route": {
+            "type": "string",
+            "enum": ["success", "error"],
+            "description": "Omitted or success: normal / success fan-out; error: taken from source handle out_error after task/graph_ref failure (Dify FAIL_BRANCH-style)."
+          }
         }
       }
     },
@@ -162,7 +167,12 @@
           "edgeId": { "type": "string", "minLength": 1 },
           "fromNode": { "type": "string", "minLength": 1 },
           "toNode": { "type": "string", "minLength": 1 },
-          "graphId": { "type": "string", "minLength": 1 }
+          "graphId": { "type": "string", "minLength": 1 },
+          "route": {
+            "type": "string",
+            "enum": ["success", "error"],
+            "description": "Omitted or success: normal branch; error: fail-branch (out_error) traversal."
+          }
         }
       }
     },

@@ -1,5 +1,8 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+/** Matches `graph_caster.runner.EDGE_SOURCE_OUT_ERROR` / JSON Schema fail-branch handle. */
+export const EDGE_SOURCE_OUT_ERROR = "out_error";
+
 /** XYFlow `Connection` / `Edge` handle id after trim; empty → fallback (matches export). */
 export function flowConnectionHandle(v: string | null | undefined, fallback: string): string {
   return (v ?? "").trim() || fallback;

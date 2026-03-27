@@ -49,6 +49,10 @@ function isErrorLikeFromParsed(ev: unknown, isStderr: boolean, rawLine: string):
     return true;
   }
 
+  if (typeStr === "branch_taken" && o.route === "error") {
+    return true;
+  }
+
   if (typeStr === "run_finished") {
     return o.status === "failed";
   }

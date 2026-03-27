@@ -15,6 +15,7 @@
       "redoHint": "Вернуть (Ctrl+Shift+Z или Ctrl+Y)"
     },
     "canvas": {
+      "errorOutHandle": "При ошибке — после сбоя task или graph_ref (после ретраев) выполнение идёт по этой ветке.",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
       "addNodeFilterPh": "Фильтр по типу…",
@@ -78,7 +79,10 @@
     },
     "warnings": {
       "multipleUnconditional": "Нода {{sourceId}}: несколько исходящих рёбер без условия (порядок как в JSON).",
-      "duplicateCondition": "Нода {{sourceId}}: повтор условия \"{{detail}}\"."
+      "multipleUnconditionalErrorOut": "Нода {{sourceId}} (выход при ошибке): несколько безусловных рёбер с пина «ошибка».",
+      "duplicateCondition": "Нода {{sourceId}}: повтор условия \"{{detail}}\".",
+      "duplicateConditionErrorOut": "Нода {{sourceId}} (выход при ошибке): повтор условия \"{{detail}}\".",
+      "outErrorUnreachable": "Нода {{sourceId}}: out_error не используется раннером (переход только после сбоя task с command/argv или graph_ref)."
     },
     "console": {
       "heading": "Консоль",

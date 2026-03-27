@@ -795,14 +795,23 @@ export function AppShell({ onLangChange }: Props) {
             </div>
           ))}
           {branchIssues.map((issue, idx) => (
-            <div key={`${issue.sourceId}-${issue.kind}-${idx}`} className="gc-branch-warnings__line">
+            <div key={`${issue.sourceId}-${issue.handleFanout}-${issue.kind}-${idx}`} className="gc-branch-warnings__line">
               <span aria-hidden="true">⚠</span>{" "}
-              {issue.kind === "multiple_unconditional"
-                ? t("app.warnings.multipleUnconditional", { sourceId: issue.sourceId })
-                : t("app.warnings.duplicateCondition", {
-                    sourceId: issue.sourceId,
-                    detail: issue.detail ?? "",
-                  })}
+              {issue.kind === "out_error_unreachable"
+                ? t("app.warnings.outErrorUnreachable", { sourceId: issue.sourceId })
+                : issue.kind === "multiple_unconditional"
+                  ? issue.handleFanout === "error"
+                    ? t("app.warnings.multipleUnconditionalErrorOut", { sourceId: issue.sourceId })
+                    : t("app.warnings.multipleUnconditional", { sourceId: issue.sourceId })
+                  : issue.handleFanout === "error"
+                    ? t("app.warnings.duplicateConditionErrorOut", {
+                        sourceId: issue.sourceId,
+                        detail: issue.detail ?? "",
+                      })
+                    : t("app.warnings.duplicateCondition", {
+                        sourceId: issue.sourceId,
+                        detail: issue.detail ?? "",
+                      })}
             </div>
           ))}
         </div>

@@ -39,6 +39,14 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
   });
 
+  it("marks branch_taken with route error as error-like", () => {
+    const m = buildConsoleLineMeta(
+      `{"type":"branch_taken","edgeId":"e1","fromNode":"src","toNode":"dst","graphId":"g","route":"error"}`,
+    );
+    expect(m.nodeId).toBe("src");
+    expect(m.isErrorLike).toBe(true);
+  });
+
   it("marks stderr as error-like", () => {
     const m = buildConsoleLineMeta(`${STDERR_PREFIX}oops`);
     expect(m.isStderr).toBe(true);

@@ -15,6 +15,7 @@
       "redoHint": "Redo (Ctrl+Shift+Z or Ctrl+Y)"
     },
     "canvas": {
+      "errorOutHandle": "On error — run follows this path after task or graph_ref failure (retries exhausted).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
       "addNodeFilterPh": "Filter by type…",
@@ -78,7 +79,10 @@
     },
     "warnings": {
       "multipleUnconditional": "Node {{sourceId}}: more than one outgoing edge with no condition (runner uses JSON order).",
-      "duplicateCondition": "Node {{sourceId}}: duplicate condition \"{{detail}}\"."
+      "multipleUnconditionalErrorOut": "Node {{sourceId}} (on-error out): more than one unconditional edge from the error handle.",
+      "duplicateCondition": "Node {{sourceId}}: duplicate condition \"{{detail}}\".",
+      "duplicateConditionErrorOut": "Node {{sourceId}} (on-error out): duplicate condition \"{{detail}}\".",
+      "outErrorUnreachable": "Node {{sourceId}}: out_error is never used (runner only fails over from task with command/argv or graph_ref)."
     },
     "console": {
       "heading": "Console",

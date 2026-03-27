@@ -19,9 +19,22 @@ EventSink = Callable[[RunEvent], None]
 
 BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
 
+EDGE_SOURCE_OUT_ERROR = "out_error"
 
-def _edges_from(node_id: str, doc: GraphDocument) -> list[Edge]:
-    return [e for e in doc.edges if e.source == node_id]
+
+def _edges_from_source(node_id: str, doc: GraphDocument, *, error_route: bool) -> list[Edge]:
+    out: list[Edge] = []
+    for e in doc.edges:
+        if e.source != node_id:
+            continue
+        is_err = e.source_handle == EDGE_SOURCE_OUT_ERROR
+        if error_route:
+            if is_err:
+                out.append(e)
+        else:
+            if not is_err:
+                out.append(e)
+    return out
 
 
 def _evaluate_next_edge(edges: list[Edge], context: dict[str, Any]) -> tuple[Edge | None, list[Edge]]:
@@ -110,6 +123,51 @@ class GraphRunner:
             ev["runId"] = rid
         self._sink(ev)
 
+    def _follow_edges_from(
+        self,
+        node_id: str,
+        ctx: dict[str, Any],
+        *,
+        error_route: bool,
+    ) -> str | None:
+        outs = _edges_from_source(node_id, self._doc, error_route=error_route)
+        chosen, skipped_edges = _evaluate_next_edge(outs, ctx)
+        gid = self._doc.graph_id
+        for e in skipped_edges:
+            self.emit(
+                "branch_skipped",
+                edgeId=e.id,
+                fromNode=e.source,
+                toNode=e.target,
+                graphId=gid,
+                reason=BRANCH_SKIP_REASON_CONDITION_FALSE,
+            )
+        if chosen is None:
+            if (not error_route) or outs:
+                self.emit("run_end", reason="no_outgoing_or_no_matching_condition")
+            return None
+        emit_branch_taken = len(outs) > 1 or bool(skipped_edges)
+        route_kw: dict[str, Any] = {}
+        if error_route:
+            route_kw["route"] = "error"
+        if emit_branch_taken:
+            self.emit(
+                "branch_taken",
+                edgeId=chosen.id,
+                fromNode=chosen.source,
+                toNode=chosen.target,
+                graphId=gid,
+                **route_kw,
+            )
+        self.emit(
+            "edge_traverse",
+            edgeId=chosen.id,
+            fromNode=chosen.source,
+            toNode=chosen.target,
+            **route_kw,
+        )
+        return chosen.target
+
     def run(self, context: dict[str, Any] | None = None, start_node_id: str | None = None) -> None:
         from graph_caster.validate import validate_graph_structure
 
@@ -190,6 +248,12 @@ class GraphRunner:
                     ok = self._execute_graph_ref(node, ctx)
                     if not ok:
                         self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        if not ctx.get("_run_cancelled"):
+                            ctx["last_result"] = False
+                            nxt = self._follow_edges_from(node.id, ctx, error_route=True)
+                            if nxt is not None:
+                                current_id = nxt
+                                continue
                         break
                 elif node.type == "task" and _task_has_process_command(node):
                     from graph_caster.process_exec import run_task_process
@@ -211,6 +275,13 @@ class GraphRunner:
                         if ctx.get("_gc_process_cancelled"):
                             ctx["_run_cancelled"] = True
                         self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        if ctx.get("_gc_process_cancelled"):
+                            break
+                        ctx["last_result"] = False
+                        nxt = self._follow_edges_from(node.id, ctx, error_route=True)
+                        if nxt is not None:
+                            current_id = nxt
+                            continue
                         break
 
                 self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
@@ -220,37 +291,10 @@ class GraphRunner:
                     ctx["_run_success"] = True
                     break
 
-                outs = _edges_from(node.id, self._doc)
-                chosen, skipped_edges = _evaluate_next_edge(outs, ctx)
-                gid = self._doc.graph_id
-                for e in skipped_edges:
-                    self.emit(
-                        "branch_skipped",
-                        edgeId=e.id,
-                        fromNode=e.source,
-                        toNode=e.target,
-                        graphId=gid,
-                        reason=BRANCH_SKIP_REASON_CONDITION_FALSE,
-                    )
-                if chosen is None:
-                    self.emit("run_end", reason="no_outgoing_or_no_matching_condition")
+                nxt = self._follow_edges_from(node.id, ctx, error_route=False)
+                if nxt is None:
                     break
-                emit_branch_taken = len(outs) > 1 or bool(skipped_edges)
-                if emit_branch_taken:
-                    self.emit(
-                        "branch_taken",
-                        edgeId=chosen.id,
-                        fromNode=chosen.source,
-                        toNode=chosen.target,
-                        graphId=gid,
-                    )
-                self.emit(
-                    "edge_traverse",
-                    edgeId=chosen.id,
-                    fromNode=chosen.source,
-                    toNode=chosen.target,
-                )
-                current_id = chosen.target
+                current_id = nxt
 
             if visited_guard >= max_steps:
                 self.emit("error", message="run_aborted_cycle_guard")

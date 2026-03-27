@@ -2,7 +2,41 @@
 
 from __future__ import annotations
 
-from graph_caster.models import GraphDocument
+from graph_caster.models import GraphDocument, Node
+
+_OUT_ERROR_HANDLE = "out_error"
+
+
+def _node_can_emit_fail_branch(node: Node | None) -> bool:
+    if node is None:
+        return False
+    if node.type == "task":
+        d = node.data
+        return d.get("command") is not None or d.get("argv") is not None
+    if node.type == "graph_ref":
+        return True
+    return False
+
+
+def find_unreachable_out_error_sources(doc: GraphDocument) -> list[str]:
+    """
+    Source node ids that have at least one out_error edge but whose type cannot
+    emit the runner's fail-branch (same rule as error_route in GraphRunner).
+    """
+    by_id = {n.id: n for n in doc.nodes}
+    seen: set[str] = set()
+    out: list[str] = []
+    for e in doc.edges:
+        if e.source_handle != _OUT_ERROR_HANDLE:
+            continue
+        nid = e.source
+        if nid in seen:
+            continue
+        if _node_can_emit_fail_branch(by_id.get(nid)):
+            continue
+        seen.add(nid)
+        out.append(nid)
+    return out
 
 
 class GraphStructureError(ValueError):

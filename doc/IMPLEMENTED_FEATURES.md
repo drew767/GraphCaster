@@ -18,7 +18,7 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
-Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; в **`COMPETITIVE_ANALYSIS.md`** остаётся только **«Открыто / позже»** по F4 (fail-branch, fork/join, AI, продуктовая документация, расширение контекста).
+Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; в **`COMPETITIVE_ANALYSIS.md`** (**§32.2**, «Открыто») остаются fork/join, ИИ-ветвление, продуктовая документация и контекст предикатов. In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -29,9 +29,24 @@
 | Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc) |
 | Событие выбранной ветки | **`edge_traverse`** (совместимость); перед ним при ветвлении — **`branch_skipped`** (`reason`: **`condition_false`**) для оценённых ложных условий, **`branch_taken`** (с **`graphId`**) если исходящих больше одного или были skip (**`runner.py`**, **`schemas/run-event.schema.json`**) |
 
-**Вне текущей реализации F4 у GC (остаётся в `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), явные **fail-/on_error-ветки** (**§16**, **F19**), **fork/join** как у **n8n merge**, ИИ-ветвление без отдельной ноды (**фаза 6**).
+**Открыто в F4 (см. `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), **fork/join** как у **n8n merge**, ИИ-ветвление без отдельной ноды (**фаза 6**). In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — раздел **F19** ниже (в competitive больше не помечается как «нет в документе»).
 
 Документация: `python/README.md` (раздел «Условия на рёбрах»), `schemas/graph-document.schema.json` (`edges[].condition`). Углублённое сравнение с конкурентами — **§32** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md).
+
+---
+
+## Ветка после ошибки **F19** (`out_error`, конспект **§16** / **§37**)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **Dify** `FAIL_BRANCH` — альтернативный переход в том же графе без отдельного error-workflow | Исход **`sourceHandle` / `source_handle` = `out_error`**: учитывается **только** после неуспеха **`task`** (после ретраев) или **`graph_ref`**; успешный путь — рёбра **не** с `out_error` |
+| **n8n** `continueOnFail` / error-workflow (отдельный workflow) | Отдельный error-workflow **не** дублируется (file-first, **§16.2**); in-graph восхождение — через **`out_error`** |
+| События | `branch_taken` / `edge_traverse` с опциональным **`route":"error"`**; схема **`schemas/run-event.schema.json`**. После неуспеха **`graph_ref`** возможны события **`error`** (включая вложенный прогон), затем при наличии **`out_error`** — обход восстановления и **`run_finished`** со статусом **`success`** |
+| Отмена | **`out_error`** **не** используется при **`_gc_process_cancelled`** / **`_run_cancelled`** |
+| Предупреждения / валидация | Статически: **`find_unreachable_out_error_sources`** (`validate.py`) и то же правило в UI (**`branchWarnings`**) — рёбра **`out_error`** с **`start`**, **`comment`**, **`exit`**, **`task`** без **`command`/`argv`** |
+| UI | Второй source **`Handle`** `out_error` у **`task`** и **`graph_ref`**; предупреждения ветвления раздельно для success / error fan-out (`branchWarnings.ts`) |
+
+Код: `python/graph_caster/runner.py` (`EDGE_SOURCE_OUT_ERROR`, `_edges_from_source`, `_follow_edges_from`), `python/graph_caster/validate.py` (`find_unreachable_out_error_sources`); тесты `python/tests/test_runner_fail_branch.py`, `python/tests/test_validate_structure.py`.
 
 ---
 

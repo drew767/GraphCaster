@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 
 from graph_caster.models import Edge, GraphDocument, Node
-from graph_caster.validate import GraphStructureError, validate_graph_structure
+from graph_caster.validate import (
+    GraphStructureError,
+    find_unreachable_out_error_sources,
+    validate_graph_structure,
+)
 
 GRAPH_CASTER_ROOT = Path(__file__).resolve().parents[2]
 
@@ -52,3 +56,38 @@ def test_validate_rejects_missing_graph_id() -> None:
     doc = GraphDocument.from_dict(raw)
     with pytest.raises(GraphStructureError, match="graphId"):
         validate_graph_structure(doc)
+
+
+def test_find_unreachable_out_error_sources_flags_start_and_task_without_command() -> None:
+    gid = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "t"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "t0", "type": "task", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "bad1",
+                    "source": "s1",
+                    "sourceHandle": "out_error",
+                    "target": "t0",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+                {
+                    "id": "bad2",
+                    "source": "t0",
+                    "sourceHandle": "out_error",
+                    "target": "s1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+            ],
+        }
+    )
+    ids = find_unreachable_out_error_sources(doc)
+    assert set(ids) == {"s1", "t0"}
