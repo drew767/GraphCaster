@@ -83,7 +83,7 @@
       "edgeTarget": "To",
       "edgeCondition": "Condition",
       "edgeConditionPlaceholder": "leave empty if unconditional",
-      "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner).",
+      "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner). In templates and JSON Logic, $json is the predecessor payload (last_result): same shape when it is an object, otherwise use $json.value for scalars.",
       "mergeMode": "Merge mode",
       "mergeModePassthrough": "Passthrough (single path)",
       "mergeModeBarrier": "Barrier (wait for all inbound branches)",

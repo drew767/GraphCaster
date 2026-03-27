@@ -26,6 +26,8 @@ describe("analyzeTemplateCondition", () => {
     expect(analyzeTemplateCondition("{{node_outputs.a.x}}")).toBe("ok");
     expect(analyzeTemplateCondition("{{node_outputs.t1.processResult.exitCode}} == 0")).toBe("ok");
     expect(analyzeTemplateCondition("{{ $json.processResult.success }}")).toBe("ok");
+    expect(analyzeTemplateCondition("{{ $json }}")).toBe("ok");
+    expect(analyzeTemplateCondition("{{$json}}")).toBe("ok");
   });
 
   it("none without mustache", () => {

@@ -21,6 +21,7 @@ export function extractTemplatePaths(condition: string): string[] {
   if (!condition.includes("{{")) {
     return [];
   }
+  RE_ALL_PLACEHOLDERS.lastIndex = 0;
   return [...condition.matchAll(RE_ALL_PLACEHOLDERS)].map((m) => m[1]);
 }
 

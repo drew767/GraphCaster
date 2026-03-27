@@ -45,6 +45,12 @@ def test_predicate_data_overrides_context_dollar_json_key() -> None:
     assert eval_edge_condition(rule, ctx) is True
 
 
+def test_json_logic_var_dollar_json_root() -> None:
+    rule = '{"!!": [{"var": "$json"}]}'
+    assert eval_edge_condition(rule, {"last_result": {"a": 1}}) is True
+    assert eval_edge_condition(rule, {"last_result": {}}) is False
+
+
 def test_public_context_hides_underscore_keys_for_var() -> None:
     assert (
         eval_edge_condition(

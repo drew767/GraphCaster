@@ -106,6 +106,13 @@ def test_dollar_json_wraps_non_dict_last_result() -> None:
     assert eval_edge_condition("{{ $json.value }} == 42", ctx) is True
 
 
+def test_dollar_json_bare_template_truthiness() -> None:
+    assert (
+        eval_edge_condition("{{ $json }}", {"last_result": {"x": 1}, "node_outputs": {}}) is True
+    )
+    assert eval_edge_condition("{{$json}}", {"last_result": {}, "node_outputs": {}}) is False
+
+
 def test_json_logic_still_works_before_template() -> None:
     rule = '{"==":[{"var":"last_result"}, true]}'
     assert eval_edge_condition(rule, {"last_result": True}) is True
