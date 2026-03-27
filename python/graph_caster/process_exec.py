@@ -5,13 +5,17 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Callable
 
 EmitFn = Callable[..., None]
 
 _STDOUT_CAP = 256 * 1024
+_CANCEL_POLL_SEC = 0.25
+_CANCEL_JOIN_TIMEOUT_SEC = 120.0
 
 
 def _argv_from_data(data: dict[str, Any]) -> list[str] | None:
@@ -120,6 +124,55 @@ def _eval_success(
     return False
 
 
+def _communicate_with_cancel(
+    proc: subprocess.Popen,
+    timeout: float | None,
+    should_cancel: Callable[[], bool],
+    *,
+    poll_sec: float = _CANCEL_POLL_SEC,
+) -> tuple[str, str, bool, bool]:
+    lock = threading.Lock()
+    state: dict[str, Any] = {"done": False, "out": "", "err": "", "timed_out": False}
+
+    def worker() -> None:
+        timed_out = False
+        out_b, err_b = "", ""
+        try:
+            try:
+                o, e = proc.communicate(timeout=timeout)
+                out_b, err_b = o or "", e or ""
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                proc.kill()
+                o, e = proc.communicate()
+                out_b, err_b = o or "", e or ""
+        finally:
+            with lock:
+                state["out"] = out_b
+                state["err"] = err_b
+                state["timed_out"] = timed_out
+                state["done"] = True
+
+    th = threading.Thread(target=worker, daemon=True)
+    th.start()
+    while True:
+        with lock:
+            if state["done"]:
+                return (state["out"], state["err"], state["timed_out"], False)
+        if should_cancel():
+            proc.kill()
+            th.join(timeout=_CANCEL_JOIN_TIMEOUT_SEC)
+            if th.is_alive():
+                warnings.warn(
+                    "subprocess communicate thread still alive after cancel join timeout",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            with lock:
+                return (state["out"], state["err"], state["timed_out"], True)
+        th.join(timeout=poll_sec)
+
+
 def run_task_process(
     *,
     node_id: str,
@@ -127,6 +180,7 @@ def run_task_process(
     data: dict[str, Any],
     ctx: dict[str, Any],
     emit: EmitFn,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> bool:
     argv = _argv_from_data(data)
     if not argv:
@@ -150,6 +204,10 @@ def run_task_process(
 
     attempt = 0
     while True:
+        if should_cancel is not None and should_cancel():
+            ctx["last_result"] = False
+            ctx["_gc_process_cancelled"] = True
+            return False
         emit(
             "process_spawn",
             nodeId=node_id,
@@ -181,20 +239,41 @@ def run_task_process(
             ctx["last_result"] = False
             return False
 
+        cancelled = False
         timed_out = False
-        try:
-            if timeout is not None:
-                out_b, err_b = proc.communicate(timeout=timeout)
-            else:
+        if should_cancel is not None:
+            out_b, err_b, timed_out, cancelled = _communicate_with_cancel(proc, timeout, should_cancel)
+        else:
+            try:
+                if timeout is not None:
+                    out_b, err_b = proc.communicate(timeout=timeout)
+                else:
+                    out_b, err_b = proc.communicate()
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                proc.kill()
                 out_b, err_b = proc.communicate()
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            proc.kill()
-            out_b, err_b = proc.communicate()
 
         rc = int(proc.returncode if proc.returncode is not None else -1)
         stdout = (out_b or "")[:_STDOUT_CAP]
         stderr = (err_b or "")[:_STDOUT_CAP]
+
+        if cancelled:
+            emit(
+                "process_complete",
+                nodeId=node_id,
+                graphId=graph_id,
+                exitCode=rc,
+                timedOut=False,
+                attempt=attempt,
+                success=False,
+                cancelled=True,
+                stdoutTail=stdout[-2000:] if stdout else "",
+                stderrTail=stderr[-2000:] if stderr else "",
+            )
+            ctx["last_result"] = False
+            ctx["_gc_process_cancelled"] = True
+            return False
 
         if timed_out:
             emit(

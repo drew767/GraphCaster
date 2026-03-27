@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from pathlib import Path
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
+from graph_caster.run_sessions import RunSessionRegistry
 
 
 def _linear_doc(
@@ -208,3 +210,54 @@ def test_task_process_timeout(tmp_path: Path) -> None:
     assert events[-1]["type"] == "run_finished"
     assert events[-1].get("status") == "failed"
     assert events[-1].get("finishedAt")
+
+
+def test_runner_cancel_kills_long_running_task(tmp_path: Path) -> None:
+    gid = "abababab-abab-4bab-8bab-abababababab"
+    reg = RunSessionRegistry()
+    doc = GraphDocument.from_dict(
+        _linear_doc(
+            gid,
+            task_data={
+                "command": [sys.executable, "-c", "import time; time.sleep(120)"],
+                "cwd": str(tmp_path),
+                "retryCount": 0,
+            },
+        )
+    )
+    started = threading.Event()
+    spawned = threading.Event()
+    resume = threading.Event()
+    run_ids: list[str] = []
+    events: list[dict] = []
+
+    def sink(ev: dict) -> None:
+        events.append(ev)
+        if ev.get("type") == "run_started":
+            run_ids.append(ev["runId"])
+            started.set()
+        if ev.get("type") == "process_spawn":
+            spawned.set()
+            assert resume.wait(timeout=15.0)
+
+    def work() -> None:
+        GraphRunner(
+            doc,
+            sink=sink,
+            host=RunHostContext(artifacts_base=tmp_path),
+            session_registry=reg,
+        ).run(context={"last_result": True})
+
+    th = threading.Thread(target=work)
+    th.start()
+    assert started.wait(timeout=5.0)
+    assert spawned.wait(timeout=5.0)
+    assert reg.request_cancel(run_ids[0])
+    t0 = time.monotonic()
+    resume.set()
+    th.join(timeout=15.0)
+    assert time.monotonic() - t0 < 10.0
+    assert not th.is_alive()
+    assert any(e.get("type") == "process_complete" and e.get("cancelled") is True for e in events)
+    assert events[-1].get("type") == "run_finished"
+    assert events[-1].get("status") == "cancelled"

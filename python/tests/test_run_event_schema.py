@@ -52,6 +52,18 @@ def test_process_like_events_validate() -> None:
             "stderrTail": "",
         },
         {
+            "type": "process_complete",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "exitCode": 1,
+            "timedOut": False,
+            "attempt": 0,
+            "success": False,
+            "cancelled": True,
+            "stdoutTail": "",
+            "stderrTail": "",
+        },
+        {
             "type": "process_retry",
             "nodeId": "t1",
             "graphId": "g1",
@@ -85,6 +97,14 @@ def test_process_like_events_validate() -> None:
             "rootGraphId": "g1",
             "status": "success",
             "finishedAt": "2026-03-27T12:00:01+00:00",
+        },
+        {
+            "type": "run_finished",
+            "runId": "550e8400-e29b-41d4-a716-446655440001",
+            "rootGraphId": "g1",
+            "status": "cancelled",
+            "finishedAt": "2026-03-27T12:00:02+00:00",
+            "reason": "cancel_requested",
         },
     ):
         validator.validate(ev)

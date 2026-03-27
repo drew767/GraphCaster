@@ -4,15 +4,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import threading
 from pathlib import Path
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
+from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
 from graph_caster.validate import GraphStructureError
 
 _SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear"})
+
+
+def _spawn_stdin_cancel_loop(registry: RunSessionRegistry) -> None:
+    def loop() -> None:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError as exc:
+                if os.environ.get("GC_CONTROL_STDIN_DEBUG", "").strip():
+                    print(f"graph-caster: control-stdin JSON skip: {exc}", file=sys.stderr, flush=True)
+                continue
+            if obj.get("type") != "cancel_run":
+                continue
+            rid = obj.get("runId") if "runId" in obj else obj.get("run_id")
+            if rid is not None and str(rid).strip():
+                registry.request_cancel(str(rid).strip())
+
+    threading.Thread(target=loop, daemon=True).start()
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -50,6 +74,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Workspace root under which runs/<graphId>/<timestamp>/ is created for this run",
     )
+    run.add_argument(
+        "--track-session",
+        action="store_true",
+        help="Register this root run in the process-wide session registry (for cancel / inspection APIs)",
+    )
+    run.add_argument(
+        "--control-stdin",
+        action="store_true",
+        help="Read NDJSON lines from stdin (same process) with {type:\"cancel_run\",runId:\"...\"} — requires --track-session (Dify-style command channel)",
+    )
+    run.add_argument(
+        "--run-id",
+        default=None,
+        help="Fixed root run UUID string (so cancel_run can target this run); default is generated",
+    )
 
     sz = sub.add_parser("artifacts-size", help="Print total artifact size in bytes under runs/")
     sz.add_argument("--base", type=Path, required=True, help="Workspace root (parent of runs/)")
@@ -82,9 +121,17 @@ def _cmd_run(args: argparse.Namespace) -> int:
     graphs_root = Path(args.graphs_dir) if args.graphs_dir is not None else None
     artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
     host = RunHostContext(graphs_root=graphs_root, artifacts_base=artifacts_base)
-    runner = GraphRunner(doc, sink=sink, host=host)
+    reg = get_default_run_registry() if args.track_session else None
+    if args.control_stdin:
+        if reg is None:
+            print("graph-caster run: --control-stdin requires --track-session", file=sys.stderr)
+            return 2
+        _spawn_stdin_cancel_loop(reg)
+    runner = GraphRunner(doc, sink=sink, host=host, session_registry=reg)
     try:
         ctx = {"last_result": True}
+        if args.run_id is not None and str(args.run_id).strip():
+            ctx["run_id"] = str(args.run_id).strip()
         if args.start:
             runner.run_from(args.start, context=ctx)
         else:

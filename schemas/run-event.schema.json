@@ -65,7 +65,11 @@
         "properties": {
           "runId": { "type": "string", "minLength": 1 },
           "rootGraphId": { "type": "string", "minLength": 1 },
-          "status": { "type": "string", "enum": ["success", "failed"] },
+          "status": {
+            "type": "string",
+            "enum": ["success", "failed", "cancelled"],
+            "description": "cancelled: cooperative stop between steps or before process spawn (host command)."
+          },
           "finishedAt": {
             "type": "string",
             "minLength": 1,
@@ -247,6 +251,10 @@
           "timedOut": { "type": "boolean" },
           "attempt": { "type": "integer", "minimum": 0 },
           "success": { "type": "boolean" },
+          "cancelled": {
+            "type": "boolean",
+            "description": "True when the host requested cancel and the runner killed the subprocess (n8n/Dify-style cooperative abort)."
+          },
           "stdoutTail": { "type": "string" },
           "stderrTail": { "type": "string" }
         }

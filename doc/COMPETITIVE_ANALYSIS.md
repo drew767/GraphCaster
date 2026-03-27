@@ -83,11 +83,11 @@
 | **Langflow** | `src/frontend` | `src/lfx` (CLI), `langflow.api.v2.workflow`, `langflow.agentic.services.flow_executor` | Объект `Graph` компонентов в backend-тестах и `lfx` |
 | **n8n** | `packages/frontend/editor-ui` | `packages/core/src/execution-engine/workflow-execute` (`WorkflowExecute`), `active-workflows.ts` | `packages/workflow`, `packages/@n8n/expression-runtime` |
 | **Vibe Workflow** | `packages/workflow-builder`, `client/` | `server/app/` — **`main.py`**, **`routers/workflow_router.py`**, **`workflow_helper.py`** → **`api.muapi.ai`** (`x-api-key`); **§3.8**, **§3.8.1**, **§25.3** | Состояние графа на клиенте; данные между нодами — в облаке MuAPI |
-| **GraphCaster** | `ui/src/graph/*`, `schemas/`; оболочка **`ui/src-tauri/`** — **§33** | `python/graph_caster/runner.py`, `process_exec.py` | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; **MCP** — **§34** (план) |
+| **GraphCaster** | `ui/src/graph/*`, `schemas/`; оболочка **`ui/src-tauri/`** — **§33** | `python/graph_caster/runner.py`, `process_exec.py`, `run_sessions.py` | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; реестр прогонов / отмена — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **MCP** — **§34** (план) |
 
 ### 3.2. Уровень B+: как «тикает» движок (Dify) и что инжектится в раннер (n8n)
 
-Эти два фрагмента полезны при проектировании **фазы 8** GC (мост UI ↔ раннер). **RunHostContext** и разделение документа / **run state** / хоста в Python — **сделано**, см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). Ниже — по-прежнему полезно для очередей Dify и расширений хоста, без копирования объёма кода конкурентов.
+Эти два фрагмента полезны при проектировании **фазы 8** GC (мост UI ↔ раннер). **RunHostContext**, разделение документа / **run state** / хоста, а также **реестр сессий и отмена** в Python — **сделано**, см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). Ниже — по-прежнему полезно для очередей Dify и расширений хоста, без копирования объёма кода конкурентов.
 
 **Dify — `GraphEngine` (`api/graphon/graph_engine/graph_engine.py`)**
 
@@ -96,7 +96,7 @@
 - **Обход:** `graph_traversal/` — **`EdgeProcessor`**, **`SkipPropagator`** (пропуск веток / условная логика на уровне графа).
 - **Управление снаружи:** **`CommandChannel`** (`in_memory_channel`, `redis_channel`) — пауза, abort, обновление переменных сущностями из `entities/commands.py`; поток событий через **`EventManager`** / `GraphEngineEvent` (`GraphRunStartedEvent`, `GraphRunFailedEvent`, …).
 - **Состояние:** `GraphRuntimeState`, **`VariablePool`** (данные между нодами, в т.ч. дочерние графы через `ChildGraphEngineBuilderProtocol`); слои **`GraphEngineLayer`** (например лимиты исполнения, отладочный лог в `workflow_entry`).
-- **Для GC:** разумная аналогия — отделить **очередь «готово к шагу»** и **поток команд/событий** от «тупого» обхода; для MVP GC достаточно однопоточного раннера, но канал «cancel / статус» стоит проектировать совместимо с расширением.
+- **Для GC:** очередь **ready queue** / пул воркеров как у Dify — вне текущего MVP (однопоточный обход). **Канал abort/cancel и адресация прогона по id в одном процессе** — **сделано** (реестр сессий, stdin-команды, kill подпроцесса); см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) — раздел **«Реестр корневых прогонов и отмена»**. Расширение: **pause**, **redis**-канал, переменные сущностей — по фазам.
 
 **n8n — контекст хоста `IWorkflowExecuteAdditionalData` (`packages/workflow/src/interfaces.ts`, ~2997)**
 
@@ -107,7 +107,7 @@
 - **Окружение:** `variables`, **`restApiUrl`**, **`instanceBaseUrl`**, режим корня **`rootExecutionMode`**, таймаут **`executionTimeoutTimestamp`**.
 - **AI / задачи:** `logAiEvent`, **`startRunnerTask`** (вынесенная работа), статус раннера `getRunnerStatus`.
 - **Расширения в `packages/core`:** через module augmentation добавляются hooks, SSRF bridge, external secrets, data tables и др. (`execution-engine/index.ts`).
-- **Для GC:** тройка (1) документ JSON, (2) **run state**, (3) **host** — **реализована** в `GraphRunner` + `RunHostContext` ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)). Дальше по карте конкурентов: credentials, мост к UI и прочие поля хоста — по мере фаз.
+- **Для GC:** тройка (1) документ JSON, (2) **run state**, (3) **host** — **реализована** в `GraphRunner` + `RunHostContext` ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)). Доступ хоста к **активному прогону по id** и **запрос отмены** (аналог опоры на **`executionId`** / **`IRunExecutionData`**) — в том же файле, раздел про **`RunSessionRegistry`**. Дальше по карте конкурентов: credentials, мост к UI и прочие поля хоста — по мере фаз.
 
 ### 3.2.1. n8n: Push в editor-ui (WebSocket или SSE), жизненный цикл исполнения и scaling
 
@@ -137,7 +137,7 @@
 
 **Scaling:** если инстанс — **worker** или **multi-main** без локальной сессии для данного **`pushRef`**, **`Push.send`** ретранслирует событие через **pub/sub** (**`relay-execution-lifecycle-event`**); main, у которого открыта сессия, отправляет кадр в браузер. Для **`nodeExecuteAfterData`** сверх **~5 MiB** сообщение может **не ретранслироваться** (логируется warning); UI опирается на метаданные из **`nodeExecuteAfter`** и догружает execution.
 
-**Для GC:** не копировать объём **`ExecutionPushMessage`** и политику redaction; в n8n «живой» прогон — **отдельный канал** с **`pushRef`**, не тот же REST. **Строка NDJSON с одним `runId` на корневой прогон** + границы **`run_started` / `run_finished`** — **сделано** в Python ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **§3.7**). **Ещё не сделано:** WebSocket/SSE и сессионный ref как у n8n (**§39**). Relay при вынесенном воркере — аналог по идее **§39.2** п.7 (ср. Flowise **§3.3.1**).
+**Для GC:** не копировать объём **`ExecutionPushMessage`** и политику redaction; в n8n «живой» прогон — **отдельный канал** с **`pushRef`**, не тот же REST. **Строка NDJSON с одним `runId` на корневой прогон** + границы **`run_started` / `run_finished`** + статус **`cancelled`** — **сделано** в Python ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **§3.7**). **Отдельно от WebSocket:** in-process **отмена** и **stdin**-команды — см. раздел **«Реестр корневых прогонов и отмена»** в том же файле. **Ещё не сделано:** WebSocket/SSE и сессионный **`pushRef`** как у n8n (**§39**). Relay при вынесенном воркере — аналог по идее **§39.2** п.7 (ср. Flowise **§3.3.1**).
 
 ### 3.2.2. n8n: redaction и fail-closed перед полным **`ITaskData`** в Push
 

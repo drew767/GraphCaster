@@ -11,6 +11,7 @@ from typing import Any
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.run_sessions import RunSession, RunSessionRegistry
 
 RunEvent = dict[str, Any]
 EventSink = Callable[[RunEvent], None]
@@ -75,6 +76,8 @@ def _prepare_context(ctx: dict[str, Any] | None) -> dict[str, Any]:
     c: dict[str, Any] = {} if ctx is None else ctx
     c.pop("graphs_root", None)
     c.pop("artifacts_base", None)
+    c.pop("_gc_process_cancelled", None)
+    c.pop("_run_cancelled", None)
     c.setdefault("nesting_depth", 0)
     c.setdefault("node_outputs", {})
     c.setdefault("max_nesting_depth", 16)
@@ -91,6 +94,7 @@ class GraphRunner:
         host: RunHostContext | None = None,
         graphs_root: Path | None = None,
         run_id: str | None = None,
+        session_registry: RunSessionRegistry | None = None,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -100,6 +104,7 @@ class GraphRunner:
         self._sink = sink or (lambda _e: None)
         self._host = host
         self._run_id = run_id
+        self._session_registry = session_registry
 
     def emit(self, event_type: str, **payload: Any) -> None:
         ev: RunEvent = {"type": event_type, **payload}
@@ -143,6 +148,10 @@ class GraphRunner:
             }
             if self._doc.title:
                 started_payload["graphTitle"] = self._doc.title
+            if self._session_registry is not None:
+                sess = RunSession(run_id=self._run_id, root_graph_id=self._doc.graph_id)
+                self._session_registry.register(sess)
+                ctx["_gc_run_session"] = sess
             self.emit("run_started", **started_payload)
         try:
             if nd0 == 0 and not ctx.get("root_run_artifact_dir"):
@@ -161,6 +170,12 @@ class GraphRunner:
 
             while current_id is not None and visited_guard < max_steps:
                 visited_guard += 1
+                sess_coop = ctx.get("_gc_run_session")
+                if sess_coop is not None and sess_coop.cancel_event.is_set():
+                    if nd0 == 0:
+                        self.emit("run_end", reason="cancel_requested")
+                    ctx["_run_cancelled"] = True
+                    break
                 node = node_by_id.get(current_id)
                 if node is None:
                     self.emit("error", nodeId=current_id, message="unknown_node")
@@ -182,14 +197,22 @@ class GraphRunner:
                 elif node.type == "task" and _task_has_process_command(node):
                     from graph_caster.process_exec import run_task_process
 
+                    sess = ctx.get("_gc_run_session")
+
+                    def _should_cancel() -> bool:
+                        return sess is not None and sess.cancel_event.is_set()
+
                     ok = run_task_process(
                         node_id=node.id,
                         graph_id=self._doc.graph_id,
                         data=dict(node.data),
                         ctx=ctx,
                         emit=self.emit,
+                        should_cancel=_should_cancel if sess is not None else None,
                     )
                     if not ok:
+                        if ctx.get("_gc_process_cancelled"):
+                            ctx["_run_cancelled"] = True
                         self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
                         break
 
@@ -217,13 +240,20 @@ class GraphRunner:
                 self.emit("error", message="run_aborted_cycle_guard")
         finally:
             if nd0 == 0 and self._run_id:
-                st = "success" if ctx.get("_run_success") else "failed"
+                if ctx.get("_run_cancelled"):
+                    st = "cancelled"
+                elif ctx.get("_run_success"):
+                    st = "success"
+                else:
+                    st = "failed"
                 self.emit(
                     "run_finished",
                     rootGraphId=self._doc.graph_id,
                     status=st,
                     finishedAt=datetime.now(UTC).isoformat(),
                 )
+                if self._session_registry is not None:
+                    self._session_registry.complete(self._run_id, st)
 
     def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure
@@ -288,7 +318,13 @@ class GraphRunner:
         child_ctx = dict(ctx)
         child_ctx["nesting_depth"] = depth_next
 
-        child = GraphRunner(nested, self._sink, host=self._host, run_id=self._run_id)
+        child = GraphRunner(
+            nested,
+            self._sink,
+            host=self._host,
+            run_id=self._run_id,
+            session_registry=self._session_registry,
+        )
         child.run(context=child_ctx)
 
         self.emit(
@@ -298,6 +334,8 @@ class GraphRunner:
             depth=depth_next,
         )
         nested_ok = bool(child_ctx.get("_run_success", False))
+        if child_ctx.get("_run_cancelled"):
+            ctx["_run_cancelled"] = True
         ctx["last_result"] = nested_ok
         if not nested_ok:
             self.emit(

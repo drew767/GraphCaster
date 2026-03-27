@@ -13,6 +13,12 @@ from graph_caster.artifacts import (
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
+from graph_caster.run_sessions import (
+    RunSession,
+    RunSessionRegistry,
+    get_default_run_registry,
+    reset_default_run_registry,
+)
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 from graph_caster.workspace import (
     WorkspaceIndexError,
@@ -25,6 +31,10 @@ __all__ = [
     "GraphDocument",
     "GraphRunner",
     "RunHostContext",
+    "RunSession",
+    "RunSessionRegistry",
+    "get_default_run_registry",
+    "reset_default_run_registry",
     "GraphStructureError",
     "WorkspaceIndexError",
     "artifacts_runs_total_bytes",
