@@ -89,9 +89,8 @@
 
 ### P2 — CI монорепозитория для GraphCaster
 
-- **Симптом:** в `.github/workflows` нет явного прогона `third_party/graph-caster` (регресс возможен «тихо»).
-- **Цель:** job (или шаг в существующем workflow): `pip install -e ".[dev]"` в `third_party/graph-caster/python` → `pytest -q`; в `third_party/graph-caster/ui` → `npm ci` → `npm test` → `npm run build`.
-- **Гейт:** красная сборка при падении любого из шагов; в корневом `docs/AUTOTESTS_CATALOG.md` при появлении workflow — одна строка-указатель (по правилам репозитория).
+- **Сделано:** в корне монорепо **Aura** — **`.github/workflows/graph-caster-ci.yml`**: на **push**/**pull_request** в **`main`** при изменениях под **`third_party/graph-caster/**`** (и при правке самого workflow) — **Ubuntu**, Python **3.11**, **`pip install -e ".[dev]"`** + **`pytest -q`** в **`third_party/graph-caster/python`**; **Node 20.19**, **`npm ci`**, **`npm test`**, **`npm run build`** в **`third_party/graph-caster/ui`** (локально — **`engines`** в **`ui/package.json`**, **`>=20.19`**). Отдельно **`graph-caster-desktop.yml`** остаётся для сборки Windows-инсталляторов (**`workflow_dispatch`**). Указатель в **`docs/AUTOTESTS_CATALOG.md`** §**4.3**.
+- **Гейт:** красная сборка при падении любого из шагов job **test**.
 
 ### P3 — Расхождение `schemaVersion` в файле (редкий hand-edit)
 

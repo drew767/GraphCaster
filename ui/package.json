@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

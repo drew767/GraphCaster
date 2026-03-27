@@ -192,6 +192,21 @@
 
 ---
 
+## CI в монорепозитории Aura (PR-гейт для субмодуля)
+
+Рабочий код GraphCaster живёт в **`third_party/graph-caster/`** внутри корня **Aura**; автоматический прогон тестов и сборки UI настроен **в родительском репо**, не в изолированном клоне только graph-caster.
+
+| Идея (как у конкурентов) | Реализация |
+|--------------------------|------------|
+| Регрессия контракта и UI при merge в основную ветку | **`.github/workflows/graph-caster-ci.yml`** в корне **Aura**: **push**/**pull_request** на **`main`**, если diff затрагивает **`third_party/graph-caster/**`** или сам workflow |
+| Python | **Ubuntu**, **Python 3.11**, **`pip install -e ".[dev]"`**, **`pytest -q`** (cwd **`third_party/graph-caster/python`**) |
+| UI | **Node 20.19**, **`npm ci`**, **`npm test`**, **`npm run build`** (cwd **`third_party/graph-caster/ui`**) — см. **`engines`** в **`ui/package.json`** |
+| Каталог тестов / как запускать локально | **`docs/AUTOTESTS_CATALOG.md`** §**4.3** в монорепо **Aura** |
+
+Детали политики путей и десктопного workflow — **`doc/DEVELOPMENT_PLAN.md`** (блок **P2 — CI**).
+
+---
+
 ## Связанные артефакты run (уже было до жизненного цикла, уточнение слоя)
 
 - Каталог run под корневым графом, событие **`run_root_ready`**, проброс **`root_run_artifact_dir`** во вложенные вызовы — `artifacts.py`, `runner.py` (см. также `DEVELOPMENT_PLAN.md` фаза 2).
