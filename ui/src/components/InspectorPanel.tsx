@@ -8,12 +8,16 @@ import type { GraphDocumentJson, GraphDocumentSettingsPatch } from "../graph/typ
 import { graphIdFromDocument } from "../graph/parseDocument";
 import { GRAPH_NODE_TYPE_MERGE, GRAPH_NODE_TYPE_TASK } from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
-import { addStepCacheDirtyId } from "../run/stepCacheDirtyStore";
+import {
+  getStepCacheDirtySnapshot,
+  markStepCacheDirtyTransitive,
+} from "../run/stepCacheDirtyStore";
 import { mergeModeFromNodeData } from "../graph/structureWarnings";
 
 type Props = {
   selection: GraphCanvasSelection | null;
   graphDocument: GraphDocumentJson;
+  getDocumentForStepCacheDirty?: () => GraphDocumentJson;
   onApplyGraphDocumentSettings: (patch: GraphDocumentSettingsPatch) => void;
   onApplyNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   onApplyEdgeCondition: (edgeId: string, condition: string | null) => void;
@@ -79,6 +83,7 @@ function inputsOutputsFromDoc(doc: GraphDocumentJson): { inputsText: string; out
 export function InspectorPanel({
   selection,
   graphDocument,
+  getDocumentForStepCacheDirty,
   onApplyGraphDocumentSettings,
   onApplyNodeData,
   onApplyEdgeCondition,
@@ -384,8 +389,14 @@ export function InspectorPanel({
                   className="gc-btn gc-inspector-apply"
                   disabled={runLocked}
                   onClick={() => {
-                    addStepCacheDirtyId(selection.id);
-                    runSessionAppendLine(`[host] step-cache dirty queued: ${selection.id}`);
+                    const doc = getDocumentForStepCacheDirty?.() ?? graphDocument;
+                    const before = new Set(getStepCacheDirtySnapshot().ids);
+                    markStepCacheDirtyTransitive(doc, [selection.id]);
+                    const snap = getStepCacheDirtySnapshot();
+                    const added = snap.ids.filter((id) => !before.has(id));
+                    runSessionAppendLine(
+                      `[host] step-cache dirty +${added.length} [${added.join(",")}] → queue ${snap.ids.length}: ${snap.ids.join(",")}`,
+                    );
                   }}
                 >
                   {t("app.inspector.stepCacheMarkDirty")}

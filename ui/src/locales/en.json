@@ -114,7 +114,7 @@
       "stepCacheHeading": "Step cache (F17)",
       "stepCacheEnabled": "Eligible for cross-run disk cache (requires Run bar + workspace root)",
       "stepCacheMarkDirty": "Mark dirty for next run",
-      "stepCacheHint": "Like n8n dirty nodes: the next successful desktop run start sends this id in --step-cache-dirty so the runner skips reading the on-disk entry for that task. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate."
+      "stepCacheHint": "Like n8n dirtyNodeNames: the next successful desktop run start sends every affected task id in --step-cache-dirty (transitive downstream along success edges, not out_error). Editing node data does the same. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate."
     },
     "editor": {
       "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}."

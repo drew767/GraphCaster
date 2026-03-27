@@ -45,6 +45,7 @@ import {
 } from "../graph/clipboard";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
+import { nodeTypeTriggersStepCacheDirtyOnDataEdit } from "../graph/stepCacheDirtyGraph";
 import {
   findStructureIssues,
   structureIssuesBlockRun,
@@ -76,6 +77,7 @@ import {
 import {
   clearStepCacheDirtyIds,
   getStepCacheDirtySnapshot,
+  markStepCacheDirtyTransitive,
   useStepCacheDirtyCount,
 } from "../run/stepCacheDirtyStore";
 import { isTauriRuntime } from "../run/tauriEnv";
@@ -683,6 +685,14 @@ export function AppShell({ onLangChange }: Props) {
     };
   }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex, isRunActive]);
 
+  const getDocumentForStepCacheDirty = useCallback((): GraphDocumentJson => {
+    const api = canvasRef.current;
+    if (api) {
+      return api.exportDocument();
+    }
+    return graphDocument;
+  }, [graphDocument]);
+
   const onApplyNodeData = useCallback((nodeId: string, data: Record<string, unknown>) => {
     const api = canvasRef.current;
     if (!api) {
@@ -692,7 +702,12 @@ export function AppShell({ onLangChange }: Props) {
     const doc = api.exportDocument();
     const prevNodes = doc.nodes ?? [];
     const nodes = prevNodes.map((n) => (n.id === nodeId ? { ...n, data: { ...data } } : n));
-    setGraphDocument({ ...doc, nodes });
+    const nextDoc = { ...doc, nodes };
+    setGraphDocument(nextDoc);
+    const prevType = prevNodes.find((n) => n.id === nodeId)?.type;
+    if (nodeTypeTriggersStepCacheDirtyOnDataEdit(prevType)) {
+      markStepCacheDirtyTransitive(nextDoc, [nodeId]);
+    }
     setSelection((prev) => {
       if (!prev || prev.kind !== "node" || prev.id !== nodeId) {
         return prev;
@@ -714,7 +729,12 @@ export function AppShell({ onLangChange }: Props) {
     const doc = api.exportDocument();
     const prevEdges = doc.edges ?? [];
     const edges = prevEdges.map((e) => (e.id === edgeId ? { ...e, condition } : e));
-    setGraphDocument({ ...doc, edges });
+    const nextDoc = { ...doc, edges };
+    setGraphDocument(nextDoc);
+    const src = prevEdges.find((e) => e.id === edgeId)?.source;
+    if (src != null && src !== "") {
+      markStepCacheDirtyTransitive(nextDoc, [src]);
+    }
     setSelection((prev) => {
       if (!prev || prev.kind !== "edge" || prev.id !== edgeId) {
         return prev;
@@ -730,10 +750,15 @@ export function AppShell({ onLangChange }: Props) {
     }
     commitHistorySnapshot();
     const doc = api.exportDocument();
-    setGraphDocument({
+    const nextDoc = {
       ...doc,
       edges: [...(doc.edges ?? []), edge],
-    });
+    };
+    setGraphDocument(nextDoc);
+    const src = edge.source;
+    if (src != null && src !== "") {
+      markStepCacheDirtyTransitive(nextDoc, [src]);
+    }
   }, [commitHistorySnapshot]);
 
   const onExportRemovedDanglingEdges = useCallback((removedEdgeIds: string[]) => {
@@ -1232,6 +1257,7 @@ export function AppShell({ onLangChange }: Props) {
         <InspectorPanel
           selection={selection}
           graphDocument={graphDocument}
+          getDocumentForStepCacheDirty={getDocumentForStepCacheDirty}
           onApplyGraphDocumentSettings={onApplyGraphDocumentSettings}
           onApplyNodeData={onApplyNodeData}
           onApplyEdgeCondition={onApplyEdgeCondition}

@@ -2,6 +2,9 @@
 
 import { useSyncExternalStore } from "react";
 
+import type { GraphDocumentJson } from "../graph/types";
+import { transitiveStepCacheDirtyNodeIds } from "../graph/stepCacheDirtyGraph";
+
 type StepCacheDirtySnapshot = {
   ids: string[];
 };
@@ -37,6 +40,32 @@ export function addStepCacheDirtyId(nodeId: string): void {
   }
   snap = { ids: [...snap.ids, id] };
   emitDirty();
+}
+
+export function addStepCacheDirtyIds(nodeIds: readonly string[]): void {
+  const appended: string[] = [];
+  const seen = new Set(snap.ids);
+  for (const raw of nodeIds) {
+    const id = raw.trim();
+    if (id === "" || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    appended.push(id);
+  }
+  if (appended.length === 0) {
+    return;
+  }
+  snap = { ids: [...snap.ids, ...appended] };
+  emitDirty();
+}
+
+export function markStepCacheDirtyTransitive(
+  doc: GraphDocumentJson,
+  seedIds: readonly string[],
+): void {
+  const ids = transitiveStepCacheDirtyNodeIds(doc, seedIds);
+  addStepCacheDirtyIds(ids);
 }
 
 export function clearStepCacheDirtyIds(): void {
