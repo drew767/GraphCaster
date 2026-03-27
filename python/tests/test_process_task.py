@@ -82,12 +82,19 @@ def test_task_process_spawns_and_failure_stops_run(tmp_path: Path) -> None:
         )
     )
     events: list[dict] = []
-    GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
+    ctx: dict = {"last_result": True}
+    GraphRunner(doc, sink=lambda e: events.append(e)).run(context=ctx)
     assert any(e["type"] == "process_failed" for e in events)
     assert not any(e["type"] == "run_success" for e in events)
     assert events[-1]["type"] == "run_finished"
     assert events[-1].get("status") == "failed"
     assert events[-1].get("finishedAt")
+    pr = ctx.get("node_outputs", {}).get("t1", {}).get("processResult")
+    assert pr is not None
+    assert pr.get("exitCode") == 7
+    assert pr.get("success") is False
+    assert pr.get("timedOut") is False
+    assert pr.get("cancelled") is False
 
 
 def test_task_process_stdout_mode(tmp_path: Path) -> None:

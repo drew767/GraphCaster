@@ -79,6 +79,7 @@
         "source_handle": { "type": "string" },
         "target_handle": { "type": "string" },
         "condition": {
+          "description": "Empty/null: unconditional edge (first such edge wins). Max length after trim: 65536 chars (longer evaluates false). Legacy tokens: true/false/1/0/yes/no. Other non-JSON strings: truthiness of run context last_result. JSON object {\"op\":...}: JSON Logic subset; only top-level context keys prefixed with _ are hidden from var (nested keys under node_outputs are not). See python/README.md.",
           "oneOf": [{ "type": "null" }, { "type": "string" }]
         }
       }

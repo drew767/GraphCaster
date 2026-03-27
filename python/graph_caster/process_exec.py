@@ -173,6 +173,30 @@ def _communicate_with_cancel(
         th.join(timeout=poll_sec)
 
 
+def _record_task_process_result(
+    ctx: dict[str, Any],
+    node_id: str,
+    *,
+    exit_code: int,
+    success: bool,
+    timed_out: bool,
+    stdout: str,
+    stderr: str,
+    cancelled: bool = False,
+) -> None:
+    out_map = ctx.setdefault("node_outputs", {})
+    entry = out_map.setdefault(node_id, {})
+    if isinstance(entry, dict):
+        entry["processResult"] = {
+            "exitCode": exit_code,
+            "success": success,
+            "timedOut": timed_out,
+            "cancelled": cancelled,
+            "stdoutChars": len(stdout),
+            "stderrChars": len(stderr),
+        }
+
+
 def run_task_process(
     *,
     node_id: str,
@@ -237,6 +261,16 @@ def run_task_process(
                 attempt=attempt,
             )
             ctx["last_result"] = False
+            _record_task_process_result(
+                ctx,
+                node_id,
+                exit_code=-1,
+                success=False,
+                timed_out=False,
+                stdout="",
+                stderr="",
+                cancelled=False,
+            )
             return False
 
         cancelled = False
@@ -271,6 +305,16 @@ def run_task_process(
                 stdoutTail=stdout[-2000:] if stdout else "",
                 stderrTail=stderr[-2000:] if stderr else "",
             )
+            _record_task_process_result(
+                ctx,
+                node_id,
+                exit_code=rc,
+                success=False,
+                timed_out=False,
+                stdout=stdout,
+                stderr=stderr,
+                cancelled=True,
+            )
             ctx["last_result"] = False
             ctx["_gc_process_cancelled"] = True
             return False
@@ -283,8 +327,19 @@ def run_task_process(
                 exitCode=rc,
                 timedOut=True,
                 attempt=attempt,
+                success=False,
                 stdoutTail=stdout[-2000:] if stdout else "",
                 stderrTail=stderr[-2000:] if stderr else "",
+            )
+            _record_task_process_result(
+                ctx,
+                node_id,
+                exit_code=rc,
+                success=False,
+                timed_out=True,
+                stdout=stdout,
+                stderr=stderr,
+                cancelled=False,
             )
             if attempt < retries:
                 emit(
@@ -321,17 +376,19 @@ def run_task_process(
             stdoutTail=stdout[-2000:] if stdout else "",
             stderrTail=stderr[-2000:] if stderr else "",
         )
+        _record_task_process_result(
+            ctx,
+            node_id,
+            exit_code=rc,
+            success=ok,
+            timed_out=False,
+            stdout=stdout,
+            stderr=stderr,
+            cancelled=False,
+        )
 
         if ok:
             ctx["last_result"] = True
-            out_map = ctx.setdefault("node_outputs", {})
-            entry = out_map.setdefault(node_id, {})
-            if isinstance(entry, dict):
-                entry["processResult"] = {
-                    "exitCode": rc,
-                    "stdoutChars": len(stdout),
-                    "stderrChars": len(stderr),
-                }
             return True
 
         if attempt < retries:

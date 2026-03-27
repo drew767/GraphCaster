@@ -16,6 +16,23 @@
 
 ---
 
+## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Несколько исходов из ноды, предсказуемый выбор ветки | **Инвариант «первое подходящее»:** порядок массива **`edges`** в документе; **`_pick_next_edge`** берёт первое ребро с пустым **`condition`** или первое, для которого **`eval_edge_condition`** истинно; иначе **`run_end`** с **`reason`** **`no_outgoing_or_no_matching_condition`** (`runner.py`) |
+| Выражения к данным шага без небезопасного eval | Подмножество **JSON Logic** в строке **`edge.condition`** (JSON-объект с одной корневой операцией); иначе legacy-литеры **`true`**/**`false`**/…; иначе не-JSON-строка → **`bool(context["last_result"])`**. Реализация: **`graph_caster/edge_conditions.py`** (`MAX_EDGE_CONDITION_CHARS`, truthiness GC — см. `python/README.md`) |
+| Контекст предиката | **`last_result`**, **`node_outputs`**, пути **`var`** через **`.`** (напр. **`node_outputs.t1.processResult.exitCode`**). Скрыты только **корневые** ключи **`context`** с префиксом **`_`**; вложенные поля под **`node_outputs`** не маскируются |
+| Связь с **task** | **`node_outputs[id].processResult`**: `exitCode`, `success`, `timedOut`, `cancelled`, объёмы stdout/stderr — после каждого **`process_complete`** и при **`spawn_error`** (`exitCode` **`-1`**, `python/graph_caster/process_exec.py`) |
+| Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc) |
+| Событие выбранной ветки | **`edge_traverse`** в потоке NDJSON; отдельных **`branch_taken`**/**`branch_skipped`** пока нет (**§32.2** в competitive — открытый пункт) |
+
+**Вне текущей реализации F4 у GC (остаётся в `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), явные **fail-/on_error-ветки** (**§16**, **F19**), **fork/join** как у **n8n merge**, ИИ-ветвление без отдельной ноды (**фаза 6**).
+
+Документация: `python/README.md` (раздел «Условия на рёбрах»), `schemas/graph-document.schema.json` (`edges[].condition`). Углублённое сравнение с конкурентами — **§32** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md).
+
+---
+
 ## Отмена / повтор в редакторе — **F20**, конспект **§21** (`COMPETITIVE_ANALYSIS.md`)
 
 В **§21** для GC заложены три класса подходов: **(1)** стек команд `apply`/`revert`, **(2)** снимки состояния, **(3)** CRDT **`YjsUndoManager`** (только при **F22**). Реализован вариант **(2)** — как осознанный MVP (паритет экспорта с Python без inverse на каждую операцию).

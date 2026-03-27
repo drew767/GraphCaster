@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
@@ -27,17 +28,9 @@ def _pick_next_edge(edges: list[Edge], context: dict[str, Any]) -> Edge | None:
     for e in edges:
         if e.condition is None or e.condition.strip() == "":
             return e
-        if _eval_edge_condition(e.condition, context):
+        if eval_edge_condition(e.condition, context):
             return e
     return None
-
-
-def _eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
-    if condition.strip().lower() in {"true", "1", "yes"}:
-        return True
-    if condition.strip().lower() in {"false", "0", "no"}:
-        return False
-    return bool(context.get("last_result"))
 
 
 def _task_has_process_command(node: Node) -> bool:
