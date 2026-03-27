@@ -41,6 +41,18 @@ export function useRunBridge(): void {
             store.runSessionSetActiveNodeId(nid);
           }
         }
+        if (t === "node_outputs_snapshot") {
+          const nid = o.nodeId;
+          const sn = o.snapshot;
+          if (
+            typeof nid === "string" &&
+            sn != null &&
+            typeof sn === "object" &&
+            !Array.isArray(sn)
+          ) {
+            store.runSessionSetNodeOutputSnapshot(nid, sn as Record<string, unknown>);
+          }
+        }
         if (t === "run_finished" || t === "run_end") {
           store.runSessionSetActiveNodeId(null);
         }

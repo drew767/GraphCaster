@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import type { GraphCanvasSelection } from "./GraphCanvas";
 import type { GraphDocumentJson, GraphDocumentSettingsPatch } from "../graph/types";
 import { graphIdFromDocument } from "../graph/parseDocument";
-import { GRAPH_NODE_TYPE_MERGE } from "../graph/nodeKinds";
+import { GRAPH_NODE_TYPE_MERGE, GRAPH_NODE_TYPE_TASK } from "../graph/nodeKinds";
+import { useRunSession } from "../run/runSessionStore";
 import { mergeModeFromNodeData } from "../graph/structureWarnings";
 
 type Props = {
@@ -25,6 +26,24 @@ type Props = {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+const GCPIN_PAYLOAD_WARN_BYTES = 262144;
+
+function payloadForGcPin(snapshot: Record<string, unknown>): Record<string, unknown> {
+  const pr = snapshot.processResult;
+  if (isPlainObject(pr)) {
+    return { processResult: { ...pr } };
+  }
+  return { ...snapshot };
+}
+
+function estimateJsonUtf8Bytes(value: unknown): number {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).length;
+  } catch {
+    return 0;
+  }
 }
 
 function scalarGraphRefId(v: unknown): string {
@@ -70,6 +89,7 @@ export function InspectorPanel({
   runUntilThisNodeEnabled = false,
 }: Props) {
   const { t } = useTranslation();
+  const runSession = useRunSession();
   const [dataText, setDataText] = useState("{}");
   const [conditionText, setConditionText] = useState("");
 
@@ -252,6 +272,86 @@ export function InspectorPanel({
                 <option value="barrier">{t("app.inspector.mergeModeBarrier")}</option>
               </select>
               <p className="gc-inspector-edge-hint">{t("app.inspector.mergeModeHint")}</p>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_TASK ? (
+            <div className="gc-inspector-pin">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <span className="gc-inspector-k">{t("app.inspector.pinHeading")}</span>
+                <label className="gc-inspector-pin-toggle">
+                  <input
+                    type="checkbox"
+                    disabled={runLocked}
+                    checked={
+                      isPlainObject(selection.raw.gcPin) &&
+                      selection.raw.gcPin.enabled === true
+                    }
+                    onChange={(ev) => {
+                      const base = isPlainObject(selection.raw) ? selection.raw : {};
+                      const prev = isPlainObject(base.gcPin) ? base.gcPin : {};
+                      onApplyNodeData(selection.id, {
+                        ...base,
+                        gcPin: { ...prev, enabled: ev.target.checked },
+                      });
+                    }}
+                  />
+                  <span>{t("app.inspector.pinEnabled")}</span>
+                </label>
+              </div>
+              <div className="gc-inspector-pin-actions">
+                <button
+                  type="button"
+                  className="gc-btn gc-inspector-apply"
+                  disabled={
+                    runLocked ||
+                    runSession.nodeOutputSnapshots[selection.id] === undefined
+                  }
+                  onClick={() => {
+                    const snap = runSession.nodeOutputSnapshots[selection.id];
+                    if (snap === undefined) {
+                      return;
+                    }
+                    const base = isPlainObject(selection.raw) ? selection.raw : {};
+                    const payload = payloadForGcPin(snap);
+                    onApplyNodeData(selection.id, {
+                      ...base,
+                      gcPin: { enabled: true, payload },
+                    });
+                  }}
+                >
+                  {t("app.inspector.pinFromLastRun")}
+                </button>
+                <button
+                  type="button"
+                  className="gc-btn gc-inspector-apply"
+                  disabled={runLocked || !isPlainObject(selection.raw.gcPin)}
+                  onClick={() => {
+                    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+                    delete base.gcPin;
+                    onApplyNodeData(selection.id, base);
+                  }}
+                >
+                  {t("app.inspector.pinClear")}
+                </button>
+              </div>
+              {(() => {
+                const pin = selection.raw.gcPin;
+                if (!isPlainObject(pin)) {
+                  return null;
+                }
+                const pl = pin.payload;
+                if (pl === undefined) {
+                  return null;
+                }
+                const n = estimateJsonUtf8Bytes(pl);
+                if (n <= GCPIN_PAYLOAD_WARN_BYTES) {
+                  return null;
+                }
+                return (
+                  <p className="gc-inspector-edge-hint">{t("app.inspector.pinPayloadLarge", { kb: Math.ceil(n / 1024) })}</p>
+                );
+              })()}
+              <p className="gc-inspector-edge-hint">{t("app.inspector.pinHint")}</p>
             </div>
           ) : null}
           {selection.graphNodeType === "comment" ? (

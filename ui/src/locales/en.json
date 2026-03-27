@@ -16,6 +16,7 @@
       "redoHint": "Redo (Ctrl+Shift+Z or Ctrl+Y)"
     },
     "canvas": {
+      "pinBadge": "Pinned output (gcPin): runner may skip process and use saved processResult.",
       "errorOutHandle": "On error — run follows this path after task or graph_ref failure (retries exhausted).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
@@ -102,7 +103,13 @@
       "graphOutputsHint": "Optional declared outputs. Leave empty to omit.",
       "applyGraph": "Apply graph settings",
       "graphParamsInvalidJson": "Inputs and outputs must be JSON arrays or objects.",
-      "graphSchemaInvalid": "Schema version must be an integer."
+      "graphSchemaInvalid": "Schema version must be an integer.",
+      "pinHeading": "Pin",
+      "pinEnabled": "Use pinned output (skip process when payload has processResult)",
+      "pinFromLastRun": "Pin from last run",
+      "pinClear": "Clear pin",
+      "pinHint": "Like n8n pinData: gcPin.payload is merged into node outputs; if enabled and processResult is present, the runner short-circuits. Values in --context-json for this node id override the document pin.",
+      "pinPayloadLarge": "Pinned payload is large (~{{kb}} KiB serialized). Consider trimming stdout/stderr before committing."
     },
     "editor": {
       "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}."

@@ -212,9 +212,23 @@
 | **`until`** указывает на ноду типа **`exit`** | **`success`** (нормальное завершение графа), не **`partial`** — см. `test_stop_after_exit_node_is_success_not_partial` |
 | Остановка на **`comment`** (и др. «пустых» по исполнению) | Узел всё равно посещается; при совпадении **`id`** — **`partial`** |
 
-**Связь с F17:** отладочный partial и ручной pin — в таблице выше; межпрогонный кэш выходов **`task`** (headless) — подраздел ниже.
+**Связь с F17:** отладочный partial — в таблице выше; закрепление вывода в документе (**`gcPin`**) — подраздел ниже; межпрогонный кэш выходов **`task`** (headless) — ещё ниже.
 
 Код: `python/graph_caster/runner.py`, `__main__.py`; тесты: `python/tests/test_runner_partial.py`, `test_cli_main.py`; фикстура `schemas/test-fixtures/partial-run-linear.json`.
+
+### Закреплённый вывод в документе (**`gcPin`**, n8n **pinData**)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| n8n **pinData** / pinned output в JSON workflow | В **`task.data`**: **`gcPin.enabled`**, **`gcPin.payload`**; **`apply_gc_pins_to_document_context`** копирует **`payload`** в **`node_outputs[id]`** до шага, **только если** **`id`** ещё не задан в контексте (значение из **`--context-json` / внешнего контекста не перезаписывается**). На визите ноды прошлые ключи выхода (**`processResult`**, …) сливаются с оболочкой **`nodeType`/`data`** |
+| Пропуск исполнения при валидном pin | В документе **`enabled`** и **`payload.processResult`** — объект **и** после слияния в **`node_outputs[id]`** **`processResult`** — **непустой** объект; тогда **`node_pinned_skip`**, без **`run_task_process`** и без F17 для этой ноды; иначе обычный запуск. **`node_exit`** может нести **`usedPin: true`**. Пустой **`processResult`** **`{}`** или его отсутствие после мержа — без short-circuit |
+| Снимок для редактора | После реального прогона (или после cache hit F17): **`node_outputs_snapshot`** — усечённый срез **`node_outputs[id]`** (длинные stdout/stderr в **`processResult`**) |
+| Десктоп UI | Инспектор: вкладка управления pin, «из последнего запуска», снятие pin; маркер на ноде; NDJSON → **`runSessionStore.nodeOutputSnapshots`** |
+| Статика / UX | **`structure_warning`** **`gc_pin_enabled_empty_payload`**; в инспекторе предупреждение, если JSON **`payload`** > ~256 KiB |
+
+Код: `python/graph_caster/gc_pin.py`, `runner.py`; `schemas/graph-document.schema.json` (описание **`gcPin`**, версия заголовка **v1.5**), `schemas/run-event.schema.json`; `ui/src/components/InspectorPanel.tsx`, `nodes/GcFlowNode.tsx`, `run/runSessionStore.ts`, `run/useRunBridge.ts`; тесты **`test_runner_pins.py`**, фикстура **`schemas/test-fixtures/task-with-gcpin.json`**.
+
+Остаток до полного паритета F17 / n8n (**`dirtyNodeNames`**, кэш не-**`task`**, TTL и т.д.) — в [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) (раздел **22.2**).
 
 ### Межпрогонный кэш выходов **`task`** (F17 — ключ в духе Comfy + **dirty** в духе n8n)
 

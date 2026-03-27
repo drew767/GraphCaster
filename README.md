@@ -64,6 +64,7 @@ pytest -q
 - Черновик схемы: [`schemas/graph-document.schema.json`](schemas/graph-document.schema.json)
 - Пример: [`schemas/graph-document.example.json`](schemas/graph-document.example.json)
 - **Пины:** в данных редактора используйте согласованные handle, напр. `in_default` / `out_default`; альтернативные имена `source_handle` / `target_handle` поддерживаются загрузчиком Python для совместимости.
+- **Pin вывода task (`gcPin`):** в `task.data` опционально `gcPin` (n8n pinData-style) — см. `$defs.gcPin` в схеме графа и `python/README.md`.
 - **Несколько исходящих рёбер из одной ноды:** раннер выбирает **первое** ребро с пустым условием или с условием, оценённым как истина. Для **параллельного fan-out** в одном процессе используйте ноду **`fork`** (все безусловные исходы ставятся в очередь), затем **`merge`** с **`data.mode`** **`barrier`** для join (ожидание всех веток), см. `python/README.md` и `doc/IMPLEMENTED_FEATURES.md`.
 
 Актуальные продуктовые решения (Start/Exit, папка **`graphs/`** + **`runs/`**, уникальный `graphId`, артефакты корневого Run, Cursor CLI как цель MVP) — в [`doc/PRODUCT_DESIGNE.md`](doc/PRODUCT_DESIGNE.md).

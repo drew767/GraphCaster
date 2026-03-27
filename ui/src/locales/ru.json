@@ -16,6 +16,7 @@
       "redoHint": "Вернуть (Ctrl+Shift+Z или Ctrl+Y)"
     },
     "canvas": {
+      "pinBadge": "Закреплённый вывод (gcPin): раннер может не запускать процесс и взять сохранённый processResult.",
       "errorOutHandle": "При ошибке — после сбоя task или graph_ref (после ретраев) выполнение идёт по этой ветке.",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
@@ -102,7 +103,13 @@
       "graphOutputsHint": "Необязательные объявленные выходы. Пусто — не сохранять поле.",
       "applyGraph": "Применить настройки графа",
       "graphParamsInvalidJson": "Входы и выходы должны быть JSON-массивом или объектом.",
-      "graphSchemaInvalid": "Версия схемы должна быть целым числом."
+      "graphSchemaInvalid": "Версия схемы должна быть целым числом.",
+      "pinHeading": "Pin",
+      "pinEnabled": "Использовать закреплённый вывод (пропуск процесса, если в payload есть processResult)",
+      "pinFromLastRun": "Закрепить из последнего запуска",
+      "pinClear": "Снять pin",
+      "pinHint": "Как n8n pinData: gcPin.payload мержится в выход ноды; при enabled и наличии processResult раннер делает short-circuit. Значения в --context-json для этого id ноды перекрывают pin в документе.",
+      "pinPayloadLarge": "Закреплённый payload большой (~{{kb}} KiB в JSON). Имеет смысл укоротить stdout/stderr перед сохранением."
     },
     "editor": {
       "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}."

@@ -584,9 +584,22 @@ body {
   gap: 0.2rem;
 }
 
+.gc-flow-node__pillrow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+}
+
+.gc-flow-node__pin {
+  font-size: 0.55rem;
+  color: #ffcc00;
+  line-height: 1;
+  text-shadow: 0 0 0.12rem color-mix(in srgb, #ffcc00 55%, transparent);
+}
+
 .gc-flow-node__pill {
   display: inline-block;
-  align-self: flex-start;
   font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -604,6 +617,28 @@ body {
 .gc-flow-node .gc-flow-node__handle--error {
   background: #ff3b30;
   border-color: color-mix(in srgb, #ff3b30 75%, var(--gc-border));
+}
+
+.gc-inspector-pin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--gc-border) 88%, transparent);
+}
+
+.gc-inspector-pin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.gc-inspector-pin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 .gc-inspector-detail {

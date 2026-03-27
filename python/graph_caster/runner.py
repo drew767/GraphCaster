@@ -23,6 +23,14 @@ from graph_caster.node_output_cache import (
 from graph_caster.run_event_sink import RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
 from graph_caster.step_queue import ExecutionFrame, StepQueue
+from graph_caster.gc_pin import (
+    apply_gc_pins_to_document_context,
+    find_gc_pin_empty_payload_warnings,
+    gc_pin_valid_for_short_circuit,
+    last_result_from_process_result,
+    merged_process_result_for_pin_short_circuit,
+    snapshot_for_pin_event,
+)
 from graph_caster.validate import (
     find_barrier_merge_out_error_incoming,
     find_fork_few_outputs_warnings,
@@ -367,6 +375,7 @@ class GraphRunner:
 
     def run_from(self, start_node_id: str, context: dict[str, Any] | None = None) -> None:
         ctx = _prepare_context(context)
+        apply_gc_pins_to_document_context(self._doc, ctx)
         ctx["_run_success"] = False
         ctx.pop("_run_partial_stop", None)
         nd0 = int(ctx.get("nesting_depth", 0))
@@ -444,6 +453,13 @@ class GraphRunner:
                     nodeId=w["nodeId"],
                     graphId=self._doc.graph_id,
                 )
+            for w in find_gc_pin_empty_payload_warnings(self._doc):
+                self.emit(
+                    "structure_warning",
+                    kind="gc_pin_enabled_empty_payload",
+                    nodeId=w["nodeId"],
+                    graphId=self._doc.graph_id,
+                )
             ctx["graph_rev"] = graph_document_revision(self._doc)
             step_q = StepQueue(start_node_id)
             visited_guard = 0
@@ -467,8 +483,14 @@ class GraphRunner:
                 self.emit("node_enter", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
                 self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=node.data)
 
+                task_exit_used_pin = False
                 outs_map = ctx.setdefault("node_outputs", {})
+                prev_out = outs_map.get(node.id)
                 outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data)}
+                if isinstance(prev_out, dict):
+                    for k, v in prev_out.items():
+                        if k not in ("nodeType", "data"):
+                            outs_map[node.id][k] = copy.deepcopy(v)
                 if node.type == "fork":
                     outs_map[node.id]["fork"] = True
                 elif node.type == "merge":
@@ -502,13 +524,28 @@ class GraphRunner:
                     def _should_cancel() -> bool:
                         return sess is not None and sess.cancel_event.is_set()
 
+                    pr_pin = merged_process_result_for_pin_short_circuit(outs_map.get(node.id))
+                    pin_short = gc_pin_valid_for_short_circuit(node) and pr_pin is not None
+                    if pin_short:
+                        task_exit_used_pin = True
+                        ctx["last_result"] = last_result_from_process_result(pr_pin)
+                        self.emit(
+                            "node_pinned_skip",
+                            nodeId=node.id,
+                            graphId=self._doc.graph_id,
+                        )
+                        ok = ctx["last_result"]
+                    else:
+                        ok = True
+
                     used_step_cache = False
                     cache_key: str | None = None
                     pol = self._step_cache
                     store = self._ensure_step_cache_store()
                     want_cache = _node_wants_step_cache(node)
                     cache_active = (
-                        want_cache
+                        not pin_short
+                        and want_cache
                         and pol is not None
                         and pol.enabled
                         and store is not None
@@ -520,7 +557,7 @@ class GraphRunner:
                     dirty = bool(pol and pol.enabled and node.id in pol.dirty_nodes)
                     upstream_incomplete = False
 
-                    if cache_active:
+                    if not pin_short and cache_active:
                         up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
                         if inc_reason:
                             upstream_incomplete = True
@@ -559,10 +596,7 @@ class GraphRunner:
                             if cached is not None:
                                 outs_map[node.id] = copy.deepcopy(cached)
                                 pr = cached.get("processResult")
-                                if isinstance(pr, dict):
-                                    ctx["last_result"] = bool(pr.get("success"))
-                                else:
-                                    ctx["last_result"] = True
+                                ctx["last_result"] = last_result_from_process_result(pr)
                                 self.emit(
                                     "node_cache_hit",
                                     nodeId=node.id,
@@ -578,30 +612,47 @@ class GraphRunner:
                                     keyPrefix=_cache_key_prefix(cache_key),
                                 )
 
-                    ok = True
-                    if not used_step_cache:
-                        ok = run_task_process(
-                            node_id=node.id,
-                            graph_id=self._doc.graph_id,
-                            data=dict(node.data),
-                            ctx=ctx,
-                            emit=self.emit,
-                            should_cancel=_should_cancel if sess is not None else None,
-                        )
-                    if (
-                        ok
-                        and not used_step_cache
-                        and cache_active
-                        and cache_key is not None
-                        and store is not None
-                        and not upstream_incomplete
-                    ):
-                        store.put(cache_key, copy.deepcopy(outs_map[node.id]))
+                    if not pin_short:
+                        if not used_step_cache:
+                            ok = run_task_process(
+                                node_id=node.id,
+                                graph_id=self._doc.graph_id,
+                                data=dict(node.data),
+                                ctx=ctx,
+                                emit=self.emit,
+                                should_cancel=_should_cancel if sess is not None else None,
+                            )
+                        if (
+                            ok
+                            and not used_step_cache
+                            and cache_active
+                            and cache_key is not None
+                            and store is not None
+                            and not upstream_incomplete
+                        ):
+                            store.put(cache_key, copy.deepcopy(outs_map[node.id]))
+                        snap_o = outs_map.get(node.id)
+                        if isinstance(snap_o, dict) and isinstance(
+                            snap_o.get("processResult"), dict
+                        ):
+                            self.emit(
+                                "node_outputs_snapshot",
+                                nodeId=node.id,
+                                graphId=self._doc.graph_id,
+                                snapshot=snapshot_for_pin_event(snap_o),
+                            )
 
                     if not ok:
                         if ctx.get("_gc_process_cancelled"):
                             ctx["_run_cancelled"] = True
-                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        ne_task: dict[str, Any] = {
+                            "nodeId": node.id,
+                            "nodeType": node.type,
+                            "graphId": self._doc.graph_id,
+                        }
+                        if task_exit_used_pin:
+                            ne_task["usedPin"] = True
+                        self.emit("node_exit", **ne_task)
                         if ctx.get("_gc_process_cancelled"):
                             break
                         ctx["last_result"] = False
@@ -609,7 +660,14 @@ class GraphRunner:
                             continue
                         break
 
-                self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                ne: dict[str, Any] = {
+                    "nodeId": node.id,
+                    "nodeType": node.type,
+                    "graphId": self._doc.graph_id,
+                }
+                if task_exit_used_pin:
+                    ne["usedPin"] = True
+                self.emit("node_exit", **ne)
 
                 if node.type == "exit":
                     self.emit("run_success", nodeId=node.id, graphId=self._doc.graph_id)

@@ -125,6 +125,30 @@ def test_process_like_events_validate() -> None:
             "graphId": "g1",
             "reason": "upstream_incomplete",
         },
+        {
+            "type": "structure_warning",
+            "kind": "gc_pin_enabled_empty_payload",
+            "nodeId": "t1",
+            "graphId": "g1",
+        },
+        {
+            "type": "node_pinned_skip",
+            "nodeId": "t1",
+            "graphId": "g1",
+        },
+        {
+            "type": "node_outputs_snapshot",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "snapshot": {"processResult": {"success": True, "exitCode": 0}},
+        },
+        {
+            "type": "node_exit",
+            "nodeId": "t1",
+            "nodeType": "task",
+            "graphId": "g1",
+            "usedPin": True,
+        },
     ]
     for ev in samples:
         validator.validate(ev)

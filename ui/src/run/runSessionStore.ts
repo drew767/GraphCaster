@@ -10,6 +10,7 @@ export type RunSessionSnapshot = {
   activeNodeId: string | null;
   pythonBanner: string | null;
   lastExitCode: number | null;
+  nodeOutputSnapshots: Record<string, Record<string, unknown>>;
 };
 
 let snap: RunSessionSnapshot = {
@@ -18,6 +19,7 @@ let snap: RunSessionSnapshot = {
   activeNodeId: null,
   pythonBanner: null,
   lastExitCode: null,
+  nodeOutputSnapshots: {},
 };
 
 const listeners = new Set<() => void>();
@@ -53,6 +55,22 @@ export function runSessionAppendLine(text: string): void {
 
 export function runSessionSetActiveRunId(id: string | null): void {
   snap = { ...snap, activeRunId: id };
+  emit();
+}
+
+export function runSessionClearOutputSnapshots(): void {
+  snap = { ...snap, nodeOutputSnapshots: {} };
+  emit();
+}
+
+export function runSessionSetNodeOutputSnapshot(
+  nodeId: string,
+  snapshot: Record<string, unknown>,
+): void {
+  snap = {
+    ...snap,
+    nodeOutputSnapshots: { ...snap.nodeOutputSnapshots, [nodeId]: snapshot },
+  };
   emit();
 }
 

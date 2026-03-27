@@ -30,7 +30,9 @@
         "process_retry",
         "structure_warning",
         "node_cache_hit",
-        "node_cache_miss"
+        "node_cache_miss",
+        "node_pinned_skip",
+        "node_outputs_snapshot"
       ]
     },
     "runId": {
@@ -139,6 +141,14 @@
               "nodeId": { "type": "string", "minLength": 1 },
               "graphId": { "type": "string", "minLength": 1 }
             }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "gc_pin_enabled_empty_payload" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
           }
         ]
       }
@@ -181,7 +191,41 @@
         "properties": {
           "nodeId": { "type": "string", "minLength": 1 },
           "nodeType": { "type": "string" },
+          "graphId": { "type": "string", "minLength": 1 },
+          "usedPin": {
+            "type": "boolean",
+            "description": "True when the task exited without running the process because gcPin short-circulated (n8n pinData-style)."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_pinned_skip" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
           "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_outputs_snapshot" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "snapshot"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "snapshot": {
+            "type": "object",
+            "description": "Trimmed node_outputs slice after a real task run (for editor pin-from-last-run)."
+          }
         }
       }
     },

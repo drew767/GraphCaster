@@ -14,12 +14,28 @@ function GcFlowNodeInner(props: NodeProps) {
   const showSource = kind !== "exit";
   const showErrorOut = showSource && (kind === "task" || kind === "graph_ref");
   const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}`;
+  const raw = data?.raw;
+  const pinOn =
+    kind === "task" &&
+    raw != null &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    typeof (raw as { gcPin?: unknown }).gcPin === "object" &&
+    (raw as { gcPin?: { enabled?: unknown } }).gcPin !== null &&
+    (raw as { gcPin?: { enabled?: unknown } }).gcPin?.enabled === true;
 
   return (
     <div className={cls}>
       {showTarget ? <Handle type="target" position={Position.Left} id="in_default" /> : null}
       <div className="gc-flow-node__body">
-        <span className="gc-flow-node__pill">{kind}</span>
+        <span className="gc-flow-node__pillrow">
+          <span className="gc-flow-node__pill">{kind}</span>
+          {pinOn ? (
+            <span className="gc-flow-node__pin" title={t("app.canvas.pinBadge")}>
+              ●
+            </span>
+          ) : null}
+        </span>
         <span className="gc-flow-node__label">{data?.label ?? props.id}</span>
       </div>
       {showSource ? (

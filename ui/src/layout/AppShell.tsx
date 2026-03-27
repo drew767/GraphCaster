@@ -68,6 +68,7 @@ import { gcCancelRun, gcStartRun, getRunEnvironmentInfo } from "../run/runComman
 import {
   getRunSessionSnapshot,
   runSessionAppendLine,
+  runSessionClearOutputSnapshots,
   runSessionSetActiveRunId,
   runSessionSetPythonBanner,
   useRunSession,
@@ -550,6 +551,7 @@ export function AppShell({ onLangChange }: Props) {
       const doc = api.exportDocument();
       const runId = crypto.randomUUID();
       runSessionAppendLine(`[host] starting run ${runId}`);
+      runSessionClearOutputSnapshots();
       runSessionSetActiveRunId(runId);
       try {
         await gcStartRun({
