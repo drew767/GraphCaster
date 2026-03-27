@@ -86,6 +86,12 @@ type Props = {
   onSelect: (selection: GraphCanvasSelection | null) => void;
   /** Fires after a node drag ends (for workspace autosave). */
   onNodeDragEnd?: () => void;
+  /** Snapshot document for undo before a structural remove (Delete, context menu). */
+  onBeforeStructureRemove?: () => void;
+  /** Remember exported document at drag start (no undo snapshot until drag end if changed). */
+  onNodeDragCaptureBegin?: () => void;
+  /** After positions/reparent settle; push undo snapshot if document differs from capture; then parent syncs. */
+  onBeforeNodeDragStructureSync?: () => void;
   workspaceGraphsForAddMenu: ReadonlyArray<WorkspaceGraphAddMenuRow>;
   onAddNode: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
   onConnectNewEdge: (edge: GraphEdgeJson) => void;
@@ -160,6 +166,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       layoutEpoch,
       onSelect,
       onNodeDragEnd,
+      onBeforeStructureRemove,
+      onNodeDragCaptureBegin,
+      onBeforeNodeDragStructureSync,
       onAddNode,
       workspaceGraphsForAddMenu,
       onConnectNewEdge,
@@ -207,6 +216,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         if (structureLocked && changes.some((c) => c.type === "remove")) {
           return;
         }
+        if (!structureLocked && changes.some((c) => c.type === "remove")) {
+          onBeforeStructureRemove?.();
+        }
         onNodesChange(changes as NodeChange<Node<GcNodeData>>[]);
         const syncDoc = changes.some((c) => c.type === "remove" || c.type === "dimensions");
         if (syncDoc) {
@@ -215,13 +227,16 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           });
         }
       },
-      [structureLocked, onFlowStructureChange, onNodesChange],
+      [structureLocked, onBeforeStructureRemove, onFlowStructureChange, onNodesChange],
     );
 
     const onEdgesChangeWrapped = useCallback(
       (changes: EdgeChange[]) => {
         if (structureLocked && changes.some((c) => c.type === "remove")) {
           return;
+        }
+        if (!structureLocked && changes.some((c) => c.type === "remove")) {
+          onBeforeStructureRemove?.();
         }
         onEdgesChange(changes);
         const removed = changes.some((c) => c.type === "remove");
@@ -231,7 +246,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           });
         }
       },
-      [structureLocked, onEdgesChange, onFlowStructureChange],
+      [structureLocked, onBeforeStructureRemove, onEdgesChange, onFlowStructureChange],
     );
 
     const onConnect = useCallback(
@@ -316,17 +331,26 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const onNodeDragStopWrapped = useCallback(
       (_e: unknown, node: Node) => {
         if (node.type === "gcComment") {
-          onNodeDragEnd?.();
+          window.requestAnimationFrame(() => {
+            onBeforeNodeDragStructureSync?.();
+            onFlowStructureChange();
+            onNodeDragEnd?.();
+          });
           return;
         }
         setNodes((nds) => reparentDraggedNode(nds as Node<GcNodeData>[], node.id));
         window.requestAnimationFrame(() => {
+          onBeforeNodeDragStructureSync?.();
           onFlowStructureChange();
           onNodeDragEnd?.();
         });
       },
-      [onFlowStructureChange, onNodeDragEnd, setNodes],
+      [onBeforeNodeDragStructureSync, onFlowStructureChange, onNodeDragEnd, setNodes],
     );
+
+    const onNodeDragStartWrapped = useCallback(() => {
+      onNodeDragCaptureBegin?.();
+    }, [onNodeDragCaptureBegin]);
 
     useEffect(() => {
       const base = graphDocumentToFlow(graphDocument);
@@ -415,6 +439,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         if (structureLocked) {
           return;
         }
+        onBeforeStructureRemove?.();
         setNodes((nds) => {
           const target = nds.find((n) => n.id === nodeId);
           const byId = new Map(nds.map((n) => [n.id, n]));
@@ -440,7 +465,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           onFlowStructureChange();
         });
       },
-      [structureLocked, onFlowStructureChange, onSelect, setEdges, setNodes],
+      [structureLocked, onBeforeStructureRemove, onFlowStructureChange, onSelect, setEdges, setNodes],
     );
 
     return (
@@ -461,6 +486,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           onPaneClick={onPaneClick}
           onPaneContextMenu={onPaneContextMenu}
           onNodeContextMenu={onNodeContextMenu}
+          onNodeDragStart={onNodeDragStartWrapped}
           onNodeDragStop={onNodeDragStopWrapped}
           onBeforeDelete={onBeforeDelete}
           onNodesDelete={onNodesDelete}

@@ -12,6 +12,10 @@ type Props = {
   onNewGraph: () => void;
   onOpenGraph: () => void;
   onSaveGraph: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   workspaceLinked: boolean;
   onLinkWorkspace: () => void;
   workspaceGraphOptions: WorkspaceGraphOption[];
@@ -33,6 +37,10 @@ export function TopBar({
   onNewGraph,
   onOpenGraph,
   onSaveGraph,
+  canUndo = false,
+  canRedo = false,
+  onUndo = () => {},
+  onRedo = () => {},
   workspaceLinked,
   onLinkWorkspace,
   workspaceGraphOptions,
@@ -63,6 +71,25 @@ export function TopBar({
         </button>
         <button type="button" className="gc-btn gc-btn-primary" onClick={onSaveGraph} disabled={runActive}>
           {t("app.menu.save")}
+        </button>
+        <span className="gc-top-menu-label">{t("app.menu.edit")}</span>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onUndo}
+          disabled={runActive || !canUndo}
+          title={t("app.edit.undoHint")}
+        >
+          {t("app.edit.undo")}
+        </button>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onRedo}
+          disabled={runActive || !canRedo}
+          title={t("app.edit.redoHint")}
+        >
+          {t("app.edit.redo")}
         </button>
         <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={runActive}>
           {t("app.workspace.link")}

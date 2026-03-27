@@ -3,9 +3,16 @@
     "title": "GraphCaster",
     "menu": {
       "file": "File",
+      "edit": "Edit",
       "new": "New graph",
       "open": "Open…",
       "save": "Save"
+    },
+    "edit": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "undoHint": "Undo (Ctrl+Z)",
+      "redoHint": "Redo (Ctrl+Shift+Z or Ctrl+Y)"
     },
     "canvas": {
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",

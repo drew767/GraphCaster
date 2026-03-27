@@ -13,6 +13,14 @@ import { GraphSaveModal } from "../components/GraphSaveModal";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
+import {
+  clearHistory,
+  createEmptyHistory,
+  documentJsonSignature,
+  redoDocument,
+  snapshotBeforeChange,
+  undoDocument,
+} from "../graph/documentHistory";
 import type {
   GraphDocumentJson,
   GraphDocumentSettingsPatch,
@@ -58,6 +66,22 @@ import { useRunBridge } from "../run/useRunBridge";
 const LS_RUN_GRAPHS = "gc.run.graphsDir";
 const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
 
+const DOCUMENT_HISTORY_CAP = 80;
+
+function isTextEditingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    return true;
+  }
+  return target.closest("input, textarea, select, [contenteditable='true']") != null;
+}
+
 type Props = {
   onLangChange: (lng: string) => void;
 };
@@ -91,6 +115,124 @@ export function AppShell({ onLangChange }: Props) {
     () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
   );
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
+  const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
+  const preDragDocumentRef = useRef<GraphDocumentJson | null>(null);
+  const graphDocumentRef = useRef(graphDocument);
+  graphDocumentRef.current = graphDocument;
+  const [historyTick, setHistoryTick] = useState(0);
+
+  const bumpHistoryUi = useCallback(() => {
+    setHistoryTick((n) => n + 1);
+  }, []);
+
+  const commitHistorySnapshot = useCallback(() => {
+    preDragDocumentRef.current = null;
+    if (getRunSessionSnapshot().activeRunId != null) {
+      return;
+    }
+    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    historyRef.current = snapshotBeforeChange(historyRef.current, current);
+    bumpHistoryUi();
+  }, [bumpHistoryUi]);
+
+  const beginNodeDragCapture = useCallback(() => {
+    if (getRunSessionSnapshot().activeRunId != null) {
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    preDragDocumentRef.current = structuredClone(api.exportDocument()) as GraphDocumentJson;
+  }, []);
+
+  const commitNodeDragHistoryIfChanged = useCallback(() => {
+    if (getRunSessionSnapshot().activeRunId != null) {
+      preDragDocumentRef.current = null;
+      return;
+    }
+    const pre = preDragDocumentRef.current;
+    preDragDocumentRef.current = null;
+    if (pre == null) {
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const after = api.exportDocument();
+    if (documentJsonSignature(pre) === documentJsonSignature(after)) {
+      return;
+    }
+    historyRef.current = snapshotBeforeChange(historyRef.current, pre);
+    bumpHistoryUi();
+  }, [bumpHistoryUi]);
+
+  const performUndo = useCallback(() => {
+    preDragDocumentRef.current = null;
+    if (getRunSessionSnapshot().activeRunId != null) {
+      return;
+    }
+    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    const r = undoDocument(historyRef.current, current);
+    if (!r) {
+      return;
+    }
+    historyRef.current = r.nextHistory;
+    setGraphDocument(r.document);
+    setLayoutDirtyEpoch((n) => n + 1);
+    bumpHistoryUi();
+  }, [bumpHistoryUi]);
+
+  const performRedo = useCallback(() => {
+    preDragDocumentRef.current = null;
+    if (getRunSessionSnapshot().activeRunId != null) {
+      return;
+    }
+    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    const r = redoDocument(historyRef.current, current);
+    if (!r) {
+      return;
+    }
+    historyRef.current = r.nextHistory;
+    setGraphDocument(r.document);
+    setLayoutDirtyEpoch((n) => n + 1);
+    bumpHistoryUi();
+  }, [bumpHistoryUi]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (getRunSessionSnapshot().activeRunId != null) {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) {
+        return;
+      }
+      if (key === "z") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          performRedo();
+        } else {
+          e.preventDefault();
+          performUndo();
+        }
+        return;
+      }
+      if (key === "y") {
+        e.preventDefault();
+        performRedo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [performRedo, performUndo]);
 
   useEffect(() => {
     localStorage.setItem(LS_RUN_GRAPHS, runGraphsDir);
@@ -126,11 +268,14 @@ export function AppShell({ onLangChange }: Props) {
   }, []);
 
   const onNewGraph = useCallback(() => {
+    preDragDocumentRef.current = null;
     setGraphDocument(createMinimalGraphDocument());
+    historyRef.current = clearHistory(historyRef.current);
+    bumpHistoryUi();
     setActiveWorkspaceFile(null);
     bumpLayoutEpoch();
     setSelection(null);
-  }, [bumpLayoutEpoch]);
+  }, [bumpHistoryUi, bumpLayoutEpoch]);
 
   const onOpenPick = useCallback(() => {
     fileInputRef.current?.click();
@@ -163,11 +308,14 @@ export function AppShell({ onLangChange }: Props) {
         return;
       }
       setActiveWorkspaceFile(null);
+      preDragDocumentRef.current = null;
       setGraphDocument(res.doc);
+      historyRef.current = clearHistory(historyRef.current);
+      bumpHistoryUi();
       bumpLayoutEpoch();
       setSelection(null);
     },
-    [bumpLayoutEpoch, t],
+    [bumpHistoryUi, bumpLayoutEpoch, t],
   );
 
   const onLinkWorkspace = useCallback(async () => {
@@ -212,12 +360,15 @@ export function AppShell({ onLangChange }: Props) {
         setGraphOpenError(presentationForParseError(t, res.error));
         return;
       }
+      preDragDocumentRef.current = null;
       setGraphDocument(res.doc);
+      historyRef.current = clearHistory(historyRef.current);
+      bumpHistoryUi();
       setActiveWorkspaceFile(fileName);
       bumpLayoutEpoch();
       setSelection(null);
     },
-    [bumpLayoutEpoch, workspaceGraphsDir, t],
+    [bumpHistoryUi, bumpLayoutEpoch, workspaceGraphsDir, t],
   );
 
   const workspaceGraphRows = useMemo((): WorkspaceGraphAddMenuRow[] => {
@@ -375,6 +526,7 @@ export function AppShell({ onLangChange }: Props) {
     if (!api) {
       return;
     }
+    commitHistorySnapshot();
     const doc = api.exportDocument();
     const prevNodes = doc.nodes ?? [];
     const nodes = prevNodes.map((n) => (n.id === nodeId ? { ...n, data: { ...data } } : n));
@@ -389,13 +541,14 @@ export function AppShell({ onLangChange }: Props) {
         label: nodeLabel(data, nodeId),
       };
     });
-  }, []);
+  }, [commitHistorySnapshot]);
 
   const onApplyEdgeCondition = useCallback((edgeId: string, condition: string | null) => {
     const api = canvasRef.current;
     if (!api) {
       return;
     }
+    commitHistorySnapshot();
     const doc = api.exportDocument();
     const prevEdges = doc.edges ?? [];
     const edges = prevEdges.map((e) => (e.id === edgeId ? { ...e, condition } : e));
@@ -406,19 +559,20 @@ export function AppShell({ onLangChange }: Props) {
       }
       return { ...prev, condition };
     });
-  }, []);
+  }, [commitHistorySnapshot]);
 
   const onConnectNewEdge = useCallback((edge: GraphEdgeJson) => {
     const api = canvasRef.current;
     if (!api) {
       return;
     }
+    commitHistorySnapshot();
     const doc = api.exportDocument();
     setGraphDocument({
       ...doc,
       edges: [...(doc.edges ?? []), edge],
     });
-  }, []);
+  }, [commitHistorySnapshot]);
 
   const onFlowStructureChange = useCallback(() => {
     const api = canvasRef.current;
@@ -429,6 +583,7 @@ export function AppShell({ onLangChange }: Props) {
   }, []);
 
   const onApplyGraphDocumentSettings = useCallback((patch: GraphDocumentSettingsPatch) => {
+    commitHistorySnapshot();
     setGraphDocument((prev) => {
       const meta = { ...(prev.meta ?? {}) };
       if (patch.title !== undefined) {
@@ -470,7 +625,7 @@ export function AppShell({ onLangChange }: Props) {
       }
       return next;
     });
-  }, []);
+  }, [commitHistorySnapshot]);
 
   const onAddNode = useCallback(
     (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => {
@@ -501,6 +656,7 @@ export function AppShell({ onLangChange }: Props) {
           data,
           ...(parentId ? { parentId } : {}),
         };
+        commitHistorySnapshot();
         setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
         return;
       }
@@ -513,9 +669,10 @@ export function AppShell({ onLangChange }: Props) {
         data: { targetGraphId: pick.targetGraphId },
         ...(parentId ? { parentId } : {}),
       };
+      commitHistorySnapshot();
       setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
     },
-    [t],
+    [commitHistorySnapshot, t],
   );
 
   const runStartDisabled =
@@ -560,7 +717,7 @@ export function AppShell({ onLangChange }: Props) {
   }, [graphDocument]);
 
   return (
-    <div className="app-root">
+    <div className="app-root" data-gc-history-revision={historyTick}>
       <input
         ref={fileInputRef}
         type="file"
@@ -573,6 +730,10 @@ export function AppShell({ onLangChange }: Props) {
         onNewGraph={onNewGraph}
         onOpenGraph={onOpenPick}
         onSaveGraph={onSaveGraph}
+        canUndo={historyRef.current.past.length > 0}
+        canRedo={historyRef.current.future.length > 0}
+        onUndo={performUndo}
+        onRedo={performRedo}
         workspaceLinked={workspaceGraphsDir != null}
         onLinkWorkspace={() => {
           void onLinkWorkspace();
@@ -633,6 +794,9 @@ export function AppShell({ onLangChange }: Props) {
               onAddNode={onAddNode}
               onConnectNewEdge={onConnectNewEdge}
               onFlowStructureChange={onFlowStructureChange}
+              onBeforeStructureRemove={commitHistorySnapshot}
+              onNodeDragCaptureBegin={beginNodeDragCapture}
+              onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={isRunActive}
               runHighlightNodeId={runSession.activeNodeId}
               onNodeDragEnd={() => {

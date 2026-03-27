@@ -16,6 +16,28 @@
 
 ---
 
+## Отмена / повтор в редакторе — **F20**, конспект **§21** (`COMPETITIVE_ANALYSIS.md`)
+
+В **§21** для GC заложены три класса подходов: **(1)** стек команд `apply`/`revert`, **(2)** снимки состояния, **(3)** CRDT **`YjsUndoManager`** (только при **F22**). Реализован вариант **(2)** — как осознанный MVP (паритет экспорта с Python без inverse на каждую операцию).
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **Dify** — черновик редактора в SPA, отдельные save к API | Локально: снимки **`GraphDocument`**, без отдельного **command stack** уровня Dify `web/` |
+| **n8n** — локальный стек в editor-ui + версии workflow в БД ортогонально | Снимки JSON в памяти; версии workflow в БД **нет** (**F23** file-first); co-edit **Yjs** — **не** делается до **§19** / **F22** |
+| **Langflow** — история шагов на canvas | Близко по UX: undo/redo структуры, инспектора, связей; глубина ограничена (`DOCUMENT_HISTORY_CAP`) |
+| **Flowise** — частичный undo на UI | Аналогично «частично»: нет произвольной глубины как у IDE; есть **redo** после **undo** без сброса при простом начале drag (фикс в конце жеста) |
+| Пользователь откатывает правки документа без отдельного сервера | **Снимки** полного `GraphDocumentJson` (`past` / `future`), hotkeys **Ctrl+Z** / **Ctrl+Shift+Z** / **Ctrl+Y**, меню **Правка** |
+| Граница транзакции | `snapshotBeforeChange`; **drag** — capture в `onNodeDragCaptureBegin`, запись в стек в `onBeforeNodeDragStructureSync` только если экспорт изменился; **remove** — `onBeforeStructureRemove`; автосохранение в **`graphs/`** в стек **не** входит |
+| Run-lock | При активном `activeRunId` snapshot/undo/redo отключены; кнопки disabled |
+
+**Сделано / инварианты из §21.2 (бывший план):** совместимость с **`parseDocument` / `toReactFlow` / `fromReactFlow`** (единый канон JSON); пакетное удаление — один проход RF → один `remove` batch → один checkpoint; autosave после undo пишет откатанное состояние; run-lock согласован с политикой UX.
+
+**Не сделано (остаётся в `COMPETITIVE_ANALYSIS.md` §21 / §28.2):** отдельная история **viewport**; отдельные **команды** с `apply`/`revert` per op (как в **Dify**); конфликт «файл на диске изменён снаружи» при autosave; **Yjs** для undo при **F22**.
+
+Код: `ui/src/graph/documentHistory.ts`, `ui/src/layout/AppShell.tsx`, `ui/src/components/GraphCanvas.tsx`, `ui/src/components/TopBar.tsx`; тесты: `ui/src/graph/documentHistory.test.ts`.
+
+---
+
 ## Сессия прогона в NDJSON (n8n `executionStarted` / `executionFinished`, один `runId`)
 
 | Идея конкурента | Реализация GC |

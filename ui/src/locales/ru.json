@@ -3,9 +3,16 @@
     "title": "GraphCaster",
     "menu": {
       "file": "Файл",
+      "edit": "Правка",
       "new": "Новый граф",
       "open": "Открыть…",
       "save": "Сохранить"
+    },
+    "edit": {
+      "undo": "Отменить",
+      "redo": "Вернуть",
+      "undoHint": "Отменить (Ctrl+Z)",
+      "redoHint": "Вернуть (Ctrl+Shift+Z или Ctrl+Y)"
     },
     "canvas": {
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
