@@ -45,4 +45,8 @@ python -m graph_caster artifacts-clear --base . --graph-id '<uuid>'
 
 **Сброс глобального реестра (тесты):** **`reset_default_run_registry()`** обнуляет синглтон от **`get_default_run_registry()`**.
 
+**Встроенный Run в десктопном UI (GraphCaster / Tauri):** дочерний процесс вызывает тот же CLI:  
+`run -d <path/to/temp.json> --track-session --control-stdin --run-id <uuid>`  
+плюс при необходимости **`-g` / `--graphs-dir`** (каталог `graphs/` на диске для **`graph_ref`**) и **`--artifacts-base`** (корень воркспейса, где создаётся **`runs/<graphId>/…`**). STDOUT процесса — **NDJSON по строкам**; в STDIN хост пишет **`{"type":"cancel_run","runId":"<uuid>"}`** для отмены (один канал stdin, поэтому документ графа передаётся только через **`-d`**, не через stdin). Переменные окружения для поиска интерпретатора и пакета: **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** (добавляется в **`PYTHONPATH`** при проверке импорта и при spawn).
+
 Полная документация репозитория: [../README.md](../README.md).

@@ -10,7 +10,7 @@
 
 Сопоставить типовые возможности редакторов воркфлоу и платформ автоматизации с тем, что уже заложено в **GraphCaster**, и дать **маппинг на целевые слои GC**, чтобы при реализации фичи было ясно, какой контракт и какой модуль затрагивать.
 
-**Уже реализовано и вынесено из «пробела» относительно конкурентов:** см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (host/run state, жизненный цикл NDJSON с `runId`).
+**Уже реализовано и вынесено из «пробела» относительно конкурентов:** см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (host/run state, жизненный цикл NDJSON с `runId`, **десктоп:** мост UI ↔ Python через Tauri subprocess).
 
 ---
 
@@ -19,12 +19,12 @@
 | Слой | Ответственность | У GC сейчас (коротко) |
 |------|-----------------|------------------------|
 | **A. Документ и схема** | JSON Schema, `GraphDocument`, версии, инварианты графа; контракт строк раннера | `schemas/graph-document.schema.json`, **`schemas/run-event.schema.json`**, `models.py`, `validate.py`; **`schemaVersion`** и миграции документа — **§30** (**F2**); типы портов / совместимость рёбер — **§15** (**F18**); новые **`kind`** нод — **§18** (**F15**) |
-| **B. Редактор (UI)** | Канвас, ноды, инспектор, предупреждения, экспорт, история правок | `ui/` (**@xyflow/react**), `ui/src/graph/` (в т.ч. **`nodePalette.ts`**, **`nodeKinds.ts`**); канвас и паттерны UX — **§28** (**F1**); **нативная оболочка** (**Tauri**) — **§33** (**F16**); пины — **§15**; типы нод — **§18**; i18n — **§26** (**F21**); undo/redo — **§21** (**F20**, фаза 5) |
+| **B. Редактор (UI)** | Канвас, ноды, инспектор, предупреждения, экспорт, история правок | `ui/` (**@xyflow/react**), `ui/src/graph/` (в т.ч. **`nodePalette.ts`**, **`nodeKinds.ts`**); канвас и паттерны UX — **§28** (**F1**); **нативная оболочка** (**Tauri**) — **§33** (**F16**); **Run/Stop** из десктопа — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); пины — **§15**; типы нод — **§18**; i18n — **§26** (**F21**); undo/redo — **§21** (**F20**, фаза 5) |
 | **C. Workspace** | Каталог `graphs/`, индекс `graphId` → путь, автосохранение | `workspace.py`, планы в `DEVELOPMENT_PLAN.md` / `PRODUCT_DESIGNE.md`; **`graphId`** для **`graph_ref`** — **§29** (**F5**); мультиредактирование и-merge из нескольких клиентов — **§19** (**F22**), в core GC не заложено |
 | **D. Рантайм** | Обход графа, условия на рёбрах, вложенные графы, субпроцессы, политика сбоев, опционально кэш шагов | `runner.py` (**§31** порядок обхода и достижимость, **F3**; **§32** условия на рёбрах и «первое истинное», **F4**; **§29** **`graph_ref`**, **F5**; диспетчер по **`kind`**, `unknown_node` — **§18**), **`process_exec.py`** (**§27**, **F7**), события NDJSON; очередь / буфер между исполнителем и транспортом — **§13** / **§13.3** (**F6**); ошибки — **§16** / **§37** (**F19**); кэш между прогонами / dirty-nodes — **§22** / **§36** (**F17**) |
 | **E. Артефакты и Run** | Папки run, метаданные, учёт диска | `artifacts.py`, события `run_*` в раннере |
 | **F. Интеграции** | Credentials, HTTP, внешние API, RAG / knowledge, вызовы LLM/tools, внешний старт прогона, публичный контур | По плану; сейчас фокус на `task`/процесс; креды — **§11** / **§35** (**F8**); триггеры — **§24** (**F9**) + **§12**; **REST/embed/OpenAPI** — **§25** (**F12**), BFF-эталон — **§25.3** (Vibe); **MCP** (граф как server tool / вызов внешних tools) — **§34**; RAG — **§14** / **F10**; агенты — **§23** (**F11**) |
-| **G. Наблюдаемость** | Логи исполнения, история, трейсинг, экспорт | Консоль UI + NDJSON события (**§3.7**), артефакты **`runs/`**; **жизненный цикл строки прогона** (`runId`, `run_started` / `run_finished`) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); мост **WebSocket/SSE** поверх того же потока — **§39** (ещё не в UI); ограничение буфера / медленный клиент — **§39.2**; открытые темы — **§17** (**F13**) |
+| **G. Наблюдаемость** | Логи исполнения, история, трейсинг, экспорт | Консоль UI + NDJSON события (**§3.7**), артефакты **`runs/`**; **жизненный цикл строки прогона** (`runId`, `run_started` / `run_finished`) и **стрим раннера в десктоп** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); мост **WebSocket/SSE** для **чистого браузера** без бинарника — **§39** (по-прежнему не в веб-сборке); ограничение буфера / медленный клиент — **§39.2**; открытые темы — **§17** (**F13**) |
 
 При добавлении фичи: выбрать строку из каталога ниже → сопоставить **основной слой** → посмотреть 1–2 референса в колонках конкурентов → зафиксировать контракт → код. **Мульти-тенант, роли и SSO** (**F14**) для облачного GC — **§20**; **что остаётся в repo** vs **хост** — **§38**; по умолчанию реализация на стороне **Aura**, не внутри `graph-caster`.
 
@@ -83,11 +83,11 @@
 | **Langflow** | `src/frontend` | `src/lfx` (CLI), `langflow.api.v2.workflow`, `langflow.agentic.services.flow_executor` | Объект `Graph` компонентов в backend-тестах и `lfx` |
 | **n8n** | `packages/frontend/editor-ui` | `packages/core/src/execution-engine/workflow-execute` (`WorkflowExecute`), `active-workflows.ts` | `packages/workflow`, `packages/@n8n/expression-runtime` |
 | **Vibe Workflow** | `packages/workflow-builder`, `client/` | `server/app/` — **`main.py`**, **`routers/workflow_router.py`**, **`workflow_helper.py`** → **`api.muapi.ai`** (`x-api-key`); **§3.8**, **§3.8.1**, **§25.3** | Состояние графа на клиенте; данные между нодами — в облаке MuAPI |
-| **GraphCaster** | `ui/src/graph/*`, `schemas/`; оболочка **`ui/src-tauri/`** — **§33** | `python/graph_caster/runner.py`, `process_exec.py`, `run_sessions.py` | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; реестр прогонов / отмена — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **MCP** — **§34** (план) |
+| **GraphCaster** | `ui/src/graph/*`, `schemas/`; **`ui/src-tauri/`** (`run_bridge.rs`) — **§33** | `python/graph_caster/runner.py`, `process_exec.py`, `run_sessions.py` | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; реестр, отмена, **мост десктоп UI ↔ subprocess** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **MCP** — **§34** (план) |
 
 ### 3.2. Уровень B+: как «тикает» движок (Dify) и что инжектится в раннер (n8n)
 
-Эти два фрагмента полезны при проектировании **фазы 8** GC (мост UI ↔ раннер). **RunHostContext**, разделение документа / **run state** / хоста, а также **реестр сессий и отмена** в Python — **сделано**, см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). Ниже — по-прежнему полезно для очередей Dify и расширений хоста, без копирования объёма кода конкурентов.
+Эти два фрагмента полезны при расширении оркестрации GC (очереди, мульти-воркеры). **Фаза 8 (мост UI ↔ раннер)** в десктопе — **сделана** (Tauri subprocess + тот же NDJSON CLI), см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). **RunHostContext**, разделение документа / **run state** / хоста, **реестр сессий и отмена** в Python — там же. Ниже — полезно для очередей Dify и расширений хоста, без копирования объёма кода конкурентов.
 
 **Dify — `GraphEngine` (`api/graphon/graph_engine/graph_engine.py`)**
 
@@ -497,26 +497,12 @@
 
 **Пробелы относительно фазы 8 (`DEVELOPMENT_PLAN.md`):**
 
-- **`runId`:** в **`schemas/run-event.schema.json`** (v0.1) поле уже описано как опциональное, раннер его **пока не эмитит** — детальный план — **§3.7.1**.
-- Нет потоковой разбивки **stdout/stderr** процесса (только итоговые `process_*`); Comfy **`progress`**, Langflow **token stream** — отдельное расширение, если понадобится «живой» лог CLI.
+- **`runId`**, реестр, отмена, **мост десктоп UI ↔ subprocess** — **закрыто:** см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
+- Нет потоковой разбивки **stdout/stderr** *внутреннего подпроцесса* ноды **`task`** в поток **`run-event`** (только итоговые `process_*`); Comfy **`progress`**, Langflow **token stream** — отдельное расширение для «живого» лога *task*-CLI.
 
-### 3.7.1. План: стабильный **`runId`** на корневом прогоне (фаза 8)
+### 3.7.1. Стабильный **`runId`** и мост UI (фаза 8) — статус
 
-**Цель:** каждая строка NDJSON одного логического root-run несёт один и тот же **`runId`**, чтобы UI / мост / логи не смешивали параллельные прогоны одного **`graphId`** (аналог **`executionId`** в n8n **§3.2.1**, **`workflow_run_id`** в Dify **§3.6.1**–**§3.6.2**, **`prompt_id`** в Comfy **§3.5**).
-
-**Факт кода сейчас:** `GraphRunner.emit` собирает **`{"type", …}`** без **`runId`**; вложенный граф создаёт **`GraphRunner(nested, self._sink, …)`** с тем же **sink**, но отдельного идентификатора сессии нет. `run_task_process` вызывает **`emit(...)`** без доступа к runner — только переданная **`EmitFn`**.
-
-**Рекомендуемая траектория реализации (одна из согласованных схем):**
-
-1. **Генерация:** при старте **корневого** прогона (`nesting_depth == 0` до первого значимого события) выдать **UUID4** (или ULID, если позже понадобится сортировка по времени в строке id).
-2. **Прокидывание в события:** централизованно в **`GraphRunner.emit`** (поле экземпляра **`_run_id`**), чтобы не забыть тип; либо обёртка **sink**, которая дописывает **`runId`** к каждому объекту перед сериализацией — второй вариант не требует трогать **`process_exec`**, если **`emit`** всегда идёт через runner.
-3. **`graph_ref`:** один и тот же **`runId`**, что у корня: вложенный **`GraphRunner`** создаётся с тем же **`_run_id`**, что и родитель (передать в конструктор или скопировать при `GraphRunner(nested, …)` в **`runner.py`**). Отдельный «child run id» не вводить без продуктового ТЗ (усложнит фильтры консоли).
-4. **`process_*`:** если **`EmitFn`** остаётся замыканием от **`GraphRunner.emit`**, чанки **`process_spawn`** / **`process_complete`** / … получат **`runId`** автоматически; если где-то вызывается «голый» emit в обход — унифицировать.
-5. **Схема:** после включения в раннере — сделать **`runId`** **обязательным** для всех типов в **`run-event.schema.json`** (инкремент версии описания v0.2 или оставить v0.1 с жёсткой валидацией в тестах до миграции файлов артефактов). До миграции можно: обязательный **`runId`** только в CI-тестах, мягко в schema — не ломать старые записи.
-6. **CLI / Tauri:** точка вызова **`GraphRunner.run`**, которая создаёт sink в stdout/file, должна не зависеть от того, кто сгенерировал id — достаточно поведения по умолчанию внутри runner.
-7. **Консоль UI:** фильтр по **`runId`** (и опционально по **`graphId`**) — **§17**; при нескольких вкладках прогона подписка на мост привязана к **`runId`**.
-
-**Для документа:** при merge реализации — **§3.7**, **`run-event.schema.json`**, **`test_run_event_schema.py`**, строка фазы 8 в **§7**; не дублировать второй протокол поверх NDJSON (**§39**).
+**Закрыто в коде.** Целевая модель (аналог **`executionId`** / **`workflow_run_id`** / **`prompt_id`**): одна строка NDJSON одного root-run несёт один **`runId`**; десктоп подписывается на события с фильтром по нему. Подробности — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). Не дублировать второй протокол поверх NDJSON в MVP (**§39**).
 
 ### 3.8. Vibe Workflow: BFF, **`httpx`** и REST **run** + **status** (без NDJSON в open repo)
 
@@ -727,7 +713,7 @@
 | Langflow | да | FastAPI **`langflow/api`** (v1/v2), **SSE** build/stream (**§3.4**); **MCP**; headless **`lfx run` / `serve`**. |
 | n8n | да | **Public REST** (workflows, executions — зависит от edition); **webhook**-слой отдельно от UI; **API keys** (enterprise). |
 | Vibe Workflow | частично | BFF **`/api/workflow`**, **`/api/app`** → MuAPI (**§25.3**); не полноценный SaaS API-key для третьих лиц из коробки. |
-| **GraphCaster** | **частично** | **Фаза 8:** локальный мост UI↔раннер (**не** публичный BaaS); **фаза 10 / Aura:** тонкий HTTP по **§25.2**; обзор **§12**. |
+| **GraphCaster** | **частично** | **Фаза 8 (десктоп):** мост UI↔раннер — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**не** публичный BaaS); **фаза 10 / Aura:** тонкий HTTP по **§25.2**; обзор **§12**. |
 
 ### F13 — Наблюдаемость: история run, трейсы, LLMOps
 
@@ -741,7 +727,7 @@
 | Langflow | да | **`lfx/services/tracing/service.py`**, **`telemetry/service.py`**, подключаемые callbacks (LangSmith / Langfuse и др.); стрим SSE (**§3.4**). |
 | n8n | да | **`ExecutionEntity`**, **`ExecutionRepository`** (`@n8n/db`), **`ActiveExecutions`**; UI истории; enterprise audit. |
 | Vibe Workflow | минимально | Health / ответы API; без централизованной истории прогонов. |
-| **GraphCaster** | **частично** | **G+E:** **`run-event.schema.json`**, папки артефактов, **`ConsolePanel`**; нет OTel и облачной истории — **§17.2**. |
+| **GraphCaster** | **частично** | **G+E:** **`run-event.schema.json`**, папки артефактов, **`ConsolePanel`**, стрим раннера в десктопе (**`gc-run-event`**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); нет OTel и облачной истории — **§17.2**. |
 
 ### F14 — Мультипользовательность, RBAC, SSO
 

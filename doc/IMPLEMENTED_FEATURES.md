@@ -48,7 +48,21 @@
 
 Код: `python/graph_caster/run_sessions.py`, `graph_caster.__main__` (**`--track-session`**, **`--control-stdin`**, **`--run-id`**), `process_exec._communicate_with_cancel`, опция `GraphRunner(..., session_registry=…)`, порядок: регистрация сессии **до** `run_started`, чтобы колбэки sink могли вызывать `request_cancel`. Вложенный **`GraphRunner`** получает тот же **`session_registry`** для общей сессии отмены.
 
-**Сопоставление с §3.2 competitive doc (Dify / n8n):** срез **«команда abort / адресация исполнения по id»** сведён сюда (`CommandChannel` у Dify — полноценный pause/redis; у GC пока in-process + stdin). **`IRunExecutionData` / `executionId`** у n8n — частичный параллель: реестр **`RunSessionRegistry`** и стабильный **`runId`** на событиях; **без** очереди ready-nodes и **без** WebSocket **`pushRef`** (по-прежнему открыто в `COMPETITIVE_ANALYSIS.md` §3.2.1 / §39).
+**Сопоставление с §3.2 competitive doc (Dify / n8n):** срез **«команда abort / адресация исполнения по id»** сведён сюда (`CommandChannel` у Dify — полноценный pause/redis; у GC пока in-process + stdin). **`IRunExecutionData` / `executionId`** у n8n — частичный параллель: реестр **`RunSessionRegistry`** и стабильный **`runId`** на событиях; **без** очереди ready-nodes и **без** WebSocket **`pushRef`** в браузере (опционально **§39** в `COMPETITIVE_ANALYSIS.md`). **Десктоп:** мост без WS — см. раздел ниже.
+
+---
+
+## Десктоп (Tauri): мост UI ↔ Python Run (фаза 8, паттерн как у Flowise/n8n — один канал на прогон)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Один логический поток событий на исполнение (`executionId` / SSE-канал) | Подпроцесс `python -m graph_caster run`: **NDJSON в stdout/stderr**; тот же контракт, что у CLI; **`runId`** согласован с раннером |
+| Остановка с хоста | **Cancel:** запись строки NDJSON в **stdin** процесса (`--control-stdin`): `{"type":"cancel_run","runId":"…"}` — см. раздел про реестр выше |
+| Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base` |
+| Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте фильтр по **`activeRunId`** |
+| Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне), подсветка ноды по `node_enter` / `node_execute` |
+| Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
+| Веб без Tauri | Run недоступен (без отдельного сервера); см. `ui/README.md`, `python/README.md` |
 
 ---
 

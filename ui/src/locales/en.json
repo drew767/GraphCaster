@@ -75,7 +75,21 @@
     },
     "console": {
       "heading": "Console",
-      "stub": "Run log / NDJSON stream from the Python runner will appear here."
+      "stub": "Run log / NDJSON stream from the Python runner will appear here.",
+      "empty": "No run output yet. Start a run from the desktop app (native window).",
+      "clear": "Clear",
+      "export": "Export log"
+    },
+    "run": {
+      "heading": "Run",
+      "start": "Run",
+      "stop": "Stop",
+      "graphsDirPlaceholder": "graphs/ path (graph_ref)",
+      "artifactsPlaceholder": "workspace root (runs/)",
+      "desktopOnlyHint": "Run is available in the native GraphCaster window (Tauri), not in dev:web only.",
+      "pythonMissing": "Python module graph_caster is not available (interpreter: {{path}}). Set GC_PYTHON and install the package, or set GC_GRAPH_CASTER_PACKAGE_ROOT for PYTHONPATH.",
+      "fixStructureFirst": "Fix graph structure warnings (e.g. a single start node) before running.",
+      "cannotSaveDuringRun": "Save is disabled while a run is active."
     },
     "lang": {
       "selectLabel": "Language",

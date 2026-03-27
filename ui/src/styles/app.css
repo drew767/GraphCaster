@@ -592,13 +592,40 @@ body {
 
 .gc-console {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   min-height: 96px;
   background: var(--gc-console-bg);
   color: var(--gc-console-fg);
   font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
   font-size: 0.75rem;
   line-height: 1.5;
-  padding: 0.65rem 1rem;
+  padding: 0.45rem 0.75rem 0.55rem;
+}
+
+.gc-console-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.gc-console-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.gc-btn-small {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.gc-console-body {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -607,11 +634,64 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--gc-console-muted);
-  margin-bottom: 0.35rem;
 }
 
 .gc-console-line {
+  margin: 0;
   opacity: 0.92;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gc-console-line--muted {
+  opacity: 0.55;
+}
+
+.gc-run-banner {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  padding: 0.28rem 0.45rem;
+  margin-bottom: 0.35rem;
+  border-radius: var(--gc-radius-sm);
+  background: color-mix(in srgb, #c0392b 18%, var(--gc-console-bg));
+  color: var(--gc-console-fg);
+  border: 1px solid color-mix(in srgb, #c0392b 40%, var(--gc-border));
+}
+
+.gc-top-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid var(--gc-border);
+}
+
+.gc-top-run-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gc-text-secondary);
+}
+
+.gc-top-run-input {
+  font: inherit;
+  font-size: 0.72rem;
+  width: 8rem;
+  max-width: 22vw;
+  padding: 0.22rem 0.35rem;
+  border-radius: var(--gc-radius-sm);
+  border: 1px solid var(--gc-border);
+  background: var(--gc-surface-1);
+  color: var(--gc-text-primary);
+}
+
+.react-flow__node.gc-node--run-active {
+  outline: 2px solid var(--gc-accent);
+  outline-offset: 2px;
+  border-radius: var(--gc-radius-sm);
 }
 
 .gc-modal-backdrop {

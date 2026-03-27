@@ -2,5 +2,9 @@
   "identifier": "default",
   "description": "Default capability for GraphCaster window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit"
+  ]
 }

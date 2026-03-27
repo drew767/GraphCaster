@@ -75,7 +75,21 @@
     },
     "console": {
       "heading": "Консоль",
-      "stub": "Здесь будет лог выполнения / поток NDJSON из Python-раннера."
+      "stub": "Здесь будет лог выполнения / поток NDJSON из Python-раннера.",
+      "empty": "Пока нет вывода. Запуск из нативного окна GraphCaster (Tauri).",
+      "clear": "Очистить",
+      "export": "Экспорт лога"
+    },
+    "run": {
+      "heading": "Запуск",
+      "start": "Run",
+      "stop": "Стоп",
+      "graphsDirPlaceholder": "Путь к graphs/ (graph_ref)",
+      "artifactsPlaceholder": "Корень воркспейса (runs/)",
+      "desktopOnlyHint": "Запуск доступен в нативном окне GraphCaster (Tauri), не в режиме только dev:web.",
+      "pythonMissing": "Модуль graph_caster недоступен (интерпретатор: {{path}}). Укажите GC_PYTHON, установите пакет или GC_GRAPH_CASTER_PACKAGE_ROOT для PYTHONPATH.",
+      "fixStructureFirst": "Исправьте предупреждения структуры графа (например один start) перед запуском.",
+      "cannotSaveDuringRun": "Сохранение недоступно во время активного Run."
     },
     "lang": {
       "selectLabel": "Язык",

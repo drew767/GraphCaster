@@ -90,6 +90,10 @@ type Props = {
   onAddNode: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
   onConnectNewEdge: (edge: GraphEdgeJson) => void;
   onFlowStructureChange: () => void;
+  /** When true: no new connections, delete, drag, or context-menu add (active Run). */
+  structureLocked?: boolean;
+  /** Highlights the node id from runner events (node_enter / node_execute). */
+  runHighlightNodeId?: string | null;
 };
 
 const nodeTypes = {
@@ -160,6 +164,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       workspaceGraphsForAddMenu,
       onConnectNewEdge,
       onFlowStructureChange,
+      structureLocked = false,
+      runHighlightNodeId = null,
     },
     ref,
   ) {
@@ -198,6 +204,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     const onNodesChangeWrapped = useCallback(
       (changes: NodeChange<Node>[]) => {
+        if (structureLocked && changes.some((c) => c.type === "remove")) {
+          return;
+        }
         onNodesChange(changes as NodeChange<Node<GcNodeData>>[]);
         const syncDoc = changes.some((c) => c.type === "remove" || c.type === "dimensions");
         if (syncDoc) {
@@ -206,11 +215,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           });
         }
       },
-      [onFlowStructureChange, onNodesChange],
+      [structureLocked, onFlowStructureChange, onNodesChange],
     );
 
     const onEdgesChangeWrapped = useCallback(
       (changes: EdgeChange[]) => {
+        if (structureLocked && changes.some((c) => c.type === "remove")) {
+          return;
+        }
         onEdgesChange(changes);
         const removed = changes.some((c) => c.type === "remove");
         if (removed) {
@@ -219,11 +231,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           });
         }
       },
-      [onEdgesChange, onFlowStructureChange],
+      [structureLocked, onEdgesChange, onFlowStructureChange],
     );
 
     const onConnect = useCallback(
       (c: Connection) => {
+        if (structureLocked) {
+          return;
+        }
         if (!c.source || !c.target || c.source === c.target) {
           return;
         }
@@ -254,7 +269,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           condition: null,
         });
       },
-      [edges, nodes, onConnectNewEdge],
+      [structureLocked, edges, nodes, onConnectNewEdge],
     );
 
     const onBeforeDelete = useCallback(
@@ -314,10 +329,21 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
 
     useEffect(() => {
-      const next = graphDocumentToFlow(graphDocument);
-      setNodes(next.nodes);
-      setEdges(next.edges);
-    }, [graphDocument, setNodes, setEdges]);
+      const base = graphDocumentToFlow(graphDocument);
+      const hl = runHighlightNodeId != null && runHighlightNodeId.trim() !== "" ? runHighlightNodeId.trim() : null;
+      const nodesWithHl = base.nodes.map((n) => {
+        const strip = (n.className ?? "").replace(/\bgc-node--run-active\b/g, "").trim();
+        const active = hl !== null && n.id === hl;
+        const className = active
+          ? strip
+            ? `${strip} gc-node--run-active`
+            : "gc-node--run-active"
+          : strip || undefined;
+        return { ...n, className };
+      });
+      setNodes(nodesWithHl);
+      setEdges(base.edges);
+    }, [graphDocument, runHighlightNodeId, setNodes, setEdges]);
 
     const onNodeClick = useCallback(
       (_event: MouseEvent, node: Node) => {
@@ -357,6 +383,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     const onPaneContextMenu = useCallback(
       (e: { preventDefault: () => void; clientX: number; clientY: number }) => {
+        if (structureLocked) {
+          return;
+        }
         e.preventDefault();
         setNodeCtxMenu(null);
         const project = projectScreenToFlowRef.current;
@@ -366,17 +395,26 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         const flow = project(e.clientX, e.clientY);
         setAddMenu({ sx: e.clientX, sy: e.clientY, fx: flow.x, fy: flow.y });
       },
-      [],
+      [structureLocked],
     );
 
-    const onNodeContextMenu = useCallback((e: MouseEvent, node: Node) => {
-      e.preventDefault();
-      setAddMenu(null);
-      setNodeCtxMenu({ sx: e.clientX, sy: e.clientY, nodeId: node.id });
-    }, []);
+    const onNodeContextMenu = useCallback(
+      (e: MouseEvent, node: Node) => {
+        if (structureLocked) {
+          return;
+        }
+        e.preventDefault();
+        setAddMenu(null);
+        setNodeCtxMenu({ sx: e.clientX, sy: e.clientY, nodeId: node.id });
+      },
+      [structureLocked],
+    );
 
     const onDeleteNodeFromMenu = useCallback(
       (nodeId: string) => {
+        if (structureLocked) {
+          return;
+        }
         setNodes((nds) => {
           const target = nds.find((n) => n.id === nodeId);
           const byId = new Map(nds.map((n) => [n.id, n]));
@@ -402,7 +440,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           onFlowStructureChange();
         });
       },
-      [onFlowStructureChange, onSelect, setEdges, setNodes],
+      [structureLocked, onFlowStructureChange, onSelect, setEdges, setNodes],
     );
 
     return (
@@ -426,10 +464,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           onNodeDragStop={onNodeDragStopWrapped}
           onBeforeDelete={onBeforeDelete}
           onNodesDelete={onNodesDelete}
-          nodesConnectable
-          nodesDraggable
-          elementsSelectable
-          deleteKeyCode={["Delete", "Backspace"]}
+          nodesConnectable={!structureLocked}
+          nodesDraggable={!structureLocked}
+          elementsSelectable={!structureLocked}
+          deleteKeyCode={structureLocked ? null : ["Delete", "Backspace"]}
         >
           <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
           <RefitOnLayoutEpoch epoch={layoutEpoch} />

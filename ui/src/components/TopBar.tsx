@@ -16,6 +16,16 @@ type Props = {
   onLinkWorkspace: () => void;
   workspaceGraphOptions: WorkspaceGraphOption[];
   onOpenWorkspaceGraph: (fileName: string) => void;
+  showRunControls?: boolean;
+  runGraphsDir?: string;
+  runArtifactsBase?: string;
+  onRunGraphsDirChange?: (value: string) => void;
+  onRunArtifactsBaseChange?: (value: string) => void;
+  onRun?: () => void;
+  onStopRun?: () => void;
+  runActive?: boolean;
+  runStartDisabled?: boolean;
+  runDesktopOnlyHint?: boolean;
 };
 
 export function TopBar({
@@ -27,6 +37,16 @@ export function TopBar({
   onLinkWorkspace,
   workspaceGraphOptions,
   onOpenWorkspaceGraph,
+  showRunControls = false,
+  runGraphsDir = "",
+  runArtifactsBase = "",
+  onRunGraphsDirChange = () => {},
+  onRunArtifactsBaseChange = () => {},
+  onRun = () => {},
+  onStopRun = () => {},
+  runActive = false,
+  runStartDisabled = false,
+  runDesktopOnlyHint = false,
 }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -35,16 +55,16 @@ export function TopBar({
       <span className="gc-top-title">{t("app.title")}</span>
       <div className="gc-top-menu">
         <span className="gc-top-menu-label">{t("app.menu.file")}</span>
-        <button type="button" className="gc-btn" onClick={onNewGraph}>
+        <button type="button" className="gc-btn" onClick={onNewGraph} disabled={runActive}>
           {t("app.menu.new")}
         </button>
-        <button type="button" className="gc-btn" onClick={onOpenGraph}>
+        <button type="button" className="gc-btn" onClick={onOpenGraph} disabled={runActive}>
           {t("app.menu.open")}
         </button>
-        <button type="button" className="gc-btn gc-btn-primary" onClick={onSaveGraph}>
+        <button type="button" className="gc-btn gc-btn-primary" onClick={onSaveGraph} disabled={runActive}>
           {t("app.menu.save")}
         </button>
-        <button type="button" className="gc-btn" onClick={onLinkWorkspace}>
+        <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={runActive}>
           {t("app.workspace.link")}
         </button>
         {workspaceLinked ? (
@@ -55,7 +75,7 @@ export function TopBar({
         <select
           className="gc-workspace-select"
           aria-label={t("app.workspace.openFromList")}
-          disabled={!workspaceLinked || workspaceGraphOptions.length === 0}
+          disabled={runActive || !workspaceLinked || workspaceGraphOptions.length === 0}
           defaultValue=""
           onChange={(ev) => {
             const v = ev.target.value;
@@ -72,6 +92,48 @@ export function TopBar({
             </option>
           ))}
         </select>
+        {showRunControls ? (
+          <div className="gc-top-run" title={runDesktopOnlyHint ? t("app.run.desktopOnlyHint") : undefined}>
+            <span className="gc-top-run-label">{t("app.run.heading")}</span>
+            <input
+              type="text"
+              className="gc-top-run-input"
+              value={runGraphsDir}
+              onChange={(ev) => {
+                onRunGraphsDirChange(ev.target.value);
+              }}
+              placeholder={t("app.run.graphsDirPlaceholder")}
+              disabled={runActive}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label={t("app.run.graphsDirPlaceholder")}
+            />
+            <input
+              type="text"
+              className="gc-top-run-input"
+              value={runArtifactsBase}
+              onChange={(ev) => {
+                onRunArtifactsBaseChange(ev.target.value);
+              }}
+              placeholder={t("app.run.artifactsPlaceholder")}
+              disabled={runActive}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label={t("app.run.artifactsPlaceholder")}
+            />
+            <button
+              type="button"
+              className="gc-btn gc-btn-primary"
+              onClick={onRun}
+              disabled={runStartDisabled || runActive || runDesktopOnlyHint}
+            >
+              {t("app.run.start")}
+            </button>
+            <button type="button" className="gc-btn" onClick={onStopRun} disabled={!runActive}>
+              {t("app.run.stop")}
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="gc-top-actions">
         <select

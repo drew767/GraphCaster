@@ -15,6 +15,7 @@ type Props = {
   onApplyEdgeCondition: (edgeId: string, condition: string | null) => void;
   workspaceLinked: boolean;
   onOpenNestedGraph?: (targetGraphId: string) => void;
+  runLocked?: boolean;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -58,6 +59,7 @@ export function InspectorPanel({
   onApplyEdgeCondition,
   workspaceLinked,
   onOpenNestedGraph,
+  runLocked = false,
 }: Props) {
   const { t } = useTranslation();
   const [dataText, setDataText] = useState("{}");
@@ -106,6 +108,9 @@ export function InspectorPanel({
 
   const onSubmitNode = (e: FormEvent) => {
     e.preventDefault();
+    if (runLocked) {
+      return;
+    }
     if (!selection || selection.kind !== "node") {
       return;
     }
@@ -125,6 +130,9 @@ export function InspectorPanel({
 
   const onSubmitEdge = (e: FormEvent) => {
     e.preventDefault();
+    if (runLocked) {
+      return;
+    }
     if (!selection || selection.kind !== "edge") {
       return;
     }
@@ -134,6 +142,9 @@ export function InspectorPanel({
 
   const onSubmitGraph = (e: FormEvent) => {
     e.preventDefault();
+    if (runLocked) {
+      return;
+    }
     let inputsParsed: unknown | undefined;
     let outputsParsed: unknown | undefined;
     if (graphInputsText.trim() === "") {
@@ -220,6 +231,7 @@ export function InspectorPanel({
                 type="button"
                 className="gc-btn gc-btn-primary gc-inspector-apply"
                 disabled={
+                  runLocked ||
                   !workspaceLinked ||
                   graphRefTargetId(selection.raw) === "" ||
                   onOpenNestedGraph == null
@@ -249,11 +261,16 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setDataText(ev.target.value);
               }}
+              readOnly={runLocked}
               spellCheck={false}
               autoComplete="off"
               rows={12}
             />
-            <button type="submit" className="gc-btn gc-btn-primary gc-inspector-apply">
+            <button
+              type="submit"
+              className="gc-btn gc-btn-primary gc-inspector-apply"
+              disabled={runLocked}
+            >
               {t("app.inspector.applyData")}
             </button>
           </form>
@@ -284,12 +301,17 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setConditionText(ev.target.value);
               }}
+              readOnly={runLocked}
               spellCheck={false}
               autoComplete="off"
               placeholder={t("app.inspector.edgeConditionPlaceholder")}
             />
             <p className="gc-inspector-edge-hint">{t("app.inspector.edgeConditionHint")}</p>
-            <button type="submit" className="gc-btn gc-btn-primary gc-inspector-apply">
+            <button
+              type="submit"
+              className="gc-btn gc-btn-primary gc-inspector-apply"
+              disabled={runLocked}
+            >
               {t("app.inspector.applyEdgeCondition")}
             </button>
           </form>
@@ -310,6 +332,7 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setGraphTitle(ev.target.value);
               }}
+              readOnly={runLocked}
               autoComplete="off"
             />
             <span className="gc-inspector-data-label">{t("app.inspector.graphId")}</span>
@@ -330,6 +353,7 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setGraphAuthor(ev.target.value);
               }}
+              readOnly={runLocked}
               autoComplete="off"
             />
             <label className="gc-inspector-data-label" htmlFor="gc-inspector-graph-sv">
@@ -344,6 +368,7 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setGraphSchemaVersion(ev.target.value);
               }}
+              readOnly={runLocked}
               autoComplete="off"
             />
             <label className="gc-inspector-data-label" htmlFor="gc-inspector-graph-inputs">
@@ -356,6 +381,7 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setGraphInputsText(ev.target.value);
               }}
+              readOnly={runLocked}
               spellCheck={false}
               autoComplete="off"
               rows={6}
@@ -371,12 +397,17 @@ export function InspectorPanel({
               onChange={(ev) => {
                 setGraphOutputsText(ev.target.value);
               }}
+              readOnly={runLocked}
               spellCheck={false}
               autoComplete="off"
               rows={6}
             />
             <p className="gc-inspector-edge-hint">{t("app.inspector.graphOutputsHint")}</p>
-            <button type="submit" className="gc-btn gc-btn-primary gc-inspector-apply">
+            <button
+              type="submit"
+              className="gc-btn gc-btn-primary gc-inspector-apply"
+              disabled={runLocked}
+            >
               {t("app.inspector.applyGraph")}
             </button>
           </form>

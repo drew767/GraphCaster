@@ -44,6 +44,19 @@ import {
   type WorkspaceGraphEntry,
 } from "../lib/workspaceFs";
 import { useConsoleHeight } from "../hooks/useConsoleHeight";
+import { gcCancelRun, gcStartRun, getRunEnvironmentInfo } from "../run/runCommands";
+import {
+  getRunSessionSnapshot,
+  runSessionAppendLine,
+  runSessionSetActiveRunId,
+  runSessionSetPythonBanner,
+  useRunSession,
+} from "../run/runSessionStore";
+import { isTauriRuntime } from "../run/tauriEnv";
+import { useRunBridge } from "../run/useRunBridge";
+
+const LS_RUN_GRAPHS = "gc.run.graphsDir";
+const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
 
 type Props = {
   onLangChange: (lng: string) => void;
@@ -51,6 +64,9 @@ type Props = {
 
 export function AppShell({ onLangChange }: Props) {
   const { t } = useTranslation();
+  useRunBridge();
+  const runSession = useRunSession();
+  const isRunActive = runSession.activeRunId != null;
   const { height, startDrag } = useConsoleHeight(168);
   const [selection, setSelection] = useState<GraphCanvasSelection | null>(null);
   const [graphDocument, setGraphDocument] = useState<GraphDocumentJson>(() => {
@@ -70,6 +86,32 @@ export function AppShell({ onLangChange }: Props) {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
   const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
+  const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
+  const [runArtifactsBase, setRunArtifactsBase] = useState(
+    () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
+  );
+  const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(LS_RUN_GRAPHS, runGraphsDir);
+  }, [runGraphsDir]);
+  useEffect(() => {
+    localStorage.setItem(LS_RUN_ARTIFACTS, runArtifactsBase);
+  }, [runArtifactsBase]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      runSessionSetPythonBanner(null);
+      setPyProbe(null);
+      return;
+    }
+    void getRunEnvironmentInfo().then((info) => {
+      setPyProbe({ ok: info.moduleAvailable, path: info.pythonPath });
+      runSessionSetPythonBanner(
+        info.moduleAvailable ? null : t("app.run.pythonMissing", { path: info.pythonPath }),
+      );
+    });
+  }, [t]);
 
   const bumpLayoutEpoch = useCallback(() => {
     setLayoutEpoch((n) => n + 1);
@@ -222,6 +264,10 @@ export function AppShell({ onLangChange }: Props) {
   );
 
   const openSaveModal = useCallback(() => {
+    if (getRunSessionSnapshot().activeRunId != null) {
+      window.alert(t("app.run.cannotSaveDuringRun"));
+      return;
+    }
     const api = canvasRef.current;
     if (!api) {
       return;
@@ -229,18 +275,75 @@ export function AppShell({ onLangChange }: Props) {
     const doc = api.exportDocument();
     setSaveModalSuggestedName(activeWorkspaceFile ?? defaultWorkspaceFileName(doc));
     setSaveModalOpen(true);
-  }, [activeWorkspaceFile]);
+  }, [activeWorkspaceFile, t]);
 
   const onSaveGraph = useCallback(() => {
     openSaveModal();
   }, [openSaveModal]);
 
+  const onRunGraph = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    if (structureIssues.length > 0) {
+      window.alert(t("app.run.fixStructureFirst"));
+      return;
+    }
+    if (pyProbe != null && !pyProbe.ok) {
+      window.alert(t("app.run.pythonMissing", { path: pyProbe.path }));
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const doc = api.exportDocument();
+    const runId = crypto.randomUUID();
+    runSessionAppendLine(`[host] starting run ${runId}`);
+    runSessionSetActiveRunId(runId);
+    try {
+      await gcStartRun({
+        documentJson: JSON.stringify(doc),
+        runId,
+        graphsDir: runGraphsDir.trim() || undefined,
+        artifactsBase: runArtifactsBase.trim() || undefined,
+      });
+    } catch (e) {
+      runSessionSetActiveRunId(null);
+      runSessionAppendLine(`[host] ${String(e)}`);
+    }
+  }, [
+    pyProbe,
+    runArtifactsBase,
+    runGraphsDir,
+    structureIssues.length,
+    t,
+  ]);
+
+  const onStopRunGraph = useCallback(async () => {
+    const id = getRunSessionSnapshot().activeRunId;
+    if (!id || !isTauriRuntime()) {
+      return;
+    }
+    try {
+      await gcCancelRun(id);
+    } catch (e) {
+      runSessionAppendLine(`[host] cancel: ${String(e)}`);
+    }
+  }, []);
+
   useEffect(() => {
     if (!workspaceGraphsDir || !activeWorkspaceFile) {
       return;
     }
+    if (isRunActive) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       void (async () => {
+        if (getRunSessionSnapshot().activeRunId != null) {
+          return;
+        }
         const api = canvasRef.current;
         if (!api || !workspaceGraphsDir) {
           return;
@@ -265,7 +368,7 @@ export function AppShell({ onLangChange }: Props) {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex]);
+  }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex, isRunActive]);
 
   const onApplyNodeData = useCallback((nodeId: string, data: Record<string, unknown>) => {
     const api = canvasRef.current;
@@ -371,6 +474,9 @@ export function AppShell({ onLangChange }: Props) {
 
   const onAddNode = useCallback(
     (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => {
+      if (getRunSessionSnapshot().activeRunId != null) {
+        return;
+      }
       const api = canvasRef.current;
       if (!api) {
         return;
@@ -411,6 +517,9 @@ export function AppShell({ onLangChange }: Props) {
     },
     [t],
   );
+
+  const runStartDisabled =
+    pyProbe != null && !pyProbe.ok;
 
   const onOpenNestedGraph = useCallback(
     (targetGraphId: string) => {
@@ -472,6 +581,20 @@ export function AppShell({ onLangChange }: Props) {
         onOpenWorkspaceGraph={(name) => {
           void onOpenWorkspaceGraph(name);
         }}
+        showRunControls
+        runGraphsDir={runGraphsDir}
+        runArtifactsBase={runArtifactsBase}
+        onRunGraphsDirChange={setRunGraphsDir}
+        onRunArtifactsBaseChange={setRunArtifactsBase}
+        onRun={() => {
+          void onRunGraph();
+        }}
+        onStopRun={() => {
+          void onStopRunGraph();
+        }}
+        runActive={isRunActive}
+        runStartDisabled={runStartDisabled}
+        runDesktopOnlyHint={!isTauriRuntime()}
       />
       {branchIssues.length > 0 || structureIssues.length > 0 ? (
         <div className="gc-branch-warnings" role="status">
@@ -510,6 +633,8 @@ export function AppShell({ onLangChange }: Props) {
               onAddNode={onAddNode}
               onConnectNewEdge={onConnectNewEdge}
               onFlowStructureChange={onFlowStructureChange}
+              structureLocked={isRunActive}
+              runHighlightNodeId={runSession.activeNodeId}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);
               }}
@@ -524,6 +649,7 @@ export function AppShell({ onLangChange }: Props) {
           onApplyEdgeCondition={onApplyEdgeCondition}
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
+          runLocked={isRunActive}
         />
       </div>
       <ConsolePanel heightPx={height} onResizeStart={startDrag} />

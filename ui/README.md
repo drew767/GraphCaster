@@ -26,6 +26,17 @@ npm test
 - **@xyflow/react** (React Flow 12) + **i18next** — **en** / **ru**
 - **graphs/:** File System Access API (привязка корня → каталог **`graphs/`**, скан, автосохранение с debounce)
 
+## Run (Python) в нативном окне
+
+Кнопки **Run** / **Stop** в шапке работают только в **Tauri** (`npm run dev` / установщик). Запускается дочерний процесс `python -m graph_caster run` с NDJSON в stdout и отменой через stdin (см. `python/README.md`). В **`npm run dev:web`** кнопка Run отключена.
+
+Переменные окружения при разработке (опционально):
+
+- **`GC_PYTHON`** — путь к интерпретатору (иначе `python` на Windows / `python3` на Unix).
+- **`GC_GRAPH_CASTER_PACKAGE_ROOT`** — каталог пакета `python/` репозитория GraphCaster; добавляется в **`PYTHONPATH`** при проверке импорта и при spawn.
+
+Поля **graphs/** и **workspace root** в шапке — пути на диске для `-g` и `--artifacts-base` (для `graph_ref` и каталога `runs/`). Сохраняются в `localStorage`.
+
 ## Встраивание
 
 Статическая сборка из `dist/` для WebView / iframe; обмен с Python-runner по плану продукта (WebSocket / `postMessage` / Tauri). Для ежедневной работы в отдельном окне используйте **`npm run dev`** (оболочка Tauri в `src-tauri/`).
