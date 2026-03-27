@@ -7,7 +7,7 @@
 | Путь | Назначение |
 |------|------------|
 | `python/` | Пакет `graph_caster`: загрузка JSON, обход графа, события выполнения |
-| `ui/` | Заготовка фронтенда (далее Vite + React + полотно нод) |
+| `ui/` | Vite + React + TS: каркас меню / полотно / инспектор / консоль (см. `ui/README.md`) |
 | `schemas/` | **JSON Schema** контракта v1 и пример документа |
 | `doc/` | Продуктовый дизайн и поэтапный план |
 
@@ -46,7 +46,7 @@ git commit -m "Bump graph-caster submodule"
 cd python
 pip install -e .
 python -m graph_caster --help
-python -m graph_caster -d ../schemas/graph-document.example.json -s n1
+python -m graph_caster run -d ../schemas/graph-document.example.json -s start1
 ```
 
 События выполнения печатаются **по одному JSON на строку** (удобно для пайпов и UI).
@@ -76,8 +76,8 @@ pytest -q
 |-----|----------|
 | 1 | Довести JSON Schema и политику условий / множественных выходов; при смене схемы поднять `schemaVersion`. |
 | 2 | Усилить раннер (DSL или JSONLogic для условий, `graph_ref`, анти-циклы). |
-| 3 | Поднять `ui/`: Vite + React + TS, каркас меню / канвас / инспектор / консоль. |
-| 4 | React Flow (или аналог): ноды, пины, валидация соединений in↔out. |
+| 3 | Поднять `ui/`: Vite + React + TS, каркас меню / канвас / инспектор / консоль — **частично сделано** (`npm run dev` / `build`). |
+| 4 | React Flow: ноды, пины, валидация соединений — **частично** (полотно + пример графа + инспектор выбора ноды). |
 | 5 | Инспектор свойств и редактор условия на ребре. |
 | 6 | Workspace: автоскан **`graphs/`**, автосохранение без диалога, открыть из меню и инспектора. |
 | 7 | Run: мост к Python (NDJSON/WebSocket) или воспроизведение лога в чистом браузере. |
@@ -87,7 +87,7 @@ pytest -q
 
 ## UI (`ui/`)
 
-Пока заглушки npm-скриптов. После инициализации Vite замените `dev` / `build` в `ui/package.json`. Детали: [`ui/README.md`](ui/README.md).
+Из каталога `ui/`: **`npm install`**, **`npm run dev`** (разработка) или **`npm run build`** (production в **`ui/dist/`**). Детали: [`ui/README.md`](ui/README.md).
 
 ## Лицензирование
 

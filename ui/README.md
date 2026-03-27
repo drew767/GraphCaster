@@ -1,15 +1,24 @@
-# GraphCaster UI (заготовка)
+# GraphCaster UI
 
-Здесь будет SPA-редактор: бесконечное полотно, ноды с пинами, меню, правый инспектор, нижняя консоль.
+SPA-редактор: Vite, React 18, TypeScript. Полотно **@xyflow/react**; стартовый документ — пример из **`@schemas/`**; **Открыть** / **Сохранить** (в **`graphs/`** после **привязки папки проекта** в Chromium, иначе скачивание `.json`) / **Новый**; инспектор ноды/ребра, консоль-заглушка — см. `doc/DEVELOPMENT_PLAN.md`.
 
-## Планируемый стек
+## Команды
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run preview
+```
+
+Сборка пишет артефакты в **`dist/`** (в git не коммитится — см. корневой `.gitignore`).
+
+## Стек
 
 - **Vite** + **React** + **TypeScript**
-- Граф: **React Flow** (или аналог) для панорамирования, соединений и кастомных нод
+- **@xyflow/react** (React Flow 12) + **i18next** — **en** / **ru**
+- **graphs/:** File System Access API (привязка корня → каталог **`graphs/`**, скан, автосохранение с debounce)
 
 ## Встраивание
 
-- Статическая сборка для WebView / iframe в десктоп-хосте
-- Обмен с Python-runner: WebSocket или `postMessage` / Tauri invoke (на стороне продукта)
-
-После добавления зависимостей замените заглушки в `package.json` на реальные `dev` / `build`.
+Статическая сборка из `dist/` для WebView / iframe; обмен с Python-runner по плану продукта (WebSocket / `postMessage` / Tauri).

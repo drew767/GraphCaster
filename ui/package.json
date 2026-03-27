@@ -2,13 +2,31 @@
   "name": "graph-caster-ui",
   "private": true,
   "version": "0.1.0",
-  "description": "GraphCaster editor shell (canvas, nodes, chrome) — to be wired with Vite/React and a graph library",
+  "description": "GraphCaster editor shell — Vite, React, TypeScript",
   "type": "module",
   "scripts": {
-    "dev": "echo \"TODO: add Vite dev server\" && exit 0",
-    "build": "echo \"TODO: production build\" && exit 0"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.8.2",
+    "i18next": "^24.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.6",
+    "vitest": "^3.0.0"
   }
 }

@@ -1,0 +1,38 @@
+/* Copyright Aura. All Rights Reserved. */
+
+:root {
+  --gc-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --gc-radius-sm: 6px;
+  --gc-radius-md: 10px;
+
+  --gc-surface-0: #f5f5f7;
+  --gc-surface-1: #ffffff;
+  --gc-surface-2: #eaeaef;
+  --gc-border: rgba(0, 0, 0, 0.08);
+  --gc-text-primary: #1c1c1e;
+  --gc-text-secondary: rgba(28, 28, 30, 0.55);
+  --gc-accent: #007aff;
+  --gc-accent-hover: #0066d6;
+  --gc-console-bg: #1a1a1c;
+  --gc-console-fg: #ebebf0;
+  --gc-console-muted: rgba(235, 235, 240, 0.5);
+  --gc-shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --gc-splitter-hover: rgba(0, 122, 255, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gc-surface-0: #0d0d0f;
+    --gc-surface-1: #161618;
+    --gc-surface-2: #242428;
+    --gc-border: rgba(255, 255, 255, 0.08);
+    --gc-text-primary: #f5f5f7;
+    --gc-text-secondary: rgba(245, 245, 247, 0.55);
+    --gc-accent: #0a84ff;
+    --gc-accent-hover: #409cff;
+    --gc-console-bg: #000000;
+    --gc-console-fg: #f2f2f7;
+    --gc-console-muted: rgba(242, 242, 247, 0.45);
+    --gc-shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}

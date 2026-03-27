@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1)",
+  "title": "GraphCaster graph document (v1.1)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -15,8 +15,9 @@
       "additionalProperties": true,
       "properties": {
         "schemaVersion": { "type": "integer" },
-        "graphId": { "type": "string" },
-        "title": { "type": "string" }
+        "graphId": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "author": { "type": "string" }
       }
     },
     "viewport": {

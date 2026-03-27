@@ -14,7 +14,23 @@ pytest -q
 
 ```bash
 python -m graph_caster --help
-python -m graph_caster -d ../schemas/graph-document.example.json -s n1
+python -m graph_caster run -d ../schemas/graph-document.example.json -s start1
+python -m graph_caster -d ../schemas/graph-document.example.json -s start1
+python -m graph_caster run -d graph.json -g ./graphs --artifacts-base .
+python -m graph_caster artifacts-size --base .
+python -m graph_caster artifacts-size --base . --graph-id '<uuid>'
+python -m graph_caster artifacts-clear --base . --all
+python -m graph_caster artifacts-clear --base . --graph-id '<uuid>'
 ```
+
+Старый вызов **`python -m graph_caster -d …`** по-прежнему работает (автоматически трактуется как подкоманда **`run`**).
+
+- **`run`:** **`-g` / `--graphs-dir`** — каталог с `*.json` для нод **`graph_ref`**; **`--artifacts-base`** — корень воркспейса с **`runs/<graphId>/…`** и **`root_run_artifact_dir`** в контексте.
+- **`artifacts-size`:** вывод суммарного размера в байтах (**`runs/`** целиком или **`--graph-id`**).
+- **`artifacts-clear`:** **`--all`** или **`--graph-id`** — удаление дерева артефактов.
+
+Из кода (для UI / обслуживания): **`artifacts_tree_bytes_for_graph`**, **`artifacts_runs_total_bytes`**, **`clear_artifacts_for_graph`**, **`clear_all_artifact_runs`**, **`tree_bytes`** — см. пакет **`graph_caster.artifacts`**.
+
+**Нода `task` с подпроцессом:** в **`data`** задайте **`command`** (строка или список аргументов) или **`argv`**. Опционально: **`cwd`**, **`env`** (объект строк — дополняет **`os.environ`**), **`successMode`** (`exit_code` / `stdout` / `marker_file`), **`timeoutSec`**, **`retryCount`**, **`retryBackoffSec`**. Логика в **`graph_caster.process_exec`**.
 
 Полная документация репозитория: [../README.md](../README.md).

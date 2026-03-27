@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "GraphCaster",
+    "menu": {
+      "file": "File",
+      "new": "New graph",
+      "open": "Open…",
+      "save": "Save"
+    },
+    "canvas": {
+      "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
+      "addNodeTitle": "Add node",
+      "addNodeFilterPh": "Filter by type…",
+      "addNodeNoMatch": "No matching node type.",
+      "onlyOneStart": "This graph already has a start node.",
+      "nodeTypes": {
+        "start": "Start",
+        "exit": "Exit",
+        "task": "Task",
+        "graph_ref": "Nested graph"
+      }
+    },
+    "structure": {
+      "noStart": "No start node (runner expects a single start).",
+      "multipleStarts": "More than one start node: {{ids}}.",
+      "startHasIncoming": "Start node {{id}} has incoming edges (should have none)."
+    },
+    "inspector": {
+      "heading": "Inspector",
+      "hint": "Click a node or edge. Drag between handles to connect. Delete/Backspace removes the selection. Right-click canvas adds a node. Inspector: data or edge condition.",
+      "nodeId": "Id",
+      "nodeType": "Type",
+      "label": "Title",
+      "dataJson": "Data",
+      "applyData": "Apply data",
+      "invalidDataJson": "Data must be a JSON object.",
+      "dataParseError": "Invalid JSON syntax in data.",
+      "edgeId": "Edge id",
+      "edgeSource": "From",
+      "edgeTarget": "To",
+      "edgeCondition": "Condition",
+      "edgeConditionPlaceholder": "leave empty if unconditional",
+      "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner).",
+      "applyEdgeCondition": "Apply condition",
+      "openGraphRef": "Open nested graph",
+      "openGraphRefNeedWorkspace": "Link a project folder so nested graphs can be opened from graphs/."
+    },
+    "warnings": {
+      "multipleUnconditional": "Node {{sourceId}}: more than one outgoing edge with no condition (runner uses JSON order).",
+      "duplicateCondition": "Node {{sourceId}}: duplicate condition \"{{detail}}\"."
+    },
+    "console": {
+      "heading": "Console",
+      "stub": "Run log / NDJSON stream from the Python runner will appear here."
+    },
+    "lang": {
+      "en": "English",
+      "ru": "Русский"
+    },
+    "errors": {
+      "invalidGraphJson": "Invalid graph file: need a JSON object with \"nodes\" and \"edges\" arrays.",
+      "readJsonFailed": "Could not read or parse the file as JSON."
+    },
+    "workspace": {
+      "link": "Link project folder…",
+      "linkedBadge": "graphs",
+      "linkedHint": "Project folder is linked; graphs/ is used for Save and autosave.",
+      "openFromList": "Open from graphs…",
+      "notSupported": "Folder linking needs a Chromium-based browser (File System Access API). Use Save to download otherwise.",
+      "linkFailed": "Could not open the project folder or create graphs/.",
+      "writeFailed": "Could not write the graph file.",
+      "duplicateGraphId": "Another file already uses this graphId: {{file}}",
+      "needLinkForGraphRef": "Link the project folder first to open a nested graph from graphs/.",
+      "graphNotInIndex": "No graph file with graphId {{id}} was found in graphs/ (rescan after adding files)."
+    }
+  }
+}

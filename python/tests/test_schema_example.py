@@ -25,6 +25,6 @@ def test_schema_rejects_edge_with_missing_target() -> None:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     doc = json.loads(example_path.read_text(encoding="utf-8"))
     bad = json.loads(json.dumps(doc))
-    bad["edges"] = [{"id": "x", "source": "n1"}]
+    bad["edges"] = [{"id": "x", "source": "start1"}]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=bad, schema=schema)

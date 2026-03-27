@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "GraphCaster",
+    "menu": {
+      "file": "Файл",
+      "new": "Новый граф",
+      "open": "Открыть…",
+      "save": "Сохранить"
+    },
+    "canvas": {
+      "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
+      "addNodeTitle": "Добавить ноду",
+      "addNodeFilterPh": "Фильтр по типу…",
+      "addNodeNoMatch": "Нет подходящего типа.",
+      "onlyOneStart": "В графе уже есть нода start.",
+      "nodeTypes": {
+        "start": "Старт",
+        "exit": "Выход",
+        "task": "Задача",
+        "graph_ref": "Вложенный граф"
+      }
+    },
+    "structure": {
+      "noStart": "Нет ноды start (раннеру нужен один start).",
+      "multipleStarts": "Больше одной ноды start: {{ids}}.",
+      "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть)."
+    },
+    "inspector": {
+      "heading": "Инспектор",
+      "hint": "Клик по ноде/ребру. Соединение — от пина к пину. Delete/Backspace — удалить выделение. ПКМ — новая нода. Инспектор: данные или условие.",
+      "nodeId": "Id",
+      "nodeType": "Тип",
+      "label": "Заголовок",
+      "dataJson": "Данные",
+      "applyData": "Применить данные",
+      "invalidDataJson": "Нужен JSON-объект { ... }.",
+      "dataParseError": "Синтаксическая ошибка в JSON данных.",
+      "edgeId": "Id ребра",
+      "edgeSource": "Из",
+      "edgeTarget": "В",
+      "edgeCondition": "Условие",
+      "edgeConditionPlaceholder": "пусто — без условия",
+      "edgeConditionHint": "Раннер берёт первое ребро без условия или с истинным условием (см. Python).",
+      "applyEdgeCondition": "Применить условие",
+      "openGraphRef": "Открыть вложенный граф",
+      "openGraphRefNeedWorkspace": "Привяжите папку проекта, чтобы открывать вложенные графы из graphs/."
+    },
+    "warnings": {
+      "multipleUnconditional": "Нода {{sourceId}}: несколько исходящих рёбер без условия (порядок как в JSON).",
+      "duplicateCondition": "Нода {{sourceId}}: повтор условия \"{{detail}}\"."
+    },
+    "console": {
+      "heading": "Консоль",
+      "stub": "Здесь будет лог выполнения / поток NDJSON из Python-раннера."
+    },
+    "lang": {
+      "en": "English",
+      "ru": "Русский"
+    },
+    "errors": {
+      "invalidGraphJson": "Неверный файл графа: нужен JSON-объект с массивами \"nodes\" и \"edges\".",
+      "readJsonFailed": "Не удалось прочитать или разобрать файл как JSON."
+    },
+    "workspace": {
+      "link": "Привязать папку проекта…",
+      "linkedBadge": "graphs",
+      "linkedHint": "Папка привязана: Save и автосохранение пишут в graphs/.",
+      "openFromList": "Открыть из graphs…",
+      "notSupported": "Привязка папки: нужен браузер на Chromium (File System Access). Иначе «Сохранить» скачает файл.",
+      "linkFailed": "Не удалось открыть папку проекта или создать graphs/.",
+      "writeFailed": "Не удалось записать файл графа.",
+      "duplicateGraphId": "Другой файл уже использует этот graphId: {{file}}",
+      "needLinkForGraphRef": "Сначала привяжите папку проекта, чтобы открыть вложенный граф из graphs/.",
+      "graphNotInIndex": "В graphs/ нет файла с graphId {{id}} (обновите список после добавления файлов)."
+    }
+  }
+}

@@ -2,8 +2,9 @@
   "schemaVersion": 1,
   "meta": {
     "schemaVersion": 1,
-    "graphId": "example-linear",
-    "title": "Example graph"
+    "graphId": "a1b2c3d4-e5f6-4789-a012-3456789abcde",
+    "title": "Example start → task → exit",
+    "author": "Aura"
   },
   "viewport": {
     "x": 0,
@@ -12,31 +13,43 @@
   },
   "nodes": [
     {
-      "id": "n1",
-      "type": "task",
+      "id": "start1",
+      "type": "start",
       "position": { "x": 120, "y": 200 },
+      "data": {}
+    },
+    {
+      "id": "t1",
+      "type": "task",
+      "position": { "x": 320, "y": 200 },
       "data": {
-        "title": "Start task",
-        "summary": "Entry point",
-        "icon": null
+        "title": "Middle task",
+        "summary": "Work step"
       }
     },
     {
-      "id": "n2",
-      "type": "task",
-      "position": { "x": 420, "y": 200 },
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 520, "y": 200 },
       "data": {
-        "title": "Next task",
-        "summary": "Follow-up"
+        "title": "Done"
       }
     }
   ],
   "edges": [
     {
       "id": "e1",
-      "source": "n1",
+      "source": "start1",
       "sourceHandle": "out_default",
-      "target": "n2",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
       "targetHandle": "in_default",
       "condition": null
     }
