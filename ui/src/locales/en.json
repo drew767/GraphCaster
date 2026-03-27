@@ -80,6 +80,8 @@
       "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner).",
       "applyEdgeCondition": "Apply condition",
       "openGraphRef": "Open nested graph",
+      "runUntilThisNode": "Run until this node",
+      "runUntilThisNodeHint": "From the graph start; stops after this node when reached. Unreachable target or earlier failure → failed; exit node → success; nested graph_ref runs to completion. Partial only when stop triggers on the root path (desktop).",
       "openGraphRefNeedWorkspace": "Link a project folder so nested graphs can be opened from graphs/.",
       "graphSection": "Graph",
       "graphTitle": "Title",

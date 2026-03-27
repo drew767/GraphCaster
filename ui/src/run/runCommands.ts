@@ -26,6 +26,8 @@ export async function gcStartRun(args: {
   runId: string;
   graphsDir?: string;
   artifactsBase?: string;
+  untilNodeId?: string;
+  contextJsonPath?: string;
 }): Promise<void> {
   await invoke("gc_start_run", {
     request: {
@@ -34,6 +36,9 @@ export async function gcStartRun(args: {
       graphsDir: args.graphsDir == null || args.graphsDir === "" ? null : args.graphsDir,
       artifactsBase:
         args.artifactsBase == null || args.artifactsBase === "" ? null : args.artifactsBase,
+      untilNodeId: args.untilNodeId == null || args.untilNodeId === "" ? null : args.untilNodeId,
+      contextJsonPath:
+        args.contextJsonPath == null || args.contextJsonPath === "" ? null : args.contextJsonPath,
     },
   });
 }

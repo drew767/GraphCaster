@@ -8,6 +8,9 @@ from pathlib import Path
 from graph_caster.__main__ import main
 from graph_caster.artifacts import create_root_run_artifact_dir
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PARTIAL_FIXTURE = _REPO_ROOT / "schemas" / "test-fixtures" / "partial-run-linear.json"
+
 
 def _minimal_valid_doc(graph_id: str) -> dict:
     return {
@@ -145,3 +148,33 @@ def test_main_run_graphs_dir_cycle_exits_3_before_run(capsys, tmp_path: Path) ->
     assert code == 3
     assert "cycle" in captured.err.lower()
     assert "run_started" not in captured.out
+
+
+def test_main_run_until_node_partial_finished(capsys) -> None:
+    assert _PARTIAL_FIXTURE.is_file()
+    assert main(["run", "-d", str(_PARTIAL_FIXTURE), "--until-node", "tb_mid"]) == 0
+    captured = capsys.readouterr()
+    assert "partial" in captured.out and "run_finished" in captured.out
+    assert "node_enter" in captured.out
+    assert captured.err == ""
+
+
+def test_main_run_until_node_unknown_id(capsys) -> None:
+    assert main(["run", "-d", str(_PARTIAL_FIXTURE), "--until-node", "nope"]) == 2
+    assert "not a node id" in capsys.readouterr().err
+
+
+def test_main_run_until_node_ignores_start_stderr_note(capsys) -> None:
+    code = main(["run", "-d", str(_PARTIAL_FIXTURE), "--until-node", "tb_mid", "-s", "tb_mid"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "ignoring --start" in captured.err
+    types = [json.loads(line)["type"] for line in captured.out.splitlines() if line.strip()]
+    assert types.count("node_enter") == 2
+
+
+def test_main_context_json_invalid_returns_2(capsys, tmp_path: Path) -> None:
+    bad = tmp_path / "ctx.json"
+    bad.write_text("not-json", encoding="utf-8")
+    assert main(["run", "-d", str(_PARTIAL_FIXTURE), "--context-json", str(bad)]) == 2
+    assert "context-json" in capsys.readouterr().err

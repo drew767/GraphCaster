@@ -70,8 +70,8 @@
           "rootGraphId": { "type": "string", "minLength": 1 },
           "status": {
             "type": "string",
-            "enum": ["success", "failed", "cancelled"],
-            "description": "cancelled: cooperative stop between steps or before process spawn (host command)."
+            "enum": ["success", "failed", "cancelled", "partial"],
+            "description": "partial: early stop after --until-node / stop_after_node_id before reaching exit. cancelled: cooperative stop between steps or before process spawn (host command)."
           },
           "finishedAt": {
             "type": "string",

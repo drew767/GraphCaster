@@ -145,7 +145,7 @@
 |-----------------|---------------|
 | Стабильный идентификатор исполнения на потоке событий | Поле **`runId`** (UUID) на всех событиях корневого прогона и вложенного `graph_ref` |
 | Старт сессии: id, workflow/graph, время, режим, имя | **`run_started`**: `rootGraphId`, `startedAt`, **`mode`** (по умолчанию `manual`, `context["run_mode"]`), опционально **`graphTitle`** из `meta.title` |
-| Завершение с явным статусом | **`run_finished`**: `status` (`success` \| `failed` \| `cancelled`), **`finishedAt`**; всегда последнее событие корневого кадра (`try`/`finally`) |
+| Завершение с явным статусом | **`run_finished`**: `status` (`success` \| `failed` \| `cancelled` \| **`partial`**), **`finishedAt`**; всегда последнее событие корневого кадра (`try`/`finally`); **`partial`** — ранний stop по **`--until-node`** / **`GraphRunner(..., stop_after_node_id=…)`** |
 | Нормализация пустого / невалидного `run_id` из контекста | Пустое / `None` / пробелы → новый UUID; см. `_normalize_run_id_candidate` в `runner.py` |
 | Ограничение размера `mode` в потоке | Обрезка до 128 символов |
 
@@ -193,11 +193,27 @@
 |-----------------|---------------|
 | Один логический поток событий на исполнение (`executionId` / SSE-канал) | Подпроцесс `python -m graph_caster run`: **NDJSON в stdout/stderr**; тот же контракт, что у CLI; **`runId`** согласован с раннером |
 | Остановка с хоста | **Cancel:** запись строки NDJSON в **stdin** процесса (`--control-stdin`): `{"type":"cancel_run","runId":"…"}` — см. раздел про реестр выше |
-| Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base` |
+| Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base`, **`--until-node`**, **`--context-json`** |
 | Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте фильтр по **`activeRunId`** |
 | Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне), подсветка ноды по `node_enter` / `node_execute` |
 | Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
 | Веб без Tauri | Run недоступен (без отдельного сервера); см. `ui/README.md`, `python/README.md` |
+
+### Частичный прогон (Dify debugger / n8n pinned data — срез)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Остановиться после выбранной ноды без обязательного **`exit`** | **`GraphRunner.stop_after_node_id`**; CLI **`--until-node`** (всегда от документного **`start`**); **`run_finished.status`** **`partial`** |
+| Старт с середины с подмешанными выходами предков | Уже было: **`run` / `run_from`** + **`--start`**; плюс **`--context-json`** (ключ **`node_outputs`**) для пинов контекста; предупреждение в stderr при mid-**`--start`** без **`--context-json`** |
+| Десктоп | **`StartRunRequest.untilNodeId`** / **`contextJsonPath`** → argv в **`run_bridge.rs`**; кнопка инспектора **«Запуск до этой ноды»** (`AppShell`, i18n) |
+| **`--until-node` / `stop_after_node_id` только по id корневого документа** | Вложенный **`graph_ref`** выполняется **целиком** (дочерний **`GraphRunner(..., stop_after_node_id=None)`**); остановка «на ноде внутри вложенного JSON» одним id корня **не** задаётся |
+| Целевая нода **не на активном пути** (ветки, условия) или **ошибка раньше** | **`run_finished.status`** **`failed`**, не **`partial`** |
+| **`until`** указывает на ноду типа **`exit`** | **`success`** (нормальное завершение графа), не **`partial`** — см. `test_stop_after_exit_node_is_success_not_partial` |
+| Остановка на **`comment`** (и др. «пустых» по исполнению) | Узел всё равно посещается; при совпадении **`id`** — **`partial`** |
+
+**Связь с каталогом F17** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): этот раздел закрывает отладочный partial и ручной pin **`node_outputs`**; полный межпрогонный кэш выходов нод по хэшу / **dirty**-узлы (как у Comfy / n8n) остаётся в **§22.2** того документа.
+
+Код: `python/graph_caster/runner.py`, `__main__.py`; тесты: `python/tests/test_runner_partial.py`, `test_cli_main.py`; фикстура `schemas/test-fixtures/partial-run-linear.json`.
 
 ---
 

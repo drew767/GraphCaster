@@ -17,6 +17,8 @@ type Props = {
   workspaceLinked: boolean;
   onOpenNestedGraph?: (targetGraphId: string) => void;
   runLocked?: boolean;
+  onRunUntilThisNode?: () => void;
+  runUntilThisNodeEnabled?: boolean;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -62,6 +64,8 @@ export function InspectorPanel({
   workspaceLinked,
   onOpenNestedGraph,
   runLocked = false,
+  onRunUntilThisNode,
+  runUntilThisNodeEnabled = false,
 }: Props) {
   const { t } = useTranslation();
   const [dataText, setDataText] = useState("{}");
@@ -252,6 +256,21 @@ export function InspectorPanel({
               ) : null}
             </div>
           ) : null}
+          {onRunUntilThisNode != null && selection.graphNodeType !== "start" ? (
+            <div className="gc-inspector-graphref">
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked || !runUntilThisNodeEnabled}
+                onClick={() => {
+                  onRunUntilThisNode();
+                }}
+              >
+                {t("app.inspector.runUntilThisNode")}
+              </button>
+              <p className="gc-inspector-edge-hint">{t("app.inspector.runUntilThisNodeHint")}</p>
+            </div>
+          ) : null}
           <form className="gc-inspector-data-form" onSubmit={onSubmitNode}>
             <label className="gc-inspector-data-label" htmlFor="gc-inspector-data">
               {t("app.inspector.dataJson")}
@@ -294,6 +313,23 @@ export function InspectorPanel({
               </li>
             ))}
           </ul>
+          {onRunUntilThisNode != null &&
+          selection.ids.length === 1 &&
+          selection.nodes[0]?.graphNodeType !== "start" ? (
+            <div className="gc-inspector-graphref">
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked || !runUntilThisNodeEnabled}
+                onClick={() => {
+                  onRunUntilThisNode();
+                }}
+              >
+                {t("app.inspector.runUntilThisNode")}
+              </button>
+              <p className="gc-inspector-edge-hint">{t("app.inspector.runUntilThisNodeHint")}</p>
+            </div>
+          ) : null}
           <button
             type="button"
             className="gc-btn gc-btn-danger gc-inspector-apply"

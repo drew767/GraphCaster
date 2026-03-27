@@ -43,6 +43,11 @@ pub struct StartRunRequest {
     pub run_id: String,
     pub graphs_dir: Option<String>,
     pub artifacts_base: Option<String>,
+    /// When set: `python -m graph_caster run --until-node <id>` (debugger-style partial run).
+    /// `id` is a node in the root document only; nested `graph_ref` subgraphs still run to completion.
+    pub until_node_id: Option<String>,
+    /// When set: `--context-json <path>` (pinned upstream `node_outputs`).
+    pub context_json_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -177,6 +182,18 @@ pub fn gc_start_run(
         let s = a.trim();
         if !s.is_empty() {
             cmd.arg("--artifacts-base").arg(s);
+        }
+    }
+    if let Some(ref u) = request.until_node_id {
+        let s = u.trim();
+        if !s.is_empty() {
+            cmd.arg("--until-node").arg(s);
+        }
+    }
+    if let Some(ref c) = request.context_json_path {
+        let s = c.trim();
+        if !s.is_empty() {
+            cmd.arg("--context-json").arg(s);
         }
     }
     cmd.stdin(Stdio::piped());

@@ -530,44 +530,77 @@ export function AppShell({ onLangChange }: Props) {
     openSaveModal();
   }, [openSaveModal]);
 
-  const onRunGraph = useCallback(async () => {
-    if (!isTauriRuntime()) {
+  const startDesktopRun = useCallback(
+    async (untilNodeId?: string) => {
+      if (!isTauriRuntime()) {
+        return;
+      }
+      if (structureIssuesBlockRun(structureIssues)) {
+        window.alert(t("app.run.fixStructureFirst"));
+        return;
+      }
+      if (pyProbe != null && !pyProbe.ok) {
+        window.alert(t("app.run.pythonMissing", { path: pyProbe.path }));
+        return;
+      }
+      const api = canvasRef.current;
+      if (!api) {
+        return;
+      }
+      const doc = api.exportDocument();
+      const runId = crypto.randomUUID();
+      runSessionAppendLine(`[host] starting run ${runId}`);
+      runSessionSetActiveRunId(runId);
+      try {
+        await gcStartRun({
+          documentJson: JSON.stringify(doc),
+          runId,
+          graphsDir: runGraphsDir.trim() || undefined,
+          artifactsBase: runArtifactsBase.trim() || undefined,
+          untilNodeId: untilNodeId?.trim() || undefined,
+        });
+      } catch (e) {
+        runSessionSetActiveRunId(null);
+        runSessionAppendLine(`[host] ${String(e)}`);
+      }
+    },
+    [pyProbe, runArtifactsBase, runGraphsDir, structureIssues, t],
+  );
+
+  const onRunGraph = useCallback(() => {
+    void startDesktopRun(undefined);
+  }, [startDesktopRun]);
+
+  const onRunUntilSelectedNode = useCallback(() => {
+    const sel = selectionRef.current;
+    if (sel?.kind === "node") {
+      if (sel.graphNodeType === "start") {
+        return;
+      }
+      void startDesktopRun(sel.id);
       return;
     }
-    if (structureIssuesBlockRun(structureIssues)) {
-      window.alert(t("app.run.fixStructureFirst"));
-      return;
+    if (sel?.kind === "multiNode" && sel.ids.length === 1) {
+      const row = sel.nodes[0];
+      if (row == null || row.graphNodeType === "start") {
+        return;
+      }
+      void startDesktopRun(row.id);
     }
-    if (pyProbe != null && !pyProbe.ok) {
-      window.alert(t("app.run.pythonMissing", { path: pyProbe.path }));
-      return;
+  }, [startDesktopRun]);
+
+  const runUntilSelectionEnabled = useMemo(() => {
+    if (!isTauriRuntime() || isRunActive) {
+      return false;
     }
-    const api = canvasRef.current;
-    if (!api) {
-      return;
+    if (selection?.kind === "node") {
+      return selection.graphNodeType !== "start";
     }
-    const doc = api.exportDocument();
-    const runId = crypto.randomUUID();
-    runSessionAppendLine(`[host] starting run ${runId}`);
-    runSessionSetActiveRunId(runId);
-    try {
-      await gcStartRun({
-        documentJson: JSON.stringify(doc),
-        runId,
-        graphsDir: runGraphsDir.trim() || undefined,
-        artifactsBase: runArtifactsBase.trim() || undefined,
-      });
-    } catch (e) {
-      runSessionSetActiveRunId(null);
-      runSessionAppendLine(`[host] ${String(e)}`);
+    if (selection?.kind === "multiNode" && selection.ids.length === 1) {
+      return selection.nodes[0]?.graphNodeType !== "start";
     }
-  }, [
-    pyProbe,
-    runArtifactsBase,
-    runGraphsDir,
-    structureIssues.length,
-    t,
-  ]);
+    return false;
+  }, [isRunActive, selection]);
 
   const onStopRunGraph = useCallback(async () => {
     const id = getRunSessionSnapshot().activeRunId;
@@ -1157,6 +1190,8 @@ export function AppShell({ onLangChange }: Props) {
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
           runLocked={isRunActive}
+          onRunUntilThisNode={onRunUntilSelectedNode}
+          runUntilThisNodeEnabled={runUntilSelectionEnabled}
         />
       </div>
       <ConsolePanel heightPx={height} onResizeStart={startDrag} onNavigateToNode={onConsoleNavigateToNode} />

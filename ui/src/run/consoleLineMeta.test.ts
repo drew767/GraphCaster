@@ -102,6 +102,13 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
   });
 
+  it("does not mark run_finished partial as error-like", () => {
+    const m = buildConsoleLineMeta(
+      `{"type":"run_finished","status":"partial","rootGraphId":"g"}`,
+    );
+    expect(m.isErrorLike).toBe(false);
+  });
+
   it("does not mark successful run_finished as error-like", () => {
     const m = buildConsoleLineMeta(
       `{"type":"run_finished","status":"success","rootGraphId":"g"}`,

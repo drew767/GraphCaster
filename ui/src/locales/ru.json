@@ -80,6 +80,8 @@
       "edgeConditionHint": "Раннер берёт первое ребро без условия или с истинным условием (см. Python).",
       "applyEdgeCondition": "Применить условие",
       "openGraphRef": "Открыть вложенный граф",
+      "runUntilThisNode": "Запуск до этой ноды",
+      "runUntilThisNodeHint": "Старт от start; остановка после этой ноды, если она достигнута. Недостижимая цель или ошибка раньше → failed; нода exit → success; вложенный graph_ref выполняется целиком. partial только при фактической остановке на корневом пути (десктоп).",
       "openGraphRefNeedWorkspace": "Привяжите папку проекта, чтобы открывать вложенные графы из graphs/.",
       "graphSection": "Граф",
       "graphTitle": "Название",

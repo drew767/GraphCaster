@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-RunTerminalStatus = Literal["success", "failed", "cancelled"]
+RunTerminalStatus = Literal["success", "failed", "cancelled", "partial"]
 RunSessionStatus = Literal["running"] | RunTerminalStatus
 
 

@@ -14,7 +14,7 @@ from graph_caster.models import GraphDocument
 from graph_caster.run_event_sink import NdjsonStdoutSink
 from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
-from graph_caster.validate import GraphStructureError
+from graph_caster.validate import GraphStructureError, validate_graph_structure
 
 _SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear"})
 
@@ -90,6 +90,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Fixed root run UUID string (so cancel_run can target this run); default is generated",
     )
+    run.add_argument(
+        "--until-node",
+        default=None,
+        metavar="NODE_ID",
+        help="Stop after this node completes successfully (run still starts at the document start node; --start is ignored)",
+    )
+    run.add_argument(
+        "--context-json",
+        type=Path,
+        default=None,
+        help="Merge node_outputs from this JSON object (key node_outputs: { nodeId: … }) into run context before start",
+    )
 
     sz = sub.add_parser("artifacts-size", help="Print total artifact size in bytes under runs/")
     sz.add_argument("--base", type=Path, required=True, help="Workspace root (parent of runs/)")
@@ -106,6 +118,16 @@ def _build_parser() -> argparse.ArgumentParser:
     g.add_argument("--all", action="store_true", help="Remove entire runs/ directory")
 
     return parser
+
+
+def _merge_context_json(ctx: dict, path: Path) -> None:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("context-json root must be a JSON object")
+    outs = raw.get("node_outputs")
+    if isinstance(outs, dict):
+        bucket = ctx.setdefault("node_outputs", {})
+        bucket.update(outs)
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -148,13 +170,53 @@ def _cmd_run(args: argparse.Namespace) -> int:
             print("graph-caster run: --control-stdin requires --track-session", file=sys.stderr)
             return 2
         _spawn_stdin_cancel_loop(reg)
-    runner = GraphRunner(doc, sink=sink, host=host, session_registry=reg)
+
+    until = args.until_node.strip() if args.until_node and str(args.until_node).strip() else None
+    if until is not None:
+        ids = {n.id for n in doc.nodes}
+        if until not in ids:
+            print(f"graph-caster: --until-node {until!r} is not a node id in the document", file=sys.stderr)
+            return 2
+
+    stop_after = until
+    runner = GraphRunner(
+        doc,
+        sink=sink,
+        host=host,
+        session_registry=reg,
+        stop_after_node_id=stop_after,
+    )
     try:
-        ctx = {"last_result": True}
+        ctx: dict = {"last_result": True}
         if args.run_id is not None and str(args.run_id).strip():
             ctx["run_id"] = str(args.run_id).strip()
-        if args.start:
+        if args.context_json is not None:
+            try:
+                _merge_context_json(ctx, Path(args.context_json))
+            except (OSError, json.JSONDecodeError, ValueError) as e:
+                print(f"graph-caster: context-json: {e}", file=sys.stderr)
+                return 2
+
+        if until is not None and args.start:
+            print(
+                "graph-caster: note: --until-node runs from the document start; ignoring --start",
+                file=sys.stderr,
+            )
+
+        if args.start and until is None:
+            try:
+                canon = validate_graph_structure(doc)
+            except GraphStructureError:
+                canon = ""
+            if canon and args.start != canon and args.context_json is None:
+                print(
+                    "graph-caster: warning: mid-graph --start without --context-json "
+                    "may break edge conditions; prefer --context-json with node_outputs.",
+                    file=sys.stderr,
+                )
             runner.run_from(args.start, context=ctx)
+        elif until is not None:
+            runner.run(context=ctx)
         else:
             runner.run(context=ctx)
     except GraphStructureError as e:

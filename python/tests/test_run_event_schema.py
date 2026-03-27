@@ -143,5 +143,12 @@ def test_process_like_events_validate() -> None:
             "finishedAt": "2026-03-27T12:00:02+00:00",
             "reason": "cancel_requested",
         },
+        {
+            "type": "run_finished",
+            "runId": "550e8400-e29b-41d4-a716-446655440002",
+            "rootGraphId": "g1",
+            "status": "partial",
+            "finishedAt": "2026-03-27T12:00:03+00:00",
+        },
     ):
         validator.validate(ev)

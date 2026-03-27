@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "b2c3d4e5-f6a7-4890-b123-456789abcdef",
+    "title": "partial-run fixture",
+    "author": "test"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "s0",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "tb_mid",
+      "type": "task",
+      "position": { "x": 100, "y": 0 },
+      "data": { "title": "no argv" }
+    },
+    {
+      "id": "x0",
+      "type": "exit",
+      "position": { "x": 200, "y": 0 },
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "s0",
+      "sourceHandle": "out_default",
+      "target": "tb_mid",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e1",
+      "source": "tb_mid",
+      "sourceHandle": "out_default",
+      "target": "x0",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

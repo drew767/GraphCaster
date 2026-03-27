@@ -106,6 +106,7 @@ class GraphRunner:
         graphs_root: Path | None = None,
         run_id: str | None = None,
         session_registry: RunSessionRegistry | None = None,
+        stop_after_node_id: str | None = None,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -116,6 +117,7 @@ class GraphRunner:
         self._host = host
         self._run_id = run_id
         self._session_registry = session_registry
+        self._stop_after_node_id = stop_after_node_id
 
     def emit(self, event_type: str, **payload: Any) -> None:
         ev: RunEventDict = {"type": event_type, **payload}
@@ -182,6 +184,7 @@ class GraphRunner:
     def run_from(self, start_node_id: str, context: dict[str, Any] | None = None) -> None:
         ctx = _prepare_context(context)
         ctx["_run_success"] = False
+        ctx.pop("_run_partial_stop", None)
         nd0 = int(ctx.get("nesting_depth", 0))
         if nd0 == 0:
             if self._run_id is None:
@@ -306,6 +309,14 @@ class GraphRunner:
                     ctx["_run_success"] = True
                     break
 
+                if (
+                    self._stop_after_node_id is not None
+                    and self._stop_after_node_id == node.id
+                    and not ctx.get("_run_cancelled")
+                ):
+                    ctx["_run_partial_stop"] = True
+                    break
+
                 nxt = self._follow_edges_from(node.id, ctx, error_route=False)
                 if nxt is None:
                     break
@@ -317,6 +328,8 @@ class GraphRunner:
             if nd0 == 0 and self._run_id:
                 if ctx.get("_run_cancelled"):
                     st = "cancelled"
+                elif ctx.get("_run_partial_stop"):
+                    st = "partial"
                 elif ctx.get("_run_success"):
                     st = "success"
                 else:
@@ -399,6 +412,7 @@ class GraphRunner:
             host=self._host,
             run_id=self._run_id,
             session_registry=self._session_registry,
+            stop_after_node_id=None,
         )
         child.run(context=child_ctx)
 
