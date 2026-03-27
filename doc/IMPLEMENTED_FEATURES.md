@@ -195,7 +195,7 @@
 |-----------------|---------------|
 | Один логический поток событий на исполнение (`executionId` / SSE-канал) | Подпроцесс `python -m graph_caster run`: **NDJSON в stdout/stderr**; тот же контракт, что у CLI; **`runId`** согласован с раннером |
 | Остановка с хоста | **Cancel:** запись строки NDJSON в **stdin** процесса (`--control-stdin`): `{"type":"cancel_run","runId":"…"}` — см. раздел про реестр выше |
-| Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base`, **`--until-node`**, **`--context-json`** |
+| Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`, **`gc_list_persisted_runs`**, **`gc_read_persisted_events`**, **`gc_read_persisted_run_summary`**; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base`, **`--no-persist-run-events`**, **`--until-node`**, **`--context-json`** |
 | Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте фильтр по **`activeRunId`** |
 | Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне), подсветка ноды по `node_enter` / `node_execute` |
 | Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
@@ -273,6 +273,21 @@
 
 ---
 
+## Персистентный журнал прогона / execution history (file-first, срез **F13**)
+
+Сравнение с n8n **`executionId`** / Dify persisted run / Flowise **`Execution`** — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§17**; здесь только реализация GC.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Список прошлых прогонов и просмотр логов без live-run | При **`--artifacts-base`**: **`events.ndjson`** (все события NDJSON, включая **`run_root_ready`**) и **`run-summary.json`** (**`schemaVersion`**: 1, **`runId`**, **`status`**, таймстампы); отключение: **`--no-persist-run-events`** |
+| Тот же поток, что в stdout, не терять при сбое диска на вторичном приёмнике | **`TeeRunEventSink`**: сначала основной sink; **`OSError`** на файловой ветке не рвёт прогон после успешного stdout |
+| Хост читает файлы без path-escape | Tauri: **`canonicalize`** + проверка префикса **`runs/<graphId>/`**; чтение с потолком размера (**16 MiB** для хвоста **`events`**) |
+| Веб (dev) и десктоп | Брокер **`POST /persisted-runs/list`**, **`events`** (ответ **`text`**, **`truncated`**; **`maxBytes`** ≤ **16 MiB**), **`summary`**; UI модалка **History**, replay в консоль (offline), i18n при **`truncated`** |
+
+Код: `run_event_sink.py`, `artifacts.py`, `runner.py`, `run_broker/app.py`, `run_bridge.rs`, `RunHistoryModal.tsx`, `run/runCommands.ts`, `webRunBroker.ts`. Сводка жизненного цикла артефактов рана — подраздел «Связанные артефакты run» ниже.
+
+---
+
 ## Поиск и переход к ноде на canvas (n8n «Add node» palette / Langflow поиск компонентов)
 
 Снятие пункта «поиск ноды на полотне» из **открытого** плана в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28.2** (п.4 «Мини-карта / навигация»): факт реализации только здесь, без дублирования таблиц в competitive.
@@ -327,6 +342,7 @@
 ## Связанные артефакты run (уже было до жизненного цикла, уточнение слоя)
 
 - Каталог run под корневым графом, событие **`run_root_ready`**, проброс **`root_run_artifact_dir`** во вложенные вызовы — `artifacts.py`, `runner.py` (см. также `DEVELOPMENT_PLAN.md` фаза 2).
+- **Персистентный журнал** на диске ( **`events.ndjson`**, **`run-summary.json`**, **`GraphRunner(..., persist_run_events=True)`** ) — полная таблица и пути в разделе **«Персистентный журнал прогона / execution history»** выше.
 
 ---
 

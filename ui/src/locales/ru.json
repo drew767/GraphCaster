@@ -149,7 +149,24 @@
       "filterGroupAria": "Фильтр строк консоли",
       "searchPlaceholder": "Поиск…",
       "searchAria": "Поиск по выводу консоли",
-      "navigateToNode": "Перейти к ноде {{nodeId}} на полотне"
+      "navigateToNode": "Перейти к ноде {{nodeId}} на полотне",
+      "replayBanner": "Повтор (offline): {{label}}"
+    },
+    "runHistory": {
+      "title": "История запусков",
+      "needArtifactsAndGraph": "Укажите корень воркспейса (runs/) и убедитесь, что у графа задан id — каталоги прогонов лежат в runs/<graphId>/.",
+      "loading": "Загрузка…",
+      "empty": "Для этого графа пока нет каталогов прогонов. Запуск с корнем воркспейса сохраняет NDJSON.",
+      "hasEvents": "events.ndjson",
+      "noEvents": "нет лога",
+      "hasSummary": "summary",
+      "replay": "Повтор в консоли",
+      "replayBusy": "Загрузка…",
+      "replayDisabledHint": "В этой папке нет events.ndjson.",
+      "replayLabel": "каталог {{dir}}",
+      "logTruncated": "events.ndjson прочитан с конца (ограничение размера); первая строка может быть обрезанным JSON — при необходимости увеличьте лимит в коде.",
+      "refresh": "Обновить",
+      "close": "Закрыть"
     },
     "run": {
       "heading": "Запуск",
@@ -164,7 +181,8 @@
       "cannotSaveDuringRun": "Сохранение недоступно во время активного Run.",
       "stepCache": "Кэш шагов",
       "stepCacheHint": "Передаёт в Python --step-cache вместе с корнем воркспейса. Ноды подключаются через data.stepCache. Бейдж — число id в очереди dirty.",
-      "stepCacheNeedArtifactsHint": "Сначала укажите корень воркспейса (runs/) — кэш шагов требует --artifacts-base."
+      "stepCacheNeedArtifactsHint": "Сначала укажите корень воркспейса (runs/) — кэш шагов требует --artifacts-base.",
+      "history": "История"
     },
     "lang": {
       "selectLabel": "Язык",

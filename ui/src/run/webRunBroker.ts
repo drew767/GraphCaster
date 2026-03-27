@@ -173,3 +173,68 @@ export async function cancelWebBrokerRun(runId: string): Promise<void> {
   });
   closeWebRunBrokerStream();
 }
+
+export type WebPersistedRunListItem = {
+  runDirName: string;
+  hasEvents: boolean;
+  hasSummary: boolean;
+};
+
+export async function fetchPersistedRunList(
+  artifactsBase: string,
+  graphId: string,
+): Promise<WebPersistedRunListItem[]> {
+  const base = getRunBrokerBasePath();
+  const r = await fetch(`${base}/persisted-runs/list`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...brokerHeaders() },
+    body: JSON.stringify({ artifactsBase, graphId }),
+  });
+  if (!r.ok) {
+    throw new Error((await r.text()) || `HTTP ${r.status}`);
+  }
+  const j = (await r.json()) as { items?: WebPersistedRunListItem[] };
+  return Array.isArray(j.items) ? j.items : [];
+}
+
+export async function fetchPersistedRunEvents(
+  artifactsBase: string,
+  graphId: string,
+  runDirName: string,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
+  const base = getRunBrokerBasePath();
+  const r = await fetch(`${base}/persisted-runs/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...brokerHeaders() },
+    body: JSON.stringify({ artifactsBase, graphId, runDirName, maxBytes }),
+  });
+  if (!r.ok) {
+    throw new Error((await r.text()) || `HTTP ${r.status}`);
+  }
+  const j = (await r.json()) as { text?: string; truncated?: boolean };
+  const text = typeof j.text === "string" ? j.text : "";
+  const truncated = j.truncated === true;
+  return { text, truncated };
+}
+
+export async function fetchPersistedRunSummary(
+  artifactsBase: string,
+  graphId: string,
+  runDirName: string,
+): Promise<string | null> {
+  const base = getRunBrokerBasePath();
+  const r = await fetch(`${base}/persisted-runs/summary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...brokerHeaders() },
+    body: JSON.stringify({ artifactsBase, graphId, runDirName }),
+  });
+  if (!r.ok) {
+    throw new Error((await r.text()) || `HTTP ${r.status}`);
+  }
+  const j = (await r.json()) as { text?: string | null };
+  if (j.text == null) {
+    return null;
+  }
+  return typeof j.text === "string" ? j.text : null;
+}

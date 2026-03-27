@@ -11,6 +11,7 @@ export type RunSessionSnapshot = {
   pythonBanner: string | null;
   lastExitCode: number | null;
   nodeOutputSnapshots: Record<string, Record<string, unknown>>;
+  replaySourceLabel: string | null;
 };
 
 let snap: RunSessionSnapshot = {
@@ -20,6 +21,7 @@ let snap: RunSessionSnapshot = {
   pythonBanner: null,
   lastExitCode: null,
   nodeOutputSnapshots: {},
+  replaySourceLabel: null,
 };
 
 const listeners = new Set<() => void>();
@@ -42,7 +44,27 @@ export function getRunSessionSnapshot(): RunSessionSnapshot {
 }
 
 export function runSessionClearConsole(): void {
-  snap = { ...snap, consoleLines: [] };
+  snap = { ...snap, consoleLines: [], replaySourceLabel: null };
+  emit();
+}
+
+export function runSessionBeginReplay(sourceLabel: string): void {
+  snap = {
+    ...snap,
+    consoleLines: [],
+    replaySourceLabel: sourceLabel,
+    nodeOutputSnapshots: {},
+    activeNodeId: null,
+    lastExitCode: null,
+  };
+  emit();
+}
+
+export function runSessionClearReplay(): void {
+  if (snap.replaySourceLabel == null) {
+    return;
+  }
+  snap = { ...snap, replaySourceLabel: null };
   emit();
 }
 

@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::fs;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -52,6 +54,8 @@ pub struct StartRunRequest {
     pub step_cache: Option<bool>,
     /// Optional comma-separated node ids for `--step-cache-dirty` (n8n-style forced cache miss).
     pub step_cache_dirty: Option<String>,
+    /// When true, adds `--no-persist-run-events` if `--artifacts-base` is set.
+    pub no_persist_run_events: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +80,51 @@ fn resolve_python() -> String {
             "python3".to_string()
         }
     })
+}
+
+fn normalize_graph_id_for_fs(gid: &str) -> Result<String, String> {
+    let s = gid.trim();
+    if s.is_empty() || s == "default" {
+        return Err("graphId invalid".into());
+    }
+    if s.contains("..") || s.contains('/') || s.contains('\\') {
+        return Err("graphId invalid".into());
+    }
+    Ok(s.to_string())
+}
+
+fn safe_run_dir_segment(name: &str) -> Result<String, String> {
+    let s = name.trim();
+    if s.is_empty() || s.contains("..") || s.contains('/') || s.contains('\\') {
+        return Err("runDirName invalid".into());
+    }
+    Ok(s.to_string())
+}
+
+const MAX_PERSISTED_EVENTS_BYTES: u64 = 16 * 1024 * 1024;
+
+fn resolve_file_under_runs(base_raw: &str, gid: &str, leaf: &str, file: &str) -> Result<PathBuf, String> {
+    let base = PathBuf::from(base_raw.trim());
+    if base.as_os_str().is_empty() {
+        return Err("artifactsBase required".into());
+    }
+    let base_canon = fs::canonicalize(&base).map_err(|e| format!("artifactsBase: {e}"))?;
+    let gid_s = normalize_graph_id_for_fs(gid)?;
+    let leaf_s = safe_run_dir_segment(leaf)?;
+    let runs_gid = base_canon.join("runs").join(&gid_s);
+    let runs_gid_canon = match fs::canonicalize(&runs_gid) {
+        Ok(p) => p,
+        Err(_) => return Ok(runs_gid.join(&leaf_s).join(file)),
+    };
+    let target = runs_gid_canon.join(&leaf_s).join(file);
+    if !target.is_file() {
+        return Ok(target);
+    }
+    let tc = fs::canonicalize(&target).map_err(|e| e.to_string())?;
+    if !tc.starts_with(&runs_gid_canon) {
+        return Err("invalid run path — escapes workspace".into());
+    }
+    Ok(tc)
 }
 
 fn unique_run_document_path(run_id: &str) -> std::path::PathBuf {
@@ -192,6 +241,9 @@ pub fn gc_start_run(
     });
     if let Some(ref path) = artifacts_arg {
         cmd.arg("--artifacts-base").arg(path);
+        if request.no_persist_run_events == Some(true) {
+            cmd.arg("--no-persist-run-events");
+        }
     }
     if request.step_cache == Some(true) && artifacts_arg.is_some() {
         cmd.arg("--step-cache");
@@ -305,4 +357,128 @@ pub fn kill_all_on_app_exit(app: &AppHandle) {
     if let Some(state) = app.try_state::<RunSessionState>() {
         state.kill_all();
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListPersistedRunsRequest {
+    pub artifacts_base: String,
+    pub graph_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedRunListItem {
+    pub run_dir_name: String,
+    pub has_events: bool,
+    pub has_summary: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedEventsReadResult {
+    pub text: String,
+    pub truncated: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadPersistedTextRequest {
+    pub artifacts_base: String,
+    pub graph_id: String,
+    pub run_dir_name: String,
+    #[serde(default = "default_max_bytes")]
+    pub max_bytes: u64,
+}
+
+fn default_max_bytes() -> u64 {
+    1_000_000
+}
+
+#[tauri::command]
+pub fn gc_list_persisted_runs(req: ListPersistedRunsRequest) -> Result<Vec<PersistedRunListItem>, String> {
+    let base = PathBuf::from(req.artifacts_base.trim());
+    if base.as_os_str().is_empty() {
+        return Err("artifactsBase required".into());
+    }
+    let gid = normalize_graph_id_for_fs(&req.graph_id)?;
+    let dir = base.join("runs").join(&gid);
+    let rd = match fs::read_dir(&dir) {
+        Ok(r) => r,
+        Err(_) => return Ok(vec![]),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            names.push(e.file_name().to_string_lossy().to_string());
+        }
+    }
+    names.sort_by(|a, b| b.cmp(a));
+    let mut out: Vec<PersistedRunListItem> = Vec::with_capacity(names.len());
+    for n in names {
+        let run_path = dir.join(&n);
+        let has_events = run_path.join("events.ndjson").is_file();
+        let has_summary = run_path.join("run-summary.json").is_file();
+        out.push(PersistedRunListItem {
+            run_dir_name: n,
+            has_events,
+            has_summary,
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn gc_read_persisted_events(req: ReadPersistedTextRequest) -> Result<PersistedEventsReadResult, String> {
+    let cap = (MAX_PERSISTED_EVENTS_BYTES.min(req.max_bytes)) as usize;
+    let path = resolve_file_under_runs(
+        &req.artifacts_base,
+        &req.graph_id,
+        &req.run_dir_name,
+        "events.ndjson",
+    )?;
+    if !path.is_file() {
+        return Ok(PersistedEventsReadResult {
+            text: String::new(),
+            truncated: false,
+        });
+    }
+    let (text, truncated) = read_file_tail_utf8(&path, cap)?;
+    Ok(PersistedEventsReadResult { text, truncated })
+}
+
+#[tauri::command]
+pub fn gc_read_persisted_run_summary(req: ReadPersistedTextRequest) -> Result<Option<String>, String> {
+    let path = resolve_file_under_runs(
+        &req.artifacts_base,
+        &req.graph_id,
+        &req.run_dir_name,
+        "run-summary.json",
+    )?;
+    if !path.is_file() {
+        return Ok(None);
+    }
+    fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|e| e.to_string())
+}
+
+fn read_file_tail_utf8(path: &Path, max_bytes: usize) -> Result<(String, bool), String> {
+    if max_bytes == 0 {
+        return Ok((String::new(), false));
+    }
+    let mut f = fs::File::open(path).map_err(|e| e.to_string())?;
+    let len = f.metadata().map_err(|e| e.to_string())?.len() as usize;
+    if len <= max_bytes {
+        let mut s = String::new();
+        f.read_to_string(&mut s).map_err(|e| e.to_string())?;
+        return Ok((s, false));
+    }
+    let skip = len - max_bytes;
+    f.seek(SeekFrom::Start(skip as u64))
+        .map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; max_bytes];
+    f.read_exact(&mut buf).map_err(|e| e.to_string())?;
+    Ok((String::from_utf8_lossy(&buf).into_owned(), true))
 }

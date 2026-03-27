@@ -21,7 +21,7 @@ const TAIL_THRESHOLD_PX = 40;
 
 export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Props) {
   const { t } = useTranslation();
-  const { consoleLines, pythonBanner } = useRunSession();
+  const { consoleLines, pythonBanner, replaySourceLabel } = useRunSession();
   const bodyRef = useRef<HTMLDivElement>(null);
   const tailStickRef = useRef(true);
   const [filterMode, setFilterMode] = useState<ConsoleFilterMode>("all");
@@ -180,6 +180,11 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
         {pythonBanner != null && pythonBanner !== "" ? (
           <div className="gc-run-banner" role="status">
             {pythonBanner}
+          </div>
+        ) : null}
+        {replaySourceLabel != null && replaySourceLabel !== "" ? (
+          <div className="gc-run-banner gc-run-banner--replay" role="status">
+            {t("app.console.replayBanner", { label: replaySourceLabel })}
           </div>
         ) : null}
         <div ref={bodyRef} className="gc-console-body" onScroll={onBodyScroll}>

@@ -27,6 +27,8 @@ type Props = {
   onRunGraphsDirChange?: (value: string) => void;
   onRunArtifactsBaseChange?: (value: string) => void;
   onRun?: () => void;
+  onRunHistory?: () => void;
+  runHistoryDisabled?: boolean;
   onStopRun?: () => void;
   runActive?: boolean;
   runStartDisabled?: boolean;
@@ -57,6 +59,8 @@ export function TopBar({
   onRunGraphsDirChange = () => {},
   onRunArtifactsBaseChange = () => {},
   onRun = () => {},
+  onRunHistory = () => {},
+  runHistoryDisabled = false,
   onStopRun = () => {},
   runActive = false,
   runStartDisabled = false,
@@ -198,6 +202,15 @@ export function TopBar({
               disabled={runStartDisabled || runActive || runDesktopOnlyHint}
             >
               {t("app.run.start")}
+            </button>
+            <button
+              type="button"
+              className="gc-btn"
+              onClick={onRunHistory}
+              disabled={runActive || runHistoryDisabled || runDesktopOnlyHint}
+              title={runHistoryDisabled ? t("app.runHistory.needArtifactsAndGraph") : undefined}
+            >
+              {t("app.run.history")}
             </button>
             <button type="button" className="gc-btn" onClick={onStopRun} disabled={!runActive}>
               {t("app.run.stop")}

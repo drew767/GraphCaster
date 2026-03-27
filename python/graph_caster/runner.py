@@ -20,7 +20,13 @@ from graph_caster.node_output_cache import (
     compute_step_cache_key,
     step_cache_root,
 )
-from graph_caster.run_event_sink import RunEventDict, RunEventSink, normalize_run_event_sink
+from graph_caster.run_event_sink import (
+    NdjsonAppendFileSink,
+    RunEventDict,
+    RunEventSink,
+    TeeRunEventSink,
+    normalize_run_event_sink,
+)
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
 from graph_caster.step_queue import ExecutionFrame, StepQueue
 from graph_caster.gc_pin import (
@@ -159,6 +165,7 @@ class GraphRunner:
         session_registry: RunSessionRegistry | None = None,
         stop_after_node_id: str | None = None,
         step_cache: StepCachePolicy | None = None,
+        persist_run_events: bool = False,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -171,6 +178,8 @@ class GraphRunner:
         self._session_registry = session_registry
         self._stop_after_node_id = stop_after_node_id
         self._step_cache = step_cache
+        self._persist_run_events = persist_run_events
+        self._persist_file_sink: NdjsonAppendFileSink | None = None
         self._step_cache_store: StepCacheStore | None = None
         self._step_cache_no_artifacts: bool = False
         self._node_by_id: dict[str, Node] = {n.id: n for n in document.nodes}
@@ -395,9 +404,25 @@ class GraphRunner:
             if n:
                 self._run_id = n
         if nd0 == 0 and self._run_id:
+            started_at = datetime.now(UTC).isoformat()
+            ctx["_gc_started_at_iso"] = started_at
+            if not ctx.get("root_run_artifact_dir"):
+                ab0 = self._host.artifacts_base
+                if ab0 is not None:
+                    from graph_caster.artifacts import create_root_run_artifact_dir
+
+                    run_dir0 = create_root_run_artifact_dir(ab0, self._doc.graph_id)
+                    path_str0 = str(run_dir0)
+                    ctx["root_run_artifact_dir"] = path_str0
+                    if self._persist_run_events:
+                        log_path = run_dir0 / "events.ndjson"
+                        file_sink = NdjsonAppendFileSink(log_path)
+                        self._persist_file_sink = file_sink
+                        self._event_sink = TeeRunEventSink(self._event_sink, file_sink)
+                    self.emit("run_root_ready", rootGraphId=self._doc.graph_id, rootRunArtifactDir=path_str0)
             started_payload: dict[str, Any] = {
                 "rootGraphId": self._doc.graph_id,
-                "startedAt": datetime.now(UTC).isoformat(),
+                "startedAt": started_at,
                 "mode": _run_mode_wire(ctx),
             }
             if self._doc.title:
@@ -408,15 +433,6 @@ class GraphRunner:
                 ctx["_gc_run_session"] = sess
             self.emit("run_started", **started_payload)
         try:
-            if nd0 == 0 and not ctx.get("root_run_artifact_dir"):
-                ab = self._host.artifacts_base
-                if ab is not None:
-                    from graph_caster.artifacts import create_root_run_artifact_dir
-
-                    run_dir = create_root_run_artifact_dir(ab, self._doc.graph_id)
-                    path_str = str(run_dir)
-                    ctx["root_run_artifact_dir"] = path_str
-                    self.emit("run_root_ready", rootGraphId=self._doc.graph_id, rootRunArtifactDir=path_str)
             from graph_caster.validate import (
                 find_barrier_merge_no_success_incoming_warnings,
                 find_merge_incoming_warnings,
@@ -716,14 +732,36 @@ class GraphRunner:
                     st = "success"
                 else:
                     st = "failed"
+                finished_at = datetime.now(UTC).isoformat()
                 self.emit(
                     "run_finished",
                     rootGraphId=self._doc.graph_id,
                     status=st,
-                    finishedAt=datetime.now(UTC).isoformat(),
+                    finishedAt=finished_at,
                 )
-                if self._session_registry is not None:
-                    self._session_registry.complete(self._run_id, st)
+                try:
+                    if self._persist_run_events:
+                        rrd = ctx.get("root_run_artifact_dir")
+                        if rrd:
+                            from graph_caster.artifacts import write_run_summary
+
+                            write_run_summary(
+                                Path(str(rrd)),
+                                {
+                                    "schemaVersion": 1,
+                                    "runId": self._run_id,
+                                    "rootGraphId": self._doc.graph_id,
+                                    "status": st,
+                                    "startedAt": ctx.get("_gc_started_at_iso"),
+                                    "finishedAt": finished_at,
+                                },
+                            )
+                finally:
+                    if self._persist_file_sink is not None:
+                        self._persist_file_sink.close()
+                        self._persist_file_sink = None
+                    if self._session_registry is not None:
+                        self._session_registry.complete(self._run_id, st)
 
     def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure
@@ -797,6 +835,7 @@ class GraphRunner:
             session_registry=self._session_registry,
             stop_after_node_id=None,
             step_cache=self._step_cache,
+            persist_run_events=False,
         )
         child.run(context=child_ctx)
 

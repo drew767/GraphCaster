@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any, Protocol, runtime_checkable
+from pathlib import Path
+from typing import IO, Any, Protocol, runtime_checkable
 
 RunEventDict = dict[str, Any]
 
@@ -49,6 +50,46 @@ class NdjsonStdoutSink:
         self._write(json.dumps(event, ensure_ascii=False) + "\n")
         if self._flush is not None:
             self._flush()
+
+
+class TeeRunEventSink:
+    """Fan-out: ``a`` is primary (e.g. stdout). ``b`` is best-effort: ``OSError`` from ``b`` is swallowed so a disk
+    failure cannot abort the run after ``a`` already received the event."""
+
+    __slots__ = ("_a", "_b")
+
+    def __init__(self, a: RunEventSink, b: RunEventSink) -> None:
+        self._a = a
+        self._b = b
+
+    def emit(self, event: RunEventDict) -> None:
+        self._a.emit(event)
+        try:
+            self._b.emit(event)
+        except OSError:
+            return
+
+
+class NdjsonAppendFileSink:
+    __slots__ = ("_path", "_encoding", "_file")
+
+    def __init__(self, path: Path, encoding: str = "utf-8") -> None:
+        self._path = Path(path)
+        self._encoding = encoding
+        self._file: IO[str] | None = None
+
+    def emit(self, event: RunEventDict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(event, ensure_ascii=False) + "\n"
+        if self._file is None:
+            self._file = self._path.open("a", encoding=self._encoding, newline="\n")
+        self._file.write(line)
+        self._file.flush()
+
+    def close(self) -> None:
+        if self._file is not None:
+            self._file.close()
+            self._file = None
 
 
 def normalize_run_event_sink(sink: RunEventSink | Callable[[RunEventDict], None] | None) -> RunEventSink:

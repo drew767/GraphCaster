@@ -76,6 +76,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Workspace root under which runs/<graphId>/<timestamp>/ is created for this run",
     )
     run.add_argument(
+        "--no-persist-run-events",
+        action="store_true",
+        help="Disable writing events.ndjson and run-summary.json under the run dir (default: persist when --artifacts-base is set)",
+    )
+    run.add_argument(
         "--track-session",
         action="store_true",
         help="Register this root run in the process-wide session registry (for cancel / inspection APIs)",
@@ -209,6 +214,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     )
 
     stop_after = until
+    persist_ev = artifacts_base is not None and not bool(args.no_persist_run_events)
     runner = GraphRunner(
         doc,
         sink=sink,
@@ -216,6 +222,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         session_registry=reg,
         stop_after_node_id=stop_after,
         step_cache=step_cache_pol,
+        persist_run_events=persist_ev,
     )
     try:
         ctx: dict = {"last_result": True}

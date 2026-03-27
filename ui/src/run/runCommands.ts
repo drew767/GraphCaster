@@ -3,7 +3,14 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { isTauriRuntime } from "./tauriEnv";
-import { probeRunBrokerHealth, startWebBrokerRun, cancelWebBrokerRun } from "./webRunBroker";
+import {
+  probeRunBrokerHealth,
+  startWebBrokerRun,
+  cancelWebBrokerRun,
+  fetchPersistedRunEvents,
+  fetchPersistedRunList,
+  fetchPersistedRunSummary,
+} from "./webRunBroker";
 
 export type RunEnvInfo = {
   pythonPath: string;
@@ -70,4 +77,68 @@ export async function gcCancelRun(runId: string): Promise<void> {
     return;
   }
   await invoke("gc_cancel_run", { req: { runId } });
+}
+
+export type PersistedRunListItem = {
+  runDirName: string;
+  hasEvents: boolean;
+  hasSummary: boolean;
+};
+
+export async function gcListPersistedRuns(artifactsBase: string, graphId: string): Promise<PersistedRunListItem[]> {
+  const ab = artifactsBase.trim();
+  const gid = graphId.trim();
+  if (!ab || !gid) {
+    return [];
+  }
+  if (isTauriRuntime()) {
+    return await invoke<PersistedRunListItem[]>("gc_list_persisted_runs", {
+      req: { artifactsBase: ab, graphId: gid },
+    });
+  }
+  return fetchPersistedRunList(ab, gid);
+}
+
+export type PersistedRunEventsRead = {
+  text: string;
+  truncated: boolean;
+};
+
+export async function gcReadPersistedRunEvents(
+  artifactsBase: string,
+  graphId: string,
+  runDirName: string,
+  maxBytes = 1_000_000,
+): Promise<PersistedRunEventsRead> {
+  const ab = artifactsBase.trim();
+  const gid = graphId.trim();
+  const rd = runDirName.trim();
+  if (!ab || !gid || !rd) {
+    return { text: "", truncated: false };
+  }
+  if (isTauriRuntime()) {
+    return await invoke<PersistedRunEventsRead>("gc_read_persisted_events", {
+      req: { artifactsBase: ab, graphId: gid, runDirName: rd, maxBytes },
+    });
+  }
+  return fetchPersistedRunEvents(ab, gid, rd, maxBytes);
+}
+
+export async function gcReadPersistedRunSummary(
+  artifactsBase: string,
+  graphId: string,
+  runDirName: string,
+): Promise<string | null> {
+  const ab = artifactsBase.trim();
+  const gid = graphId.trim();
+  const rd = runDirName.trim();
+  if (!ab || !gid || !rd) {
+    return null;
+  }
+  if (isTauriRuntime()) {
+    return await invoke<string | null>("gc_read_persisted_run_summary", {
+      req: { artifactsBase: ab, graphId: gid, runDirName: rd, maxBytes: 1_000_000 },
+    });
+  }
+  return fetchPersistedRunSummary(ab, gid, rd);
 }

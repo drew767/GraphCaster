@@ -6,8 +6,10 @@ import json
 
 from graph_caster.run_event_sink import (
     CallableRunEventSink,
+    NdjsonAppendFileSink,
     NdjsonStdoutSink,
     NullRunEventSink,
+    TeeRunEventSink,
     normalize_run_event_sink,
 )
 
@@ -47,6 +49,40 @@ def test_normalize_none_yields_null_sink() -> None:
     s = normalize_run_event_sink(None)
     assert isinstance(s, NullRunEventSink)
     s.emit({"type": "x"})
+
+
+def test_tee_run_event_sink_fanout() -> None:
+    a: list[dict] = []
+    b: list[dict] = []
+    sink = TeeRunEventSink(CallableRunEventSink(a.append), CallableRunEventSink(b.append))
+    sink.emit({"type": "x"})
+    assert a == [{"type": "x"}]
+    assert b == [{"type": "x"}]
+
+
+def test_tee_swallows_secondary_oserror() -> None:
+    seen: list[dict] = []
+
+    class Flaky:
+        def emit(self, event: dict) -> None:
+            _ = event
+            raise OSError("disk full")
+
+    sink = TeeRunEventSink(CallableRunEventSink(seen.append), Flaky())
+    sink.emit({"k": 1})
+    assert seen == [{"k": 1}]
+
+
+def test_ndjson_append_file_sink_writes_lines(tmp_path) -> None:
+    p = tmp_path / "e.ndjson"
+    s = NdjsonAppendFileSink(p)
+    s.emit({"type": "a"})
+    s.emit({"type": "b"})
+    s.close()
+    lines = p.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 2
+    assert json.loads(lines[0]) == {"type": "a"}
+    assert json.loads(lines[1]) == {"type": "b"}
 
 
 def test_ndjson_stdout_sink_invokes_flush_per_emit() -> None:

@@ -66,6 +66,55 @@ def test_main_run_with_artifacts_base_emits_run_root_ready(capsys, tmp_path: Pat
     assert "run_root_ready" in capsys.readouterr().out
 
 
+def test_main_run_with_artifacts_base_persists_events_and_summary(capsys, tmp_path: Path) -> None:
+    gid = "88888888-8888-4888-8888-888888888888"
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps(_minimal_valid_doc(gid)), encoding="utf-8")
+    base = tmp_path / "ws"
+    base.mkdir()
+    assert main(["run", "-d", str(p), "--artifacts-base", str(base)]) == 0
+    assert capsys.readouterr().out
+    run_root = base / "runs" / gid
+    subdirs = [x for x in run_root.iterdir() if x.is_dir()]
+    assert len(subdirs) == 1
+    d = subdirs[0]
+    log = d / "events.ndjson"
+    assert log.is_file()
+    summary = d / "run-summary.json"
+    assert summary.is_file()
+    lines = [ln for ln in log.read_text(encoding="utf-8").split("\n") if ln.strip()]
+    assert any(json.loads(ln).get("type") == "run_started" for ln in lines)
+    summ = json.loads(summary.read_text(encoding="utf-8"))
+    assert summ.get("schemaVersion") == 1
+    assert summ["status"] == "success"
+
+
+def test_main_run_no_persist_skips_event_log_files(capsys, tmp_path: Path) -> None:
+    gid = "99999999-9999-4999-8999-999999999999"
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps(_minimal_valid_doc(gid)), encoding="utf-8")
+    base = tmp_path / "ws"
+    base.mkdir()
+    assert (
+        main(
+            [
+                "run",
+                "-d",
+                str(p),
+                "--artifacts-base",
+                str(base),
+                "--no-persist-run-events",
+            ]
+        )
+        == 0
+    )
+    assert capsys.readouterr().out
+    run_root = base / "runs" / gid
+    d = next(run_root.iterdir())
+    assert not (d / "events.ndjson").exists()
+    assert not (d / "run-summary.json").exists()
+
+
 def test_main_artifacts_size_total(capsys, tmp_path: Path) -> None:
     gid = "33333333-3333-4333-8333-333333333333"
     d = create_root_run_artifact_dir(tmp_path, gid)

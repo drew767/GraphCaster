@@ -149,7 +149,24 @@
       "filterGroupAria": "Console line filter",
       "searchPlaceholder": "Search…",
       "searchAria": "Search console output",
-      "navigateToNode": "Go to node {{nodeId}} on canvas"
+      "navigateToNode": "Go to node {{nodeId}} on canvas",
+      "replayBanner": "Replay (offline): {{label}}"
+    },
+    "runHistory": {
+      "title": "Run history",
+      "needArtifactsAndGraph": "Set workspace root (runs/) and ensure the graph has an id — persisted runs are stored under runs/<graphId>/.",
+      "loading": "Loading…",
+      "empty": "No run folders found for this graph yet. Run with workspace root set to persist NDJSON.",
+      "hasEvents": "events.ndjson",
+      "noEvents": "no log",
+      "hasSummary": "summary",
+      "replay": "Replay in console",
+      "replayBusy": "Loading…",
+      "replayDisabledHint": "No events.ndjson in this folder.",
+      "replayLabel": "folder {{dir}}",
+      "logTruncated": "events.ndjson was read from the tail only (size cap); the first line may be a broken JSON fragment — narrow filters or raise the limit in code if needed.",
+      "refresh": "Refresh",
+      "close": "Close"
     },
     "run": {
       "heading": "Run",
@@ -164,7 +181,8 @@
       "cannotSaveDuringRun": "Save is disabled while a run is active.",
       "stepCache": "Step cache",
       "stepCacheHint": "Passes --step-cache to Python with the workspace root. Tasks opt in via data.stepCache. Badge shows queued dirty count.",
-      "stepCacheNeedArtifactsHint": "Set workspace root (runs/) first — step cache requires --artifacts-base."
+      "stepCacheNeedArtifactsHint": "Set workspace root (runs/) first — step cache requires --artifacts-base.",
+      "history": "History"
     },
     "lang": {
       "selectLabel": "Language",

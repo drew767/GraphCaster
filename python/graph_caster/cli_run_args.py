@@ -16,6 +16,7 @@ def build_graph_caster_run_argv(
     context_json_path: Path | None = None,
     step_cache: bool = False,
     step_cache_dirty: str = "",
+    no_persist_run_events: bool = False,
 ) -> list[str]:
     rid = str(run_id).strip()
     if not rid:
@@ -34,6 +35,8 @@ def build_graph_caster_run_argv(
         argv.extend(["-g", str(Path(graphs_dir))])
     if artifacts_base is not None and str(artifacts_base).strip():
         argv.extend(["--artifacts-base", str(Path(artifacts_base))])
+        if no_persist_run_events:
+            argv.append("--no-persist-run-events")
     if step_cache:
         argv.append("--step-cache")
         dirty = (step_cache_dirty or "").strip()
@@ -64,6 +67,7 @@ def run_start_body_to_argv_paths(
     run_id = str(body.get("runId") or "").strip()
     if not run_id:
         raise ValueError("runId required")
+    no_persist = body.get("noPersistRunEvents") is True
     return build_graph_caster_run_argv(
         document_path,
         run_id=run_id,
@@ -73,4 +77,5 @@ def run_start_body_to_argv_paths(
         context_json_path=context_json_path,
         step_cache=step_cache,
         step_cache_dirty=step_cache_dirty,
+        no_persist_run_events=no_persist,
     )

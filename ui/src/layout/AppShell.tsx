@@ -11,6 +11,7 @@ import { NodeSearchPalette } from "../components/NodeSearchPalette";
 import { ConsolePanel } from "../components/ConsolePanel";
 import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
 import { GraphSaveModal } from "../components/GraphSaveModal";
+import { RunHistoryModal } from "../components/RunHistoryModal";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
@@ -70,6 +71,7 @@ import {
   getRunSessionSnapshot,
   runSessionAppendLine,
   runSessionClearOutputSnapshots,
+  runSessionClearReplay,
   runSessionSetActiveRunId,
   runSessionSetPythonBanner,
   useRunSession,
@@ -133,6 +135,7 @@ export function AppShell({ onLangChange }: Props) {
   });
   const nodeSearchRows = useMemo(() => buildCanvasNodeSearchRows(graphDocument), [graphDocument]);
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
+  const resolvedGraphId = useMemo(() => graphIdFromDocument(graphDocument) ?? "", [graphDocument]);
   const handleIssues = useMemo(() => findHandleCompatibilityIssues(graphDocument), [graphDocument]);
   const [danglingEdgesExportIds, setDanglingEdgesExportIds] = useState<string[] | null>(null);
 
@@ -154,6 +157,7 @@ export function AppShell({ onLangChange }: Props) {
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
   const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
+  const [runHistoryOpen, setRunHistoryOpen] = useState(false);
   const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
   const [runArtifactsBase, setRunArtifactsBase] = useState(
     () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
@@ -621,6 +625,7 @@ export function AppShell({ onLangChange }: Props) {
       const doc = api.exportDocument();
       const runId = crypto.randomUUID();
       runSessionAppendLine(`[host] starting run ${runId}`);
+      runSessionClearReplay();
       runSessionClearOutputSnapshots();
       runSessionSetActiveRunId(runId);
       const art = runArtifactsBase.trim();
@@ -1162,6 +1167,12 @@ export function AppShell({ onLangChange }: Props) {
         onRun={() => {
           void onRunGraph();
         }}
+        onRunHistory={() => {
+          setRunHistoryOpen(true);
+        }}
+        runHistoryDisabled={
+          runArtifactsBase.trim() === "" || resolvedGraphId.trim() === "" || resolvedGraphId.trim() === "default"
+        }
         onStopRun={() => {
           void onStopRunGraph();
         }}
@@ -1352,6 +1363,14 @@ export function AppShell({ onLangChange }: Props) {
         onClose={() => {
           setGraphOpenError(null);
         }}
+      />
+      <RunHistoryModal
+        open={runHistoryOpen}
+        onClose={() => {
+          setRunHistoryOpen(false);
+        }}
+        artifactsBase={runArtifactsBase}
+        graphId={resolvedGraphId}
       />
       <NodeSearchPalette
         open={nodeSearchOpen}

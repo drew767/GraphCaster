@@ -13,6 +13,9 @@ fn main() {
             run_bridge::get_run_environment_info,
             run_bridge::gc_start_run,
             run_bridge::gc_cancel_run,
+            run_bridge::gc_list_persisted_runs,
+            run_bridge::gc_read_persisted_events,
+            run_bridge::gc_read_persisted_run_summary,
         ])
         .build(tauri::generate_context!())
         .expect("error while building GraphCaster")

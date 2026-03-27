@@ -90,6 +90,80 @@ def test_run_broker_rejects_duplicate_active_run_id() -> None:
                 break
 
 
+def test_persisted_runs_list_events_summary(tmp_path) -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    base = tmp_path / "ws"
+    run_dir = base / "runs" / gid / "20991231T000000_abcd1234"
+    run_dir.mkdir(parents=True)
+    (run_dir / "events.ndjson").write_text(
+        '{"type":"run_started","rootGraphId":"' + gid + '"}\n',
+        encoding="utf-8",
+    )
+    (run_dir / "run-summary.json").write_text('{"status":"success"}\n', encoding="utf-8")
+    r = client.post("/persisted-runs/list", json={"artifactsBase": str(base), "graphId": gid})
+    assert r.status_code == 200, r.text
+    items = r.json()["items"]
+    assert len(items) == 1
+    assert items[0]["runDirName"] == "20991231T000000_abcd1234"
+    assert items[0]["hasEvents"] is True
+    assert items[0]["hasSummary"] is True
+    r2 = client.post(
+        "/persisted-runs/events",
+        json={
+            "artifactsBase": str(base),
+            "graphId": gid,
+            "runDirName": "20991231T000000_abcd1234",
+            "maxBytes": 1000,
+        },
+    )
+    assert r2.status_code == 200
+    j2 = r2.json()
+    assert "run_started" in j2["text"]
+    assert j2.get("truncated") is False
+    r3 = client.post(
+        "/persisted-runs/summary",
+        json={"artifactsBase": str(base), "graphId": gid, "runDirName": "20991231T000000_abcd1234"},
+    )
+    assert r3.status_code == 200
+    assert json.loads(r3.json()["text"])["status"] == "success"
+
+
+def test_persisted_runs_events_truncated_and_huge_max_bytes_capped(tmp_path) -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    base = tmp_path / "ws"
+    run_dir = base / "runs" / gid / "ttrunc"
+    run_dir.mkdir(parents=True)
+    (run_dir / "events.ndjson").write_bytes(b"a" * 200)
+    r = client.post(
+        "/persisted-runs/events",
+        json={
+            "artifactsBase": str(base),
+            "graphId": gid,
+            "runDirName": "ttrunc",
+            "maxBytes": 80,
+        },
+    )
+    assert r.status_code == 200
+    jr = r.json()
+    assert jr["truncated"] is True
+    assert len(jr["text"].encode("utf-8")) == 80
+    r2 = client.post(
+        "/persisted-runs/events",
+        json={
+            "artifactsBase": str(base),
+            "graphId": gid,
+            "runDirName": "ttrunc",
+            "maxBytes": 9_999_999_999,
+        },
+    )
+    assert r2.status_code == 200
+    assert r2.json()["truncated"] is False
+
+
 def test_run_broker_unknown_stream_404() -> None:
     reg = RunBrokerRegistry()
     client = TestClient(create_app(reg))

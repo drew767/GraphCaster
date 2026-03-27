@@ -3,6 +3,22 @@
 import { parseRunEventLine } from "./parseRunEventLine";
 import * as store from "./runSessionStore";
 
+export function loadReplayNdjsonText(
+  ndjson: string,
+  sourceLabel: string,
+  leadingNoticeLine?: string | null,
+): void {
+  store.runSessionBeginReplay(sourceLabel);
+  if (leadingNoticeLine != null && leadingNoticeLine !== "") {
+    store.runSessionAppendLine(leadingNoticeLine);
+  }
+  const lines = ndjson.split(/\r?\n/).filter((l) => l.trim() !== "");
+  for (const line of lines) {
+    store.runSessionAppendLine(line);
+    applyRunnerNdjsonSideEffects(line);
+  }
+}
+
 export function applyRunnerNdjsonSideEffects(line: string): void {
   const ev = parseRunEventLine(line);
   if (!ev || typeof ev !== "object" || ev === null) {
