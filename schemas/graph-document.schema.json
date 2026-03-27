@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.3)",
+  "title": "GraphCaster graph document (v1.4)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -48,7 +48,7 @@
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "Known kinds: start, exit, task, graph_ref, comment, merge (join paths after branch; F18 in/out_default only). Other values: unknown executable (task-like handles in validation)."
+          "description": "Known kinds: start, exit, task, graph_ref, comment, merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner). Other values: unknown executable (task-like handles in validation)."
         },
         "position": {
           "type": "object",

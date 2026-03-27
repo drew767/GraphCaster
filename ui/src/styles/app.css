@@ -568,6 +568,15 @@ body {
   );
 }
 
+.gc-flow-node--fork {
+  border-color: #34c759;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #34c759 14%, var(--gc-surface-1)),
+    var(--gc-surface-1)
+  );
+}
+
 .gc-flow-node__body {
   padding: 0.45rem 0.55rem;
   display: flex;

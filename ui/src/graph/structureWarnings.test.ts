@@ -51,6 +51,17 @@ describe("structureIssuesBlockRun", () => {
     ).toBe(false);
   });
 
+  it("is false when only fork_few_outputs or barrier_merge_out_error", () => {
+    expect(
+      structureIssuesBlockRun([{ kind: "fork_few_outputs", nodeId: "f1", unconditionalOutgoing: 1 }]),
+    ).toBe(false);
+    expect(
+      structureIssuesBlockRun([
+        { kind: "barrier_merge_out_error_incoming", edgeId: "e1", mergeNodeId: "m1" },
+      ]),
+    ).toBe(false);
+  });
+
   it("is true for graph_ref_workspace_cycle", () => {
     expect(
       structureIssuesBlockRun([
@@ -153,5 +164,124 @@ describe("findStructureIssues", () => {
         (i) => i.kind === "merge_few_inputs" && i.nodeId === "m1" && i.incomingEdges === 1,
       ),
     ).toBe(true);
+  });
+
+  it("adds fork_few_outputs when fork has one unconditional branch", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "f1", type: "fork", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "f1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "e1",
+          source: "f1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(
+      issues.some(
+        (i) =>
+          i.kind === "fork_few_outputs" && i.nodeId === "f1" && i.unconditionalOutgoing === 1,
+      ),
+    ).toBe(true);
+  });
+
+  it("adds barrier_merge_out_error_incoming", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "x" } },
+        { id: "m1", type: "merge", position: { x: 0, y: 0 }, data: { mode: "barrier" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "ee",
+          source: "t1",
+          sourceHandle: "out_error",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(
+      issues.some(
+        (i) =>
+          i.kind === "barrier_merge_out_error_incoming" &&
+          i.edgeId === "ee" &&
+          i.mergeNodeId === "m1",
+      ),
+    ).toBe(true);
+  });
+
+  it("adds barrier_merge_no_success_incoming when only out_error feeds barrier", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "x" } },
+        { id: "t2", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+        { id: "m1", type: "merge", position: { x: 0, y: 0 }, data: { mode: "barrier" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "e1",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "t2",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "e2",
+          source: "t1",
+          sourceHandle: "out_error",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "e3",
+          source: "t2",
+          sourceHandle: "out_error",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "barrier_merge_no_success_incoming" && i.nodeId === "m1")).toBe(true);
   });
 });

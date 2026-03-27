@@ -1087,7 +1087,21 @@ export function AppShell({ onLangChange }: Props) {
                             id: issue.nodeId,
                             count: issue.incomingEdges,
                           })
-                        : t("app.structure.startHasIncoming", { id: issue.startId })}
+                        : issue.kind === "fork_few_outputs"
+                          ? t("app.structure.forkFewOutputs", {
+                              id: issue.nodeId,
+                              count: issue.unconditionalOutgoing,
+                            })
+                          : issue.kind === "barrier_merge_out_error_incoming"
+                            ? t("app.structure.barrierMergeOutErrorIncoming", {
+                                edgeId: issue.edgeId,
+                                mergeId: issue.mergeNodeId,
+                              })
+                            : issue.kind === "barrier_merge_no_success_incoming"
+                              ? t("app.structure.barrierMergeNoSuccessIncoming", {
+                                  id: issue.nodeId,
+                                })
+                              : t("app.structure.startHasIncoming", { id: issue.startId })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (

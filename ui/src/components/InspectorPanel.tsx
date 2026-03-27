@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import type { GraphCanvasSelection } from "./GraphCanvas";
 import type { GraphDocumentJson, GraphDocumentSettingsPatch } from "../graph/types";
 import { graphIdFromDocument } from "../graph/parseDocument";
+import { GRAPH_NODE_TYPE_MERGE } from "../graph/nodeKinds";
+import { mergeModeFromNodeData } from "../graph/structureWarnings";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -228,6 +230,30 @@ export function InspectorPanel({
             <span className="gc-inspector-k">{t("app.inspector.label")}</span>
             <span className="gc-inspector-v">{selection.label}</span>
           </div>
+          {selection.graphNodeType === GRAPH_NODE_TYPE_MERGE ? (
+            <div className="gc-inspector-row gc-inspector-row--field">
+              <label className="gc-inspector-k" htmlFor="gc-inspector-merge-mode">
+                {t("app.inspector.mergeMode")}
+              </label>
+              <select
+                id="gc-inspector-merge-mode"
+                className="gc-inspector-condition-input"
+                disabled={runLocked}
+                value={mergeModeFromNodeData(selection.raw)}
+                onChange={(ev) => {
+                  const mode = ev.target.value === "barrier" ? "barrier" : "passthrough";
+                  onApplyNodeData(selection.id, {
+                    ...(isPlainObject(selection.raw) ? selection.raw : {}),
+                    mode,
+                  });
+                }}
+              >
+                <option value="passthrough">{t("app.inspector.mergeModePassthrough")}</option>
+                <option value="barrier">{t("app.inspector.mergeModeBarrier")}</option>
+              </select>
+              <p className="gc-inspector-edge-hint">{t("app.inspector.mergeModeHint")}</p>
+            </div>
+          ) : null}
           {selection.graphNodeType === "comment" ? (
             <p className="gc-inspector-edge-hint">{t("app.inspector.commentFrameHint")}</p>
           ) : null}

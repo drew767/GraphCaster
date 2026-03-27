@@ -87,6 +87,26 @@ def test_process_like_events_validate() -> None:
             "graphId": "g1",
         },
         {
+            "type": "structure_warning",
+            "kind": "fork_few_outputs",
+            "nodeId": "f1",
+            "unconditionalOutgoing": 1,
+            "graphId": "g1",
+        },
+        {
+            "type": "structure_warning",
+            "kind": "barrier_merge_out_error_incoming",
+            "edgeId": "e1",
+            "mergeNodeId": "m1",
+            "graphId": "g1",
+        },
+        {
+            "type": "structure_warning",
+            "kind": "barrier_merge_no_success_incoming",
+            "nodeId": "m1",
+            "graphId": "g1",
+        },
+        {
             "type": "node_cache_hit",
             "nodeId": "t1",
             "graphId": "g1",

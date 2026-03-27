@@ -104,21 +104,43 @@
         "required": ["type"]
       },
       "then": {
-        "required": ["kind", "nodeId", "incomingEdges", "graphId"],
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": ["merge_few_inputs"],
-            "description": "Non-blocking graph shape hint; mirrors UI findStructureIssues where applicable."
+        "oneOf": [
+          {
+            "required": ["kind", "nodeId", "incomingEdges", "graphId"],
+            "properties": {
+              "kind": { "const": "merge_few_inputs" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "incomingEdges": { "type": "integer", "minimum": 0 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
           },
-          "nodeId": { "type": "string", "minLength": 1 },
-          "incomingEdges": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Count of incoming edges from non-comment nodes for this merge."
+          {
+            "required": ["kind", "nodeId", "unconditionalOutgoing", "graphId"],
+            "properties": {
+              "kind": { "const": "fork_few_outputs" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "unconditionalOutgoing": { "type": "integer", "minimum": 0 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
           },
-          "graphId": { "type": "string", "minLength": 1 }
-        }
+          {
+            "required": ["kind", "edgeId", "mergeNodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "barrier_merge_out_error_incoming" },
+              "edgeId": { "type": "string", "minLength": 1 },
+              "mergeNodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "barrier_merge_no_success_incoming" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          }
+        ]
       }
     },
     {

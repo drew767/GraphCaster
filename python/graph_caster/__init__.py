@@ -38,9 +38,13 @@ from graph_caster.graph_ref_workspace import (
 )
 from graph_caster.validate import (
     GraphStructureError,
+    find_barrier_merge_no_success_incoming_warnings,
+    find_barrier_merge_out_error_incoming,
+    find_fork_few_outputs_warnings,
     find_merge_incoming_warnings,
     find_unreachable_non_comment_nodes,
     find_unreachable_out_error_sources,
+    merge_mode,
     validate_graph_structure,
 )
 from graph_caster.workspace import (
@@ -88,9 +92,13 @@ __all__ = [
     "load_graph_documents_index",
     "scan_graphs_directory",
     "validate_graph_structure",
+    "find_barrier_merge_no_success_incoming_warnings",
+    "find_barrier_merge_out_error_incoming",
+    "find_fork_few_outputs_warnings",
     "find_merge_incoming_warnings",
     "find_unreachable_non_comment_nodes",
     "find_unreachable_out_error_sources",
+    "merge_mode",
     "__version__",
 ]
 

@@ -31,6 +31,7 @@
         "task": "Задача",
         "graph_ref": "Вложенный граф",
         "merge": "Слияние",
+        "fork": "Разветвление",
         "comment": "Комментарий (рамка)"
       },
       "flowControls": {
@@ -54,6 +55,9 @@
       "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть).",
       "unreachableNodes": "Ноды недостижимы из start (статика; все рёбра считаются возможными): {{ids}}.",
       "mergeFewInputs": "У merge {{id}} только {{count}} входящее(их) ребро(а) от не-comment нод (обычно 2+ после разветвления).",
+      "forkFewOutputs": "У fork {{id}} только {{count}} безусловных исходящих веток (нужно 2+ для fan-out).",
+      "barrierMergeOutErrorIncoming": "У barrier-merge {{mergeId}} входящее ребро out_error {{edgeId}} (не поддерживается; для ошибок используйте passthrough merge).",
+      "barrierMergeNoSuccessIncoming": "У barrier-merge {{id}} нет входящих рёбер успешного пути (out_default) от не-comment нод.",
       "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки."
     },
     "inspector": {
@@ -78,6 +82,10 @@
       "edgeCondition": "Условие",
       "edgeConditionPlaceholder": "пусто — без условия",
       "edgeConditionHint": "Раннер берёт первое ребро без условия или с истинным условием (см. Python).",
+      "mergeMode": "Режим слияния",
+      "mergeModePassthrough": "Сквозной (один активный путь)",
+      "mergeModeBarrier": "Барьер (ждать все входящие ветки)",
+      "mergeModeHint": "Барьер ждёт завершения каждого предка (как join в n8n). Для fan-out используйте ноду Fork. Ветки в одном процессе выполняются по очереди.",
       "applyEdgeCondition": "Применить условие",
       "openGraphRef": "Открыть вложенный граф",
       "runUntilThisNode": "Запуск до этой ноды",

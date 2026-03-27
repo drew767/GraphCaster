@@ -59,3 +59,15 @@ def test_merge_fixture_validates() -> None:
     doc = _load_fixture("handle-merge.json")
     assert find_handle_compatibility_violations(doc) == []
     assert validate_graph_structure(doc) == "s1"
+
+
+def test_fork_fixture_validates() -> None:
+    doc = _load_fixture("handle-fork.json")
+    assert find_handle_compatibility_violations(doc) == []
+    assert validate_graph_structure(doc) == "s1"
+
+
+def test_fork_merge_barrier_fixture_validates() -> None:
+    doc = _load_fixture("fork-merge-barrier.json")
+    assert find_handle_compatibility_violations(doc) == []
+    assert validate_graph_structure(doc) == "s1"

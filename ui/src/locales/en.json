@@ -31,6 +31,7 @@
         "task": "Task",
         "graph_ref": "Nested graph",
         "merge": "Merge",
+        "fork": "Fork",
         "comment": "Comment frame"
       },
       "flowControls": {
@@ -54,6 +55,9 @@
       "startHasIncoming": "Start node {{id}} has incoming edges (should have none).",
       "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}.",
       "mergeFewInputs": "Merge node {{id}} has {{count}} incoming branch edge(s) from non-comment nodes (usually 2+ after a split).",
+      "forkFewOutputs": "Fork node {{id}} has {{count}} unconditional outgoing branch(es) (use 2+ for fan-out).",
+      "barrierMergeOutErrorIncoming": "Barrier merge {{mergeId}} has an incoming out_error edge {{edgeId}} (not supported; use passthrough merge for error paths).",
+      "barrierMergeNoSuccessIncoming": "Barrier merge {{id}} has no success-path (out_default) incoming edges from non-comment nodes.",
       "graphRefWorkspaceCycle": "Project graphs contain a graph_ref cycle (nested workflows would recurse): {{cycle}}. Remove or retarget graph_ref links."
     },
     "inspector": {
@@ -78,6 +82,10 @@
       "edgeCondition": "Condition",
       "edgeConditionPlaceholder": "leave empty if unconditional",
       "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner).",
+      "mergeMode": "Merge mode",
+      "mergeModePassthrough": "Passthrough (single path)",
+      "mergeModeBarrier": "Barrier (wait for all inbound branches)",
+      "mergeModeHint": "Barrier waits until every predecessor has finished (n8n-style join). Use a Fork node to fan out. Paths are still run one-after-another in one process.",
       "applyEdgeCondition": "Apply condition",
       "openGraphRef": "Open nested graph",
       "runUntilThisNode": "Run until this node",

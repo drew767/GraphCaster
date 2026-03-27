@@ -8,6 +8,75 @@ from graph_caster.models import GraphDocument, Node
 _OUT_ERROR_HANDLE = "out_error"
 
 
+def merge_mode(node: Node) -> str:
+    if node.type != "merge":
+        return "passthrough"
+    v = node.data.get("mode")
+    if v is None:
+        return "passthrough"
+    s = str(v).strip().lower()
+    return "barrier" if s == "barrier" else "passthrough"
+
+
+def find_fork_few_outputs_warnings(doc: GraphDocument) -> list[dict[str, int | str]]:
+    by_id = {n.id: n for n in doc.nodes}
+    out: list[dict[str, int | str]] = []
+    for n in doc.nodes:
+        if n.type != "fork":
+            continue
+        cnt = 0
+        for e in doc.edges:
+            if e.source != n.id:
+                continue
+            if e.source_handle == _OUT_ERROR_HANDLE:
+                continue
+            tgt = by_id.get(e.target)
+            if tgt is None or tgt.type == "comment":
+                continue
+            c = e.condition
+            if c is not None and str(c).strip() != "":
+                continue
+            cnt += 1
+        if cnt < 2:
+            out.append({"nodeId": n.id, "unconditionalOutgoing": cnt})
+    return out
+
+
+def find_barrier_merge_out_error_incoming(doc: GraphDocument) -> list[dict[str, str]]:
+    by_id = {n.id: n for n in doc.nodes}
+    out: list[dict[str, str]] = []
+    for e in doc.edges:
+        if e.source_handle != _OUT_ERROR_HANDLE:
+            continue
+        tgt = by_id.get(e.target)
+        if tgt is None or tgt.type != "merge":
+            continue
+        if merge_mode(tgt) != "barrier":
+            continue
+        out.append({"edgeId": e.id, "mergeNodeId": tgt.id})
+    return out
+
+
+def find_barrier_merge_no_success_incoming_warnings(doc: GraphDocument) -> list[dict[str, str]]:
+    by_id = {n.id: n for n in doc.nodes}
+    out: list[dict[str, str]] = []
+    for n in doc.nodes:
+        if n.type != "merge" or merge_mode(n) != "barrier":
+            continue
+        ok = False
+        for e in doc.edges:
+            if e.target != n.id or e.source_handle == _OUT_ERROR_HANDLE:
+                continue
+            src = by_id.get(e.source)
+            if src is None or src.type == "comment":
+                continue
+            ok = True
+            break
+        if not ok:
+            out.append({"nodeId": n.id})
+    return out
+
+
 def _node_can_emit_fail_branch(node: Node | None) -> bool:
     if node is None:
         return False

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "title": "fork handles ok"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    { "id": "fk1", "type": "fork", "position": { "x": 100, "y": 0 }, "data": {} },
+    { "id": "t1", "type": "task", "position": { "x": 200, "y": 0 }, "data": { "command": "echo" } },
+    { "id": "t2", "type": "task", "position": { "x": 200, "y": 60 }, "data": { "command": "echo" } },
+    { "id": "m1", "type": "merge", "position": { "x": 320, "y": 0 }, "data": {} },
+    { "id": "x1", "type": "exit", "position": { "x": 440, "y": 0 }, "data": {} }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "fk1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "fk1",
+      "sourceHandle": "out_default",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e3",
+      "source": "fk1",
+      "sourceHandle": "out_default",
+      "target": "t2",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e4",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e5",
+      "source": "t2",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e6",
+      "source": "m1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

@@ -23,12 +23,32 @@ from graph_caster.node_output_cache import (
 from graph_caster.run_event_sink import RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
 from graph_caster.step_queue import ExecutionFrame, StepQueue
+from graph_caster.validate import (
+    find_barrier_merge_out_error_incoming,
+    find_fork_few_outputs_warnings,
+    merge_mode,
+)
 
 EventSink = Callable[[RunEventDict], None] | RunEventSink
 
 BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
 
 EDGE_SOURCE_OUT_ERROR = "out_error"
+
+
+def _fork_unconditional_edges(doc: GraphDocument, fork_id: str, by_id: dict[str, Node]) -> list[Edge]:
+    out: list[Edge] = []
+    for e in doc.edges:
+        if e.source != fork_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
+            continue
+        tgt = by_id.get(e.target)
+        if tgt is None or tgt.type == "comment":
+            continue
+        c = e.condition
+        if c is not None and str(c).strip() != "":
+            continue
+        out.append(e)
+    return out
 
 
 def _edges_from_source(node_id: str, doc: GraphDocument, *, error_route: bool) -> list[Edge]:
@@ -145,6 +165,7 @@ class GraphRunner:
         self._step_cache = step_cache
         self._step_cache_store: StepCacheStore | None = None
         self._step_cache_no_artifacts: bool = False
+        self._node_by_id: dict[str, Node] = {n.id: n for n in document.nodes}
 
     def _ensure_step_cache_store(self) -> StepCacheStore | None:
         pol = self._step_cache
@@ -189,13 +210,124 @@ class GraphRunner:
             ev["runId"] = rid
         self._event_sink.emit(ev)
 
+    def _merge_barrier_state(self, ctx: dict[str, Any]) -> dict[str, Any]:
+        return ctx.setdefault("_gc_merge_barrier", {})
+
+    def _barrier_required_sources(self, merge_id: str) -> frozenset[str]:
+        req: set[str] = set()
+        for e in self._doc.edges:
+            if e.target != merge_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
+                continue
+            src = self._node_by_id.get(e.source)
+            if src is None or src.type == "comment":
+                continue
+            req.add(e.source)
+        return frozenset(req)
+
+    def _merge_barrier_arrive(self, merge_id: str, from_source_id: str, ctx: dict[str, Any], step_q: StepQueue) -> None:
+        stmap = self._merge_barrier_state(ctx)
+        if merge_id not in stmap:
+            stmap[merge_id] = {
+                "required": self._barrier_required_sources(merge_id),
+                "arrived": set(),
+                "scheduled": False,
+            }
+        st = stmap[merge_id]
+        req = st["required"]
+        if not req:
+            return
+        st["arrived"].add(from_source_id)
+        if st["arrived"].issuperset(req) and not st["scheduled"]:
+            st["scheduled"] = True
+            step_q.append(ExecutionFrame(merge_id))
+
+    def _has_incomplete_barrier(self, ctx: dict[str, Any]) -> bool:
+        mb = ctx.get("_gc_merge_barrier") or {}
+        for _, st in mb.items():
+            req = st.get("required") or frozenset()
+            if not req:
+                continue
+            if st.get("scheduled"):
+                continue
+            arr = st.get("arrived") or set()
+            if arr != req:
+                return True
+        return False
+
+    def _traverse_chosen_edge(
+        self,
+        from_node_id: str,
+        edge: Edge,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        emit_branch_taken: bool,
+        error_route: bool,
+    ) -> None:
+        gid = self._doc.graph_id
+        route_kw: dict[str, Any] = {}
+        if error_route:
+            route_kw["route"] = "error"
+        if emit_branch_taken:
+            self.emit(
+                "branch_taken",
+                edgeId=edge.id,
+                fromNode=edge.source,
+                toNode=edge.target,
+                graphId=gid,
+                **route_kw,
+            )
+        self.emit(
+            "edge_traverse",
+            edgeId=edge.id,
+            fromNode=edge.source,
+            toNode=edge.target,
+            **route_kw,
+        )
+        if error_route:
+            tgt_node = self._node_by_id.get(edge.target)
+            if tgt_node is not None and tgt_node.type == "merge" and merge_mode(tgt_node) == "barrier":
+                self.emit(
+                    "error",
+                    message="barrier_merge_error_path_not_supported",
+                    mergeNodeId=edge.target,
+                    edgeId=edge.id,
+                    graphId=self._doc.graph_id,
+                )
+                return
+            step_q.append(ExecutionFrame(edge.target))
+            return
+        tgt_node = self._node_by_id.get(edge.target)
+        if tgt_node is not None and tgt_node.type == "merge" and merge_mode(tgt_node) == "barrier":
+            self._merge_barrier_arrive(edge.target, from_node_id, ctx, step_q)
+            return
+        step_q.append(ExecutionFrame(edge.target))
+
+    def _enqueue_fork_branches(self, fork_id: str, ctx: dict[str, Any], step_q: StepQueue) -> bool:
+        edges = _fork_unconditional_edges(self._doc, fork_id, self._node_by_id)
+        if not edges:
+            self.emit("run_end", reason="fork_no_unconditional_outgoing")
+            return False
+        multi = len(edges) > 1
+        for e in edges:
+            self._traverse_chosen_edge(
+                fork_id,
+                e,
+                ctx,
+                step_q,
+                emit_branch_taken=multi,
+                error_route=False,
+            )
+        return True
+
     def _follow_edges_from(
         self,
         node_id: str,
         ctx: dict[str, Any],
         *,
         error_route: bool,
-    ) -> str | None:
+        step_q: StepQueue,
+    ) -> bool:
         outs = _edges_from_source(node_id, self._doc, error_route=error_route)
         chosen, skipped_edges = _evaluate_next_edge(outs, ctx)
         gid = self._doc.graph_id
@@ -211,28 +343,17 @@ class GraphRunner:
         if chosen is None:
             if (not error_route) or outs:
                 self.emit("run_end", reason="no_outgoing_or_no_matching_condition")
-            return None
+            return False
         emit_branch_taken = len(outs) > 1 or bool(skipped_edges)
-        route_kw: dict[str, Any] = {}
-        if error_route:
-            route_kw["route"] = "error"
-        if emit_branch_taken:
-            self.emit(
-                "branch_taken",
-                edgeId=chosen.id,
-                fromNode=chosen.source,
-                toNode=chosen.target,
-                graphId=gid,
-                **route_kw,
-            )
-        self.emit(
-            "edge_traverse",
-            edgeId=chosen.id,
-            fromNode=chosen.source,
-            toNode=chosen.target,
-            **route_kw,
+        self._traverse_chosen_edge(
+            node_id,
+            chosen,
+            ctx,
+            step_q,
+            emit_branch_taken=emit_branch_taken,
+            error_route=error_route,
         )
-        return chosen.target
+        return True
 
     def run(self, context: dict[str, Any] | None = None, start_node_id: str | None = None) -> None:
         from graph_caster.validate import validate_graph_structure
@@ -249,6 +370,8 @@ class GraphRunner:
         ctx["_run_success"] = False
         ctx.pop("_run_partial_stop", None)
         nd0 = int(ctx.get("nesting_depth", 0))
+        if nd0 > 0:
+            ctx["_gc_merge_barrier"] = {}
         if nd0 == 0:
             if self._run_id is None:
                 ctx.setdefault("run_id", str(uuid.uuid4()))
@@ -285,7 +408,10 @@ class GraphRunner:
                     path_str = str(run_dir)
                     ctx["root_run_artifact_dir"] = path_str
                     self.emit("run_root_ready", rootGraphId=self._doc.graph_id, rootRunArtifactDir=path_str)
-            from graph_caster.validate import find_merge_incoming_warnings
+            from graph_caster.validate import (
+                find_barrier_merge_no_success_incoming_warnings,
+                find_merge_incoming_warnings,
+            )
 
             for w in find_merge_incoming_warnings(self._doc):
                 self.emit(
@@ -295,8 +421,30 @@ class GraphRunner:
                     incomingEdges=w["incomingEdges"],
                     graphId=self._doc.graph_id,
                 )
+            for w in find_fork_few_outputs_warnings(self._doc):
+                self.emit(
+                    "structure_warning",
+                    kind="fork_few_outputs",
+                    nodeId=w["nodeId"],
+                    unconditionalOutgoing=w["unconditionalOutgoing"],
+                    graphId=self._doc.graph_id,
+                )
+            for w in find_barrier_merge_out_error_incoming(self._doc):
+                self.emit(
+                    "structure_warning",
+                    kind="barrier_merge_out_error_incoming",
+                    edgeId=w["edgeId"],
+                    mergeNodeId=w["mergeNodeId"],
+                    graphId=self._doc.graph_id,
+                )
+            for w in find_barrier_merge_no_success_incoming_warnings(self._doc):
+                self.emit(
+                    "structure_warning",
+                    kind="barrier_merge_no_success_incoming",
+                    nodeId=w["nodeId"],
+                    graphId=self._doc.graph_id,
+                )
             ctx["graph_rev"] = graph_document_revision(self._doc)
-            node_by_id: dict[str, Node] = {n.id: n for n in self._doc.nodes}
             step_q = StepQueue(start_node_id)
             visited_guard = 0
             max_steps = max(1, len(self._doc.nodes) * 4)
@@ -311,7 +459,7 @@ class GraphRunner:
                     break
                 frame = step_q.popleft()
                 current_id = frame.node_id
-                node = node_by_id.get(current_id)
+                node = self._node_by_id.get(current_id)
                 if node is None:
                     self.emit("error", nodeId=current_id, message="unknown_node")
                     break
@@ -321,8 +469,19 @@ class GraphRunner:
 
                 outs_map = ctx.setdefault("node_outputs", {})
                 outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data)}
-                if node.type == "merge":
-                    outs_map[node.id]["merge"] = {"passthrough": True}
+                if node.type == "fork":
+                    outs_map[node.id]["fork"] = True
+                elif node.type == "merge":
+                    if merge_mode(node) == "barrier":
+                        st = (ctx.get("_gc_merge_barrier") or {}).get(node.id, {})
+                        arrived = st.get("arrived") or set()
+                        outs_map[node.id]["merge"] = {
+                            "passthrough": False,
+                            "barrier": True,
+                            "arrivedFrom": sorted(arrived),
+                        }
+                    else:
+                        outs_map[node.id]["merge"] = {"passthrough": True}
 
                 if node.type == "comment":
                     pass
@@ -332,9 +491,7 @@ class GraphRunner:
                         self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
                         if not ctx.get("_run_cancelled"):
                             ctx["last_result"] = False
-                            nxt = self._follow_edges_from(node.id, ctx, error_route=True)
-                            if nxt is not None:
-                                step_q.append(ExecutionFrame(nxt))
+                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
                                 continue
                         break
                 elif node.type == "task" and _task_has_process_command(node):
@@ -448,9 +605,7 @@ class GraphRunner:
                         if ctx.get("_gc_process_cancelled"):
                             break
                         ctx["last_result"] = False
-                        nxt = self._follow_edges_from(node.id, ctx, error_route=True)
-                        if nxt is not None:
-                            step_q.append(ExecutionFrame(nxt))
+                        if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
                             continue
                         break
 
@@ -469,13 +624,22 @@ class GraphRunner:
                     ctx["_run_partial_stop"] = True
                     break
 
-                nxt = self._follow_edges_from(node.id, ctx, error_route=False)
-                if nxt is None:
+                if node.type == "fork":
+                    if not self._enqueue_fork_branches(node.id, ctx, step_q):
+                        break
+                    continue
+                if not self._follow_edges_from(node.id, ctx, error_route=False, step_q=step_q):
                     break
-                step_q.append(ExecutionFrame(nxt))
 
             if visited_guard >= max_steps:
                 self.emit("error", message="run_aborted_cycle_guard")
+            elif (
+                not ctx.get("_run_success")
+                and not ctx.get("_run_cancelled")
+                and not ctx.get("_run_partial_stop")
+                and self._has_incomplete_barrier(ctx)
+            ):
+                self.emit("error", message="merge_barrier_incomplete")
         finally:
             if nd0 == 0 and self._run_id:
                 if ctx.get("_run_cancelled"):
