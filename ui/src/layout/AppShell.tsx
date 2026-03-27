@@ -99,6 +99,7 @@ export function AppShell({ onLangChange }: Props) {
   });
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
   const structureIssues = useMemo(() => findStructureIssues(graphDocument), [graphDocument]);
+  const [danglingEdgesExportIds, setDanglingEdgesExportIds] = useState<string[] | null>(null);
 
   const [layoutEpoch, setLayoutEpoch] = useState(0);
   const [workspaceGraphsDir, setWorkspaceGraphsDir] = useState<FileSystemDirectoryHandle | null>(null);
@@ -130,7 +131,9 @@ export function AppShell({ onLangChange }: Props) {
     if (getRunSessionSnapshot().activeRunId != null) {
       return;
     }
-    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    const current =
+      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
+      graphDocumentRef.current;
     historyRef.current = snapshotBeforeChange(historyRef.current, current);
     bumpHistoryUi();
   }, [bumpHistoryUi]);
@@ -143,7 +146,9 @@ export function AppShell({ onLangChange }: Props) {
     if (!api) {
       return;
     }
-    preDragDocumentRef.current = structuredClone(api.exportDocument()) as GraphDocumentJson;
+    preDragDocumentRef.current = structuredClone(
+      api.exportDocument({ notifyRemovedDanglingEdges: false }),
+    ) as GraphDocumentJson;
   }, []);
 
   const commitNodeDragHistoryIfChanged = useCallback(() => {
@@ -160,7 +165,7 @@ export function AppShell({ onLangChange }: Props) {
     if (!api) {
       return;
     }
-    const after = api.exportDocument();
+    const after = api.exportDocument({ notifyRemovedDanglingEdges: false });
     if (documentJsonSignature(pre) === documentJsonSignature(after)) {
       return;
     }
@@ -173,12 +178,15 @@ export function AppShell({ onLangChange }: Props) {
     if (getRunSessionSnapshot().activeRunId != null) {
       return;
     }
-    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    const current =
+      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
+      graphDocumentRef.current;
     const r = undoDocument(historyRef.current, current);
     if (!r) {
       return;
     }
     historyRef.current = r.nextHistory;
+    setDanglingEdgesExportIds(null);
     setGraphDocument(r.document);
     setLayoutDirtyEpoch((n) => n + 1);
     bumpHistoryUi();
@@ -189,12 +197,15 @@ export function AppShell({ onLangChange }: Props) {
     if (getRunSessionSnapshot().activeRunId != null) {
       return;
     }
-    const current = canvasRef.current?.exportDocument() ?? graphDocumentRef.current;
+    const current =
+      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
+      graphDocumentRef.current;
     const r = redoDocument(historyRef.current, current);
     if (!r) {
       return;
     }
     historyRef.current = r.nextHistory;
+    setDanglingEdgesExportIds(null);
     setGraphDocument(r.document);
     setLayoutDirtyEpoch((n) => n + 1);
     bumpHistoryUi();
@@ -269,6 +280,7 @@ export function AppShell({ onLangChange }: Props) {
 
   const onNewGraph = useCallback(() => {
     preDragDocumentRef.current = null;
+    setDanglingEdgesExportIds(null);
     setGraphDocument(createMinimalGraphDocument());
     historyRef.current = clearHistory(historyRef.current);
     bumpHistoryUi();
@@ -309,6 +321,7 @@ export function AppShell({ onLangChange }: Props) {
       }
       setActiveWorkspaceFile(null);
       preDragDocumentRef.current = null;
+      setDanglingEdgesExportIds(null);
       setGraphDocument(res.doc);
       historyRef.current = clearHistory(historyRef.current);
       bumpHistoryUi();
@@ -361,6 +374,7 @@ export function AppShell({ onLangChange }: Props) {
         return;
       }
       preDragDocumentRef.current = null;
+      setDanglingEdgesExportIds(null);
       setGraphDocument(res.doc);
       historyRef.current = clearHistory(historyRef.current);
       bumpHistoryUi();
@@ -524,7 +538,7 @@ export function AppShell({ onLangChange }: Props) {
         if (!api || !workspaceGraphsDir) {
           return;
         }
-        const doc = api.exportDocument();
+        const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
         const conflict = findWorkspaceGraphIdConflict(
           workspaceIndex,
           graphIdFromDocument(doc) ?? "",
@@ -599,7 +613,12 @@ export function AppShell({ onLangChange }: Props) {
     });
   }, [commitHistorySnapshot]);
 
+  const onExportRemovedDanglingEdges = useCallback((removedEdgeIds: string[]) => {
+    setDanglingEdgesExportIds(removedEdgeIds);
+  }, []);
+
   const onFlowStructureChange = useCallback(() => {
+    setDanglingEdgesExportIds(null);
     const api = canvasRef.current;
     if (!api) {
       return;
@@ -782,8 +801,22 @@ export function AppShell({ onLangChange }: Props) {
         runStartDisabled={runStartDisabled}
         runDesktopOnlyHint={!isTauriRuntime()}
       />
-      {branchIssues.length > 0 || structureIssues.length > 0 ? (
+      {branchIssues.length > 0 ||
+      structureIssues.length > 0 ||
+      (danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0) ? (
         <div className="gc-branch-warnings" role="status">
+          {danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0 ? (
+            <div className="gc-branch-warnings__line">
+              <span aria-hidden="true">⚠</span>{" "}
+              {t("app.editor.removedDanglingEdges", {
+                count: danglingEdgesExportIds.length,
+                ids:
+                  danglingEdgesExportIds.length <= 8
+                    ? danglingEdgesExportIds.join(", ")
+                    : `${danglingEdgesExportIds.slice(0, 8).join(", ")} (+${danglingEdgesExportIds.length - 8})`,
+              })}
+            </div>
+          ) : null}
           {structureIssues.map((issue, idx) => (
             <div key={`st-${issue.kind}-${idx}`} className="gc-branch-warnings__line">
               <span aria-hidden="true">⚠</span>{" "}
@@ -834,6 +867,7 @@ export function AppShell({ onLangChange }: Props) {
               workspaceGraphsForAddMenu={workspaceGraphRows}
               onAddNode={onAddNode}
               onConnectNewEdge={onConnectNewEdge}
+              onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
               onFlowStructureChange={onFlowStructureChange}
               onBeforeStructureRemove={commitHistorySnapshot}
               onNodeDragCaptureBegin={beginNodeDragCapture}
@@ -863,7 +897,9 @@ export function AppShell({ onLangChange }: Props) {
         suggestedFileName={saveModalSuggestedName}
         workspaceLinked={workspaceGraphsDir != null}
         workspaceEntries={workspaceIndex}
-        getDocument={() => canvasRef.current?.exportDocument() ?? null}
+        getDocument={() =>
+          canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ?? null
+        }
         onSaveToWorkspace={(fileName, doc) => saveDocumentToWorkspace(doc, fileName)}
         onClose={() => {
           setSaveModalOpen(false);

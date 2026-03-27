@@ -75,8 +75,13 @@ function conditionFromEdgeLabel(label: Edge["label"]): string | null {
   return null;
 }
 
+export type ExportDocumentOptions = {
+  /** When false, do not call onExportRemovedDanglingEdges (history / internal snapshots). Default true. */
+  notifyRemovedDanglingEdges?: boolean;
+};
+
 export type GraphCanvasHandle = {
-  exportDocument: () => GraphDocumentJson;
+  exportDocument: (options?: ExportDocumentOptions) => GraphDocumentJson;
   focusNode: (nodeId: string) => void;
 };
 
@@ -101,6 +106,8 @@ type Props = {
   structureLocked?: boolean;
   /** Highlights the node id from runner events (node_enter / node_execute). */
   runHighlightNodeId?: string | null;
+  /** Called when export drops edges with missing endpoint nodes (sanitize). */
+  onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
 };
 
 const nodeTypes = {
@@ -110,17 +117,23 @@ const nodeTypes = {
 
 type BridgeProps = {
   baseDocument: GraphDocumentJson;
+  onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
 };
 
 const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
-  function FlowCanvasHandleBridge({ baseDocument }, ref) {
+  function FlowCanvasHandleBridge({ baseDocument, onExportRemovedDanglingEdges }, ref) {
     const { getNodes, getEdges, getNode, fitView } = useReactFlow();
     useImperativeHandle(
       ref,
       () => ({
-        exportDocument() {
+        exportDocument(options?: ExportDocumentOptions) {
           const doc = flowToDocument(getNodes() as Node<GcNodeData>[], getEdges(), baseDocument);
-          return sanitizeGraphConnectivity(doc);
+          const { document, removedEdgeIds } = sanitizeGraphConnectivity(doc);
+          const notify = options?.notifyRemovedDanglingEdges !== false;
+          if (removedEdgeIds.length > 0 && notify) {
+            onExportRemovedDanglingEdges?.(removedEdgeIds);
+          }
+          return document;
         },
         focusNode(nodeId: string) {
           const id = nodeId.trim();
@@ -140,7 +153,7 @@ const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
           });
         },
       }),
-      [getNodes, getEdges, getNode, fitView, baseDocument],
+      [getNodes, getEdges, getNode, fitView, baseDocument, onExportRemovedDanglingEdges],
     );
     return null;
   },
@@ -193,6 +206,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onFlowStructureChange,
       structureLocked = false,
       runHighlightNodeId = null,
+      onExportRemovedDanglingEdges,
     },
     ref,
   ) {
@@ -515,7 +529,11 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         >
           <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
           <RefitOnLayoutEpoch epoch={layoutEpoch} />
-          <FlowCanvasHandleBridge ref={ref} baseDocument={graphDocument} />
+          <FlowCanvasHandleBridge
+            ref={ref}
+            baseDocument={graphDocument}
+            onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
+          />
           <Background gap={16} size={1} />
           <Controls />
           <MiniMap pannable zoomable />

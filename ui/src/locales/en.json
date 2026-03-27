@@ -78,6 +78,9 @@
       "graphParamsInvalidJson": "Inputs and outputs must be JSON arrays or objects.",
       "graphSchemaInvalid": "Schema version must be an integer."
     },
+    "editor": {
+      "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}."
+    },
     "warnings": {
       "multipleUnconditional": "Node {{sourceId}}: more than one outgoing edge with no condition (runner uses JSON order).",
       "multipleUnconditionalErrorOut": "Node {{sourceId}} (on-error out): more than one unconditional edge from the error handle.",

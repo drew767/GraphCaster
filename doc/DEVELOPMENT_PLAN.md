@@ -84,7 +84,8 @@
 
 - **Симптом:** рёбра на несуществующие ноды **тихо** отбрасываются при `exportDocument`.
 - **Цель:** если кардинальность `edges` уменьшилась — **неблокирующее** уведомление (баннер/строка в **ConsolePanel** или toast): число удалённых рёбер, опционально список `id` (ограничить длину).
-- **Гейт:** сценарий: удалить ноду с виспящим ребром → Save → пользователь видит, что граф «подчистился».
+- **Гейт:** сценарий: удалить ноду с виспящим ребром → Save → пользователь видит, что граф «подчистился`.
+- **Сделано:** `sanitizeGraphConnectivity` возвращает `{ document, removedEdgeIds }`; `GraphCanvas` → `onExportRemovedDanglingEdges`; полоса предупреждений в `AppShell` + i18n **`app.editor.removedDanglingEdges`**; Vitest **`ui/src/graph/sanitize.test.ts`**. См. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 
 ### P2 — CI монорепозитория для GraphCaster
 
@@ -108,6 +109,7 @@
 
 - Паритет типов полей JSON (ручки, `graphId`, `schemaVersion`, `condition`, `author`/`title`); единый `schemaVersion` на экспорте; общий `flowConnectionHandle`; стартовый пример через `parseGraphDocumentJson`; Vitest на парсер и `flowToDocument` — **в коде**; каталог автотестов в монорепо обновлён под `npm test`.
 - Статическое предупреждение **недостижимых из `start` нод** (все рёбра как возможные; **`comment`** исключены): UI + `validate.find_unreachable_non_comment_nodes` — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел F3 / достижимость).
+- Уведомление при **отбрасывании рёбер без конечных нод** при экспорте (**P2** выше) — там же в **IMPLEMENTED_FEATURES**.
 
 ## Фаза 5 — Отмена / повтор и сериализация
 

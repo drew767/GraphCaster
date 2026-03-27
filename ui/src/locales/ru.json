@@ -78,6 +78,9 @@
       "graphParamsInvalidJson": "Входы и выходы должны быть JSON-массивом или объектом.",
       "graphSchemaInvalid": "Версия схемы должна быть целым числом."
     },
+    "editor": {
+      "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}."
+    },
     "warnings": {
       "multipleUnconditional": "Нода {{sourceId}}: несколько исходящих рёбер без условия (порядок как в JSON).",
       "multipleUnconditionalErrorOut": "Нода {{sourceId}} (выход при ошибке): несколько безусловных рёбер с пина «ошибка».",

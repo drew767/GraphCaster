@@ -565,7 +565,7 @@
 | Langflow | да | SPA (**React**) в дереве фронтенда; каталог компонентов синхронизируется с **LFX** на бэкенде. |
 | n8n | да | **`packages/frontend/editor-ui`** (**Vue 3**): canvas, интеграционные ноды, **sticky notes**, сложные выходы, merge веток. |
 | Vibe Workflow | да | **`workflow-builder`** + **Next.js** клиент. |
-| **GraphCaster** | **частично** | Слой **B**: **@xyflow/react**, кастомные **`GcFlowNode`** / **`GcCommentNode`**, **`normalizeHandles`**, инспектор, предупреждения структуры; **undo/redo** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F20**); **§28.2** — мини-карта, run-lock, производительность. |
+| **GraphCaster** | **частично** | Слой **B**: **@xyflow/react**, кастомные **`GcFlowNode`** / **`GcCommentNode`**, **`normalizeHandles`**, инспектор, предупреждения структуры; **undo/redo**, **run-lock** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F20**); **сериализация без связей «в никуда»** (**P2** `sanitizeGraphConnectivity`) — там же; **§28.2** — мини-карта, производительность, прочий паритет подсказок (**§15**). |
 
 ### F2 — Схема данных графа и миграции версий
 
@@ -1499,15 +1499,15 @@
 | **Langflow** | **React** SPA | Handles у полей компонентов, палитра блоков; оформление темы зависит от сборки | Flow в БД + экспорт для **`lfx run`** |
 | **n8n** | **Vue 3** **`editor-ui`** | **Sticky notes**, богатые ноды интеграций, **merge** веток, inline editors | **`Workflow`** JSON в БД, версия пакета **`n8n-workflow`** |
 | **Vibe Workflow** | **workflow-builder** + **Next** | Упрощённый пайплайн относительно n8n/Dify | Граф из клиента к FastAPI |
-| **GraphCaster** | **@xyflow/react** | **`GcFlowNode`**, **`GcCommentNode`**, предупреждения **`structureWarnings`** / **`branchWarnings`**; инспектор | **`GraphDocument`** + **`validate.py`**; без БД (**F23**) |
+| **GraphCaster** | **@xyflow/react** | **`GcFlowNode`**, **`GcCommentNode`**, предупреждения **`structureWarnings`** / **`branchWarnings`**; при экспорте в JSON — **`sanitizeGraphConnectivity`** (висячие рёбра отбрасываются, пользователь уведомляется, кроме внутренних экспортов — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md), **P2**); инспектор | **`GraphDocument`** + **`validate.py`**; без БД (**F23**) |
 
-**Общий риск:** разъезд **«что видит UI»** vs **«что принимает раннер»** — гасить через **§15**, **§18** и тесты **`fromReactFlow`** / **`toReactFlow`** (или эквивалент сериализации).
+**Общий риск:** разъезд **«что видит UI»** vs **«что принимает раннер»** — гасить через **§15**, **§18** и тесты **`fromReactFlow`** / **`toReactFlow`**; при сохранении/run явный канон документа после **`sanitizeGraphConnectivity`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**P2**).
 
 ### 28.2. Планирование для GC
 
-1. **Фазы 3–4:** довести **паритет по подсказкам** (недопустимые рёбра, ветвление) с минимальным когнитивным шумом; не дублировать **n8n** полноту интеграций — фокус на **`task`** и **`graph_ref`**.
+1. **Фазы 3–4:** довести **паритет по подсказкам** (ветвление и прочее) с минимальным когнитивным шумом; не дублировать **n8n** полноту интеграций — фокус на **`task`** и **`graph_ref`**. **Рёбра с отсутствующими концами в документе** при сериализации: **закрыто** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**P2** `sanitizeGraphConnectivity`); остаётся жёсткость пинов и прочие правила **§15** / **§18** без полного копирования конкурентов.
 2. **Undo/redo (**F20**):** MVP — **стек снимков** полного **`GraphDocumentJson`** (**§21**, [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)); переход к явным **командам** с **`apply`/`revert`** — позже (память, паритет с **Dify**). Автосохранение в **`graphs/`** в стек **не** входит и **батчится** отдельно от истории правок.
-3. **Run-lock (**фаза 5**):** визуально блокировать опасные правки при активном прогоне (паттерн **Dify**/n8n «редактирование vs execution» на уровне UX, не **F6** Redis).
+3. **Run-lock (**фаза 5**):** **закрыто** — блокировка опасных правок при активном прогоне, см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F20**); сравнение с **Dify**/n8n — **§21**.
 4. **Мини-карта / навигация:** опциональные виджеты **React Flow**; на больших графах — **виртуализация** или **lazy**-подграфы только после профилирования (**§17** для потока событий — отдельно).
 5. **Комментарии и группы:** **`GcCommentNode`** уже задаёт прецедент «неисполняемая нода»; группы (frame) — только если появятся в схеме **A** и фильтре **`validate.py`**.
 6. **Co-edit (**F22**):** не синхронизировать сырой internal-state **React Flow** по сети — только **документ** (**§19**).

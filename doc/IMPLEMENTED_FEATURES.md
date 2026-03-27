@@ -16,6 +16,18 @@
 
 ---
 
+## Экспорт и целостность связей (P2 `sanitizeGraphConnectivity`)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Не терять «немые» изменения графа без сигнала (n8n/Dify/Langflow — валидация/ошибки связей) | **`sanitizeGraphConnectivity`** (`ui/src/graph/sanitize.ts`): фильтр рёбер по существующим **`source`/`target`**; результат **`{ document, removedEdgeIds }`**; **`removedEdgeIds`** без дубликатов (стабильный порядок) |
+| Прозрачность для пользователя | **`onExportRemovedDanglingEdges`** в **`GraphCanvas`**, строка в блоке предупреждений **`AppShell`** + **`app.editor.removedDanglingEdges`** (en/ru); сброс при **New/Open/undo/redo** и при **`onFlowStructureChange`** до экспорта |
+| Без ложных баннеров на внутренних экспортах | **`exportDocument(options?: ExportDocumentOptions)`**: **`notifyRemovedDanglingEdges`** (по умолчанию **true**); в **`AppShell`** уведомление отключено для снимков истории, **undo/redo**, захвата/фиксации **drag**, **автосохранения** и **`getDocument`** в модалке сохранения (чтобы не дублировать предупреждение после открытия модалки) |
+
+Рантайм Python не меняется: несогласованный JSON с диска по-прежнему обрабатывается при загрузке в модель отдельно.
+
+---
+
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
 Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; в **`COMPETITIVE_ANALYSIS.md`** (**§32.2**, «Открыто») остаются fork/join, ИИ-ветвление, продуктовая документация и контекст предикатов. In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
