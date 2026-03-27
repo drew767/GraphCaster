@@ -131,7 +131,7 @@
 | **Flowise** — частичный undo на UI | Аналогично «частично»: нет произвольной глубины как у IDE; есть **redo** после **undo** без сброса при простом начале drag (фикс в конце жеста) |
 | Пользователь откатывает правки документа без отдельного сервера | **Снимки** полного `GraphDocumentJson` (`past` / `future`), hotkeys **Ctrl+Z** / **Ctrl+Shift+Z** / **Ctrl+Y**, меню **Правка** |
 | Граница транзакции | `snapshotBeforeChange`; **drag** — capture в `onNodeDragCaptureBegin`, запись в стек в `onBeforeNodeDragStructureSync` только если экспорт изменился; **remove** — `onBeforeStructureRemove`; автосохранение в **`graphs/`** в стек **не** входит |
-| Run-lock | При активном `activeRunId` snapshot/undo/redo отключены; кнопки disabled |
+| Run-lock | При живых прогонах и/или очереди старта (**`runSession`**: `liveRunIds` / `pendingRunCount`) snapshot/undo/redo отключены; кнопки disabled |
 
 **Сделано / инварианты из §21.2 (бывший план):** совместимость с **`parseDocument` / `toReactFlow` / `fromReactFlow`** (единый канон JSON); пакетное удаление — один проход RF → один `remove` batch → один checkpoint; autosave после undo пишет откатанное состояние; run-lock согласован с политикой UX.
 
@@ -189,6 +189,18 @@
 
 ---
 
+## Стабильный `runId` на строках NDJSON (конспект **§3.7.1** в `COMPETITIVE_ANALYSIS.md`)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Один идентификатор на весь прогон (**`prompt_id`** Comfy, **`workflow_run_id`** Dify, **`executionId`** n8n) | Поле **`runId`** в объектах NDJSON корневого прогона; вложенные **`graph_ref`** используют **тот же** **`runId`**, что и корень |
+| Контракт и проверки | **`schemas/run-event.schema.json`**: описание корня, **`allOf`** с обязательным **`runId`** для ключевых **`type`** (**`run_started`**, **`run_finished`**, …) |
+| Транспорт в UI | Десктоп: **`run_bridge.rs`** → события с **`runId`**; веб: SSE-брокер отдаёт те же строки; **`runSessionStore`** маршрутизирует по **`runId`** (несколько живых прогонов — отдельный подраздел «Несколько корневых прогонов» ниже) |
+
+Код/тесты: `python/graph_caster/runner.py` (эмиссия с **`run_id`**), `python/tests/test_run_event_schema.py`. Эталоны очередей/буферов у конкурентов — по смыслу в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§3.6**–**§3.7.1**, без дублирования таблиц событий здесь.
+
+---
+
 ## Десктоп (Tauri): мост UI ↔ Python Run (фаза 8, паттерн как у Flowise/n8n — один канал на прогон)
 
 | Идея конкурента | Реализация GC |
@@ -196,10 +208,18 @@
 | Один логический поток событий на исполнение (`executionId` / SSE-канал) | Подпроцесс `python -m graph_caster run`: **NDJSON в stdout/stderr**; тот же контракт, что у CLI; **`runId`** согласован с раннером |
 | Остановка с хоста | **Cancel:** запись строки NDJSON в **stdin** процесса (`--control-stdin`): `{"type":"cancel_run","runId":"…"}` — см. раздел про реестр выше |
 | Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`, **`gc_list_persisted_runs`**, **`gc_read_persisted_events`**, **`gc_read_persisted_run_summary`**; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base`, **`--no-persist-run-events`**, **`--until-node`**, **`--context-json`** |
-| Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте фильтр по **`activeRunId`** |
-| Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне), подсветка ноды по `node_enter` / `node_execute` |
-| Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
-| Веб без Tauri | **`python -m graph_caster serve`** (опц. **`[broker]`**): **Flowise/n8n-стиль** — **SSE** `text/event-stream`, один канал на **`runId`**; Vite **`/gc-run-broker`** → брокер; UI: `webRunBroker.ts`, `runCommands.ts`, прокси в `vite.config.ts`; опц. **`GC_RUN_BROKER_TOKEN`** / **`VITE_GC_RUN_BROKER_TOKEN`** (заголовок и **`?token=`** для **`EventSource`**); Python: `graph_caster/run_broker/`; см. `ui/README.md`, `python/README.md`; тесты: `python/tests/test_run_broker.py`, `test_run_broker_registry.py` |
+| Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте маршрутизация по **`runId`**, фокус влияет на консоль и побочные эффекты канваса |
+| Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне или очереди), подсветка ноды по `node_enter` / `node_execute` для сфокусированного прогона |
+| Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; **`GC_TAURI_MAX_RUNS`** (1–32, по умолчанию **2**) — лимит одновременных дочерних `run` в Tauri; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
+| Веб без Tauri | **`python -m graph_caster serve`** (опц. **`[broker]`**): **Flowise/n8n-стиль** — **SSE** `text/event-stream`, один канал на **`runId`**; Vite **`/gc-run-broker`** → брокер; UI: `webRunBroker.ts`, `runCommands.ts`, прокси в `vite.config.ts`; опц. **`GC_RUN_BROKER_TOKEN`** / **`VITE_GC_RUN_BROKER_TOKEN`** (заголовок и **`?token=`** для **`EventSource`**); **`GC_RUN_BROKER_MAX_RUNS`** (1–32, по умолчанию **2**) — лимит одновременных дочерних процессов на брокере; Python: `graph_caster/run_broker/`; см. `ui/README.md`, `python/README.md`; тесты: `python/tests/test_run_broker.py`, `test_run_broker_registry.py` |
+
+### Несколько корневых прогонов с хоста (очередь FIFO, cap параллелизма)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** / **Flowise** — несколько исполнений, лимит параллелизма, очередь | UI: **`runSessionStore`** — порядок живых **`runId`**, FIFO **`pendingStarts`**, потолок **`gc.run.maxConcurrent`** в **`localStorage`** (1–32, по умолчанию 2, согласовать с **`GC_*_MAX_RUNS`**); кнопка **Run** остаётся доступной при полном cap (постановка в очередь); **Stop** отменяет **сфокусированный** живой прогон; селектор фокуса при 2+ живых; снимки вывода нод (`node_outputs_snapshot`) и активная нода для подсветки кешируются отдельно по каждому `runId`; инспектор и канвас отражают сфокусированный прогон |
+| Защита брокера и Tauri от лишних процессов | См. **`GC_RUN_BROKER_MAX_RUNS`**, **`GC_TAURI_MAX_RUNS`** в строках окружения выше; ответ брокера **400** при **`max concurrent runs reached`** |
+| Тесты | `ui/src/run/runSessionStore.test.ts`; **`test_run_broker_rejects_when_max_concurrent_reached`** в `python/tests/test_run_broker.py` |
 
 ### Частичный прогон (Dify debugger / n8n pinned data — срез)
 
@@ -346,4 +366,4 @@
 
 ---
 
-*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Завершённые планы в `doc/plans/` удаляйте (оставляйте только `.gitkeep`).*
+*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов в `doc/plans/`: после выполнения плана удалите соответствующий файл; если в каталоге не остаётся документов кроме служебного **`.gitkeep`**, дополнительных действий не требуется.*

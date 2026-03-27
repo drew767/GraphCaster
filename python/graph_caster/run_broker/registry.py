@@ -16,6 +16,15 @@ from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster
 
 
+def _max_concurrent_runs() -> int:
+    raw = os.environ.get("GC_RUN_BROKER_MAX_RUNS", "2").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 2
+    return max(1, min(32, n))
+
+
 def _merge_pythonpath_from_env(env: dict[str, str], package_root: str | None) -> None:
     if not package_root or not str(package_root).strip():
         return
@@ -62,48 +71,57 @@ class RunBrokerRegistry:
         run_id = str(body.get("runId") or "").strip() or str(uuid.uuid4())
         merged = {**body, "runId": run_id}
 
-        tmp_doc = (
-            Path(tempfile.gettempdir())
-            / f"gc-broker-doc-{run_id}-{os.getpid()}-{time.time_ns()}.json"
-        )
-        tmp_doc.write_text(doc_json, encoding="utf-8")
-        temp_paths: list[Path] = [tmp_doc]
+        with self._lock:
+            if len(self._runs) >= _max_concurrent_runs():
+                raise ValueError("max concurrent runs reached")
 
-        ctx_path: Path | None = None
-        ctx_disk = merged.get("contextJsonPath")
-        if ctx_disk is not None and str(ctx_disk).strip():
-            ctx_path = Path(str(ctx_disk).strip())
-        else:
-            ctx_raw = merged.get("contextJson")
-            if ctx_raw is not None and str(ctx_raw).strip():
-                tmp_ctx = (
-                    Path(tempfile.gettempdir())
-                    / f"gc-broker-ctx-{run_id}-{os.getpid()}-{time.time_ns()}.json"
-                )
-                if isinstance(ctx_raw, (dict, list)):
-                    tmp_ctx.write_text(json.dumps(ctx_raw), encoding="utf-8")
-                else:
-                    tmp_ctx.write_text(str(ctx_raw), encoding="utf-8")
-                ctx_path = tmp_ctx
-                temp_paths.append(tmp_ctx)
+        temp_paths: list[Path] = []
+        try:
+            tmp_doc = (
+                Path(tempfile.gettempdir())
+                / f"gc-broker-doc-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+            )
+            tmp_doc.write_text(doc_json, encoding="utf-8")
+            temp_paths.append(tmp_doc)
 
-        argv = run_start_body_to_argv_paths(merged, document_path=tmp_doc, context_json_path=ctx_path)
+            ctx_path: Path | None = None
+            ctx_disk = merged.get("contextJsonPath")
+            if ctx_disk is not None and str(ctx_disk).strip():
+                ctx_path = Path(str(ctx_disk).strip())
+            else:
+                ctx_raw = merged.get("contextJson")
+                if ctx_raw is not None and str(ctx_raw).strip():
+                    tmp_ctx = (
+                        Path(tempfile.gettempdir())
+                        / f"gc-broker-ctx-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+                    )
+                    if isinstance(ctx_raw, (dict, list)):
+                        tmp_ctx.write_text(json.dumps(ctx_raw), encoding="utf-8")
+                    else:
+                        tmp_ctx.write_text(str(ctx_raw), encoding="utf-8")
+                    ctx_path = tmp_ctx
+                    temp_paths.append(tmp_ctx)
 
-        env = os.environ.copy()
-        _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
+            argv = run_start_body_to_argv_paths(merged, document_path=tmp_doc, context_json_path=ctx_path)
 
-        broadcaster = RunBroadcaster()
-        cmd = [sys.executable, "-m", "graph_caster", *argv]
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
+            env = os.environ.copy()
+            _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
+
+            broadcaster = RunBroadcaster()
+            cmd = [sys.executable, "-m", "graph_caster", *argv]
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+            )
+        except Exception:
+            self._cleanup_temp(temp_paths)
+            raise
         with self._lock:
             if run_id in self._runs:
                 proc.terminate()
@@ -114,6 +132,16 @@ class RunBrokerRegistry:
                     proc.wait(timeout=5.0)
                 self._cleanup_temp(temp_paths)
                 raise ValueError("runId already active")
+            cap = _max_concurrent_runs()
+            if len(self._runs) >= cap:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                self._cleanup_temp(temp_paths)
+                raise ValueError("max concurrent runs reached")
             self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths)
 
         def pump_out() -> None:

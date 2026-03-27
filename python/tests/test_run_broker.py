@@ -71,6 +71,28 @@ def test_run_broker_stream_minimal_graph() -> None:
     assert "run_finished" in buf
 
 
+def test_run_broker_rejects_when_max_concurrent_reached(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GC_RUN_BROKER_MAX_RUNS", "1")
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "11111111-1111-4111-8111-111111111111"
+    doc = json.dumps(_minimal_valid_doc(gid))
+    rid1 = "22222222-2222-4222-8222-222222222222"
+    rid2 = "33333333-3333-4333-8333-333333333333"
+    r1 = client.post("/runs", json={"documentJson": doc, "runId": rid1})
+    assert r1.status_code == 200, r1.text
+    r2 = client.post("/runs", json={"documentJson": doc, "runId": rid2})
+    assert r2.status_code == 400
+    assert "max concurrent" in (r2.json().get("error") or "").lower()
+
+    buf = ""
+    with client.stream("GET", f"/runs/{rid1}/stream") as response:
+        for chunk in response.iter_text():
+            buf += chunk
+            if "exit" in buf:
+                break
+
+
 def test_run_broker_rejects_duplicate_active_run_id() -> None:
     reg = RunBrokerRegistry()
     client = TestClient(create_app(reg))

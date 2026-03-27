@@ -66,13 +66,20 @@ import {
   type WorkspaceGraphEntry,
 } from "../lib/workspaceFs";
 import { useConsoleHeight } from "../hooks/useConsoleHeight";
-import { gcCancelRun, gcStartRun, getRunEnvironmentInfo } from "../run/runCommands";
+import {
+  gcCancelRun,
+  getRunEnvironmentInfo,
+  launchGcStartJob,
+} from "../run/runCommands";
+import type { GcStartRunJob } from "../run/runSessionStore";
 import {
   getRunSessionSnapshot,
   runSessionAppendLine,
-  runSessionClearOutputSnapshots,
+  runSessionCanStartAnotherLive,
   runSessionClearReplay,
-  runSessionSetActiveRunId,
+  runSessionEnqueuePending,
+  runSessionHasBlockingActivity,
+  runSessionSetFocusedRunId,
   runSessionSetPythonBanner,
   useRunSession,
 } from "../run/runSessionStore";
@@ -126,7 +133,9 @@ export function AppShell({ onLangChange }: Props) {
   const { t } = useTranslation();
   useRunBridge();
   const runSession = useRunSession();
-  const isRunActive = runSession.activeRunId != null;
+  const runSessionBlocking =
+    runSession.liveRunIds.length > 0 || runSession.pendingRunCount > 0;
+  const hasLiveGraphRun = runSession.liveRunIds.length > 0;
   const { height, startDrag } = useConsoleHeight(168);
   const [selection, setSelection] = useState<GraphCanvasSelection | null>(null);
   const [graphDocument, setGraphDocument] = useState<GraphDocumentJson>(() => {
@@ -185,7 +194,7 @@ export function AppShell({ onLangChange }: Props) {
 
   const commitHistorySnapshot = useCallback(() => {
     preDragDocumentRef.current = null;
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       return;
     }
     const current =
@@ -196,7 +205,7 @@ export function AppShell({ onLangChange }: Props) {
   }, [bumpHistoryUi]);
 
   const beginNodeDragCapture = useCallback(() => {
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       return;
     }
     const api = canvasRef.current;
@@ -209,7 +218,7 @@ export function AppShell({ onLangChange }: Props) {
   }, []);
 
   const commitNodeDragHistoryIfChanged = useCallback(() => {
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       preDragDocumentRef.current = null;
       return;
     }
@@ -232,7 +241,7 @@ export function AppShell({ onLangChange }: Props) {
 
   const performUndo = useCallback(() => {
     preDragDocumentRef.current = null;
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       return;
     }
     const current =
@@ -251,7 +260,7 @@ export function AppShell({ onLangChange }: Props) {
 
   const performRedo = useCallback(() => {
     preDragDocumentRef.current = null;
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       return;
     }
     const current =
@@ -270,7 +279,7 @@ export function AppShell({ onLangChange }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (getRunSessionSnapshot().activeRunId != null) {
+      if (runSessionHasBlockingActivity()) {
         return;
       }
       if (isTextEditingTarget(e.target)) {
@@ -587,7 +596,7 @@ export function AppShell({ onLangChange }: Props) {
   );
 
   const openSaveModal = useCallback(() => {
-    if (getRunSessionSnapshot().activeRunId != null) {
+    if (runSessionHasBlockingActivity()) {
       window.alert(t("app.run.cannotSaveDuringRun"));
       return;
     }
@@ -624,32 +633,37 @@ export function AppShell({ onLangChange }: Props) {
       }
       const doc = api.exportDocument();
       const runId = crypto.randomUUID();
-      runSessionAppendLine(`[host] starting run ${runId}`);
-      runSessionClearReplay();
-      runSessionClearOutputSnapshots();
-      runSessionSetActiveRunId(runId);
       const art = runArtifactsBase.trim();
       const dirtyCsv = getStepCacheDirtySnapshot().ids.join(",");
-      if (dirtyCsv !== "") {
-        runSessionAppendLine(`[host] step-cache dirty: ${dirtyCsv}`);
-      }
       const useStepCache = stepCacheRunEnabled && art !== "";
+      const job: GcStartRunJob = {
+        documentJson: JSON.stringify(doc),
+        runId,
+        graphsDir: runGraphsDir.trim() || undefined,
+        artifactsBase: art === "" ? undefined : art,
+        untilNodeId: untilNodeId?.trim() || undefined,
+        stepCache: useStepCache ? true : undefined,
+        stepCacheDirty: useStepCache && dirtyCsv !== "" ? dirtyCsv : undefined,
+      };
+      runSessionClearReplay();
+      if (!runSessionCanStartAnotherLive()) {
+        runSessionEnqueuePending(job);
+        const pos = getRunSessionSnapshot().pendingRunCount;
+        runSessionAppendLine(
+          t("app.run.queuedHost", { runId, position: pos }),
+        );
+        return;
+      }
       try {
-        await gcStartRun({
-          documentJson: JSON.stringify(doc),
-          runId,
-          graphsDir: runGraphsDir.trim() || undefined,
-          artifactsBase: art === "" ? undefined : art,
-          untilNodeId: untilNodeId?.trim() || undefined,
-          stepCache: useStepCache ? true : undefined,
-          stepCacheDirty: useStepCache && dirtyCsv !== "" ? dirtyCsv : undefined,
+        await launchGcStartJob(job, {
+          afterSuccessfulStart: () => {
+            if (useStepCache && dirtyCsv !== "") {
+              clearStepCacheDirtyIds();
+            }
+          },
         });
-        if (useStepCache && dirtyCsv !== "") {
-          clearStepCacheDirtyIds();
-        }
-      } catch (e) {
-        runSessionSetActiveRunId(null);
-        runSessionAppendLine(`[host] ${String(e)}`);
+      } catch {
+        /* host lines emitted in launchGcStartJob */
       }
     },
     [pyProbe, runArtifactsBase, runGraphsDir, stepCacheRunEnabled, structureIssues, t],
@@ -678,7 +692,7 @@ export function AppShell({ onLangChange }: Props) {
   }, [startDesktopRun]);
 
   const runUntilSelectionEnabled = useMemo(() => {
-    if (isRunActive) {
+    if (runSessionBlocking) {
       return false;
     }
     if (pyProbe != null && !pyProbe.ok) {
@@ -691,10 +705,10 @@ export function AppShell({ onLangChange }: Props) {
       return selection.nodes[0]?.graphNodeType !== "start";
     }
     return false;
-  }, [isRunActive, pyProbe, selection]);
+  }, [runSessionBlocking, pyProbe, selection]);
 
   const onStopRunGraph = useCallback(async () => {
-    const id = getRunSessionSnapshot().activeRunId;
+    const id = getRunSessionSnapshot().focusedRunId;
     if (!id) {
       return;
     }
@@ -709,12 +723,12 @@ export function AppShell({ onLangChange }: Props) {
     if (!workspaceGraphsDir || !activeWorkspaceFile) {
       return;
     }
-    if (isRunActive) {
+    if (runSessionBlocking) {
       return;
     }
     const timer = window.setTimeout(() => {
       void (async () => {
-        if (getRunSessionSnapshot().activeRunId != null) {
+        if (runSessionHasBlockingActivity()) {
           return;
         }
         const api = canvasRef.current;
@@ -741,7 +755,7 @@ export function AppShell({ onLangChange }: Props) {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex, isRunActive]);
+  }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex, runSessionBlocking]);
 
   const getDocumentForStepCacheDirty = useCallback((): GraphDocumentJson => {
     const api = canvasRef.current;
@@ -879,7 +893,7 @@ export function AppShell({ onLangChange }: Props) {
 
   const onAddNode = useCallback(
     (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => {
-      if (getRunSessionSnapshot().activeRunId != null) {
+      if (runSessionHasBlockingActivity()) {
         return;
       }
       const api = canvasRef.current;
@@ -929,11 +943,11 @@ export function AppShell({ onLangChange }: Props) {
     pyProbe != null && !pyProbe.ok;
 
   const onRemoveCanvasNodes = useCallback((ids: readonly string[]) => {
-    if (isRunActive) {
+    if (runSessionBlocking) {
       return;
     }
     canvasRef.current?.removeNodesById(ids);
-  }, [isRunActive]);
+  }, [runSessionBlocking]);
 
   const onOpenNestedGraph = useCallback(
     (targetGraphId: string, graphRefNodeId?: string) => {
@@ -1059,7 +1073,7 @@ export function AppShell({ onLangChange }: Props) {
         });
         return;
       }
-      if (isRunActive) {
+      if (runSessionBlocking) {
         return;
       }
       e.preventDefault();
@@ -1124,7 +1138,7 @@ export function AppShell({ onLangChange }: Props) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [commitHistorySnapshot, isRunActive, t]);
+  }, [commitHistorySnapshot, runSessionBlocking, t]);
 
   return (
     <div className="app-root" data-gc-history-revision={historyTick}>
@@ -1176,7 +1190,14 @@ export function AppShell({ onLangChange }: Props) {
         onStopRun={() => {
           void onStopRunGraph();
         }}
-        runActive={isRunActive}
+        sessionBlocking={runSessionBlocking}
+        hasLiveRun={hasLiveGraphRun}
+        liveRunIds={runSession.liveRunIds}
+        focusedRunId={runSession.focusedRunId}
+        onFocusedRunChange={(rid) => {
+          runSessionSetFocusedRunId(rid);
+        }}
+        pendingRunCount={runSession.pendingRunCount}
         runStartDisabled={runStartDisabled}
         runDesktopOnlyHint={false}
       />
@@ -1319,7 +1340,7 @@ export function AppShell({ onLangChange }: Props) {
               onBeforeStructureRemove={commitHistorySnapshot}
               onNodeDragCaptureBegin={beginNodeDragCapture}
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
-              structureLocked={isRunActive}
+              structureLocked={runSessionBlocking}
               runHighlightNodeId={runSession.activeNodeId}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);
@@ -1338,7 +1359,7 @@ export function AppShell({ onLangChange }: Props) {
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
           onMarkStepCacheDirtyTransitive={markStepCacheDirtyWithBubble}
-          runLocked={isRunActive}
+          runLocked={runSessionBlocking}
           onRunUntilThisNode={onRunUntilSelectedNode}
           runUntilThisNodeEnabled={runUntilSelectionEnabled}
         />

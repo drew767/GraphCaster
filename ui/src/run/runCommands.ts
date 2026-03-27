@@ -2,6 +2,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+import type { GcStartRunJob } from "./runSessionStore";
+import * as runStore from "./runSessionStore";
+import i18n from "../i18n";
 import { isTauriRuntime } from "./tauriEnv";
 import {
   probeRunBrokerHealth,
@@ -77,6 +80,37 @@ export async function gcCancelRun(runId: string): Promise<void> {
     return;
   }
   await invoke("gc_cancel_run", { req: { runId } });
+}
+
+export async function launchGcStartJob(
+  job: GcStartRunJob,
+  options?: { afterSuccessfulStart?: () => void },
+): Promise<void> {
+  runStore.runSessionClearReplay();
+  runStore.runSessionClearOutputSnapshotsForRun(job.runId.trim());
+  runStore.runSessionRegisterLiveRun(job.runId);
+  const dirtyCsv = job.stepCacheDirty ?? "";
+  if (dirtyCsv !== "") {
+    runStore.runSessionAppendLineForRun(job.runId, `[host] step-cache dirty: ${dirtyCsv}`);
+  }
+  runStore.runSessionAppendLineForRun(job.runId, `[host] starting run ${job.runId}`);
+  try {
+    await gcStartRun(job);
+    options?.afterSuccessfulStart?.();
+  } catch (e) {
+    runStore.runSessionAppendLineForRun(job.runId, `[host] ${String(e)}`);
+    if (String(e).toLowerCase().includes("max concurrent")) {
+      runStore.runSessionAppendLineForRun(
+        job.runId,
+        `[host] ${i18n.t("app.run.hostConcurrencyHint")}`,
+      );
+    }
+    const next = runStore.runSessionAbortRegisteredRun(job.runId);
+    if (next) {
+      void launchGcStartJob(next, options);
+    }
+    throw e;
+  }
 }
 
 export type PersistedRunListItem = {

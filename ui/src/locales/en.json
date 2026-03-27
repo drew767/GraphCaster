@@ -182,7 +182,11 @@
       "stepCache": "Step cache",
       "stepCacheHint": "Passes --step-cache to Python with the workspace root. Tasks opt in via data.stepCache. Badge shows queued dirty count.",
       "stepCacheNeedArtifactsHint": "Set workspace root (runs/) first — step cache requires --artifacts-base.",
-      "history": "History"
+      "history": "History",
+      "queuedHost": "[host] Run {{runId}} queued — {{position}} in the start queue.",
+      "pendingQueueHint": "{{count}} run(s) waiting for a free slot (FIFO).",
+      "focusRunLabel": "Focused run (console and live canvas updates)",
+      "hostConcurrencyHint": "Raise GC_RUN_BROKER_MAX_RUNS (web broker) or GC_TAURI_MAX_RUNS (desktop) to match or exceed gc.run.maxConcurrent in localStorage."
     },
     "lang": {
       "selectLabel": "Language",

@@ -182,7 +182,11 @@
       "stepCache": "Кэш шагов",
       "stepCacheHint": "Передаёт в Python --step-cache вместе с корнем воркспейса. Ноды подключаются через data.stepCache. Бейдж — число id в очереди dirty.",
       "stepCacheNeedArtifactsHint": "Сначала укажите корень воркспейса (runs/) — кэш шагов требует --artifacts-base.",
-      "history": "История"
+      "history": "История",
+      "queuedHost": "[host] Запуск {{runId}} в очереди — позиция {{position}}.",
+      "pendingQueueHint": "В очереди на старт: {{count}} (FIFO).",
+      "focusRunLabel": "Активный запуск (консоль и обновления на холсте)",
+      "hostConcurrencyHint": "Увеличьте GC_RUN_BROKER_MAX_RUNS (брокер веб) или GC_TAURI_MAX_RUNS (десктоп), чтобы было не меньше gc.run.maxConcurrent в localStorage."
     },
     "lang": {
       "selectLabel": "Язык",

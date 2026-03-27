@@ -19,32 +19,59 @@ export function loadReplayNdjsonText(
   }
 }
 
-export function applyRunnerNdjsonSideEffects(line: string): void {
+function eventRunKey(
+  inReplay: boolean,
+  sourceRunId: string | undefined,
+  focused: string | null,
+): string | null {
+  if (inReplay) {
+    return store.RUN_SESSION_REPLAY_SNAPSHOT_KEY;
+  }
+  if (sourceRunId != null && sourceRunId.trim() !== "") {
+    return sourceRunId.trim();
+  }
+  if (focused != null && focused !== "") {
+    return focused;
+  }
+  return null;
+}
+
+export function applyRunnerNdjsonSideEffects(line: string, sourceRunId?: string): void {
+  const focused = store.runSessionGetFocusedRunIdForSideEffects();
+  const inReplay = store.runSessionIsReplayActive();
   const ev = parseRunEventLine(line);
   if (!ev || typeof ev !== "object" || ev === null) {
     return;
   }
   const o = ev as Record<string, unknown>;
   const t = o.type;
-  if (t === "node_enter" || t === "node_execute") {
-    const nid = o.nodeId;
-    if (typeof nid === "string") {
-      store.runSessionSetActiveNodeId(nid);
-    }
-  }
+
+  const runKey = eventRunKey(inReplay, sourceRunId, focused);
+
   if (t === "node_outputs_snapshot") {
     const nid = o.nodeId;
     const sn = o.snapshot;
     if (
+      runKey != null &&
       typeof nid === "string" &&
       sn != null &&
       typeof sn === "object" &&
       !Array.isArray(sn)
     ) {
-      store.runSessionSetNodeOutputSnapshot(nid, sn as Record<string, unknown>);
+      store.runSessionSetNodeOutputSnapshotForRun(runKey, nid, sn as Record<string, unknown>);
     }
   }
+
+  if (t === "node_enter" || t === "node_execute") {
+    const nid = o.nodeId;
+    if (runKey != null && typeof nid === "string") {
+      store.runSessionSetActiveNodeIdForRun(runKey, nid);
+    }
+  }
+
   if (t === "run_finished" || t === "run_end") {
-    store.runSessionSetActiveNodeId(null);
+    if (runKey != null) {
+      store.runSessionClearActiveNodeForRun(runKey);
+    }
   }
 }

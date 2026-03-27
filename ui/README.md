@@ -46,6 +46,8 @@ python -m graph_caster serve
 
 Поля **graphs/** и **workspace root** в шапке — пути на диске для `-g` и `--artifacts-base` (для `graph_ref` и каталога `runs/`). Сохраняются в `localStorage`.
 
+Несколько корневых прогонов (как очередь исполнений у n8n): до **`gc.run.maxConcurrent`** (1–32 в `localStorage`, по умолчанию 2, в одном диапазоне с **`GC_*_MAX_RUNS`**) процессов параллельно; следующие старты ставятся в FIFO в UI. Селектор **сфокусированного** `runId` в шапке при 2+ живых прогонах; **Stop** отменяет сфокусированный. На брокере выровняйте потолок с UI: **`GC_RUN_BROKER_MAX_RUNS`**. В Tauri: **`GC_TAURI_MAX_RUNS`** (по умолчанию 2).
+
 ## Встраивание
 
 Статическая сборка из `dist/` для WebView / iframe; обмен с Python-runner по плану продукта (WebSocket / `postMessage` / Tauri). Для ежедневной работы в отдельном окне используйте **`npm run dev`** (оболочка Tauri в `src-tauri/`).

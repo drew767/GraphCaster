@@ -30,7 +30,14 @@ type Props = {
   onRunHistory?: () => void;
   runHistoryDisabled?: boolean;
   onStopRun?: () => void;
-  runActive?: boolean;
+  /** True when runs are live or jobs are queued (locks file/edit, run bar inputs). */
+  sessionBlocking?: boolean;
+  /** True when at least one child process is running (enables Stop). */
+  hasLiveRun?: boolean;
+  liveRunIds?: readonly string[];
+  focusedRunId?: string | null;
+  onFocusedRunChange?: (runId: string) => void;
+  pendingRunCount?: number;
   runStartDisabled?: boolean;
   runDesktopOnlyHint?: boolean;
   stepCacheRunEnabled?: boolean;
@@ -62,7 +69,12 @@ export function TopBar({
   onRunHistory = () => {},
   runHistoryDisabled = false,
   onStopRun = () => {},
-  runActive = false,
+  sessionBlocking = false,
+  hasLiveRun = false,
+  liveRunIds = [],
+  focusedRunId = null,
+  onFocusedRunChange = () => {},
+  pendingRunCount = 0,
   runStartDisabled = false,
   runDesktopOnlyHint = false,
   stepCacheRunEnabled = false,
@@ -77,13 +89,18 @@ export function TopBar({
       <span className="gc-top-title">{t("app.title")}</span>
       <div className="gc-top-menu">
         <span className="gc-top-menu-label">{t("app.menu.file")}</span>
-        <button type="button" className="gc-btn" onClick={onNewGraph} disabled={runActive}>
+        <button type="button" className="gc-btn" onClick={onNewGraph} disabled={sessionBlocking}>
           {t("app.menu.new")}
         </button>
-        <button type="button" className="gc-btn" onClick={onOpenGraph} disabled={runActive}>
+        <button type="button" className="gc-btn" onClick={onOpenGraph} disabled={sessionBlocking}>
           {t("app.menu.open")}
         </button>
-        <button type="button" className="gc-btn gc-btn-primary" onClick={onSaveGraph} disabled={runActive}>
+        <button
+          type="button"
+          className="gc-btn gc-btn-primary"
+          onClick={onSaveGraph}
+          disabled={sessionBlocking}
+        >
           {t("app.menu.save")}
         </button>
         <span className="gc-top-menu-label">{t("app.menu.edit")}</span>
@@ -91,7 +108,7 @@ export function TopBar({
           type="button"
           className="gc-btn"
           onClick={onUndo}
-          disabled={runActive || !canUndo}
+          disabled={sessionBlocking || !canUndo}
           title={t("app.edit.undoHint")}
         >
           {t("app.edit.undo")}
@@ -100,7 +117,7 @@ export function TopBar({
           type="button"
           className="gc-btn"
           onClick={onRedo}
-          disabled={runActive || !canRedo}
+          disabled={sessionBlocking || !canRedo}
           title={t("app.edit.redoHint")}
         >
           {t("app.edit.redo")}
@@ -114,7 +131,7 @@ export function TopBar({
         >
           {t("app.canvas.findNode")}
         </button>
-        <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={runActive}>
+        <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={sessionBlocking}>
           {t("app.workspace.link")}
         </button>
         {workspaceLinked ? (
@@ -125,7 +142,7 @@ export function TopBar({
         <select
           className="gc-workspace-select"
           aria-label={t("app.workspace.openFromList")}
-          disabled={runActive || !workspaceLinked || workspaceGraphOptions.length === 0}
+          disabled={sessionBlocking || !workspaceLinked || workspaceGraphOptions.length === 0}
           defaultValue=""
           onChange={(ev) => {
             const v = ev.target.value;
@@ -144,7 +161,36 @@ export function TopBar({
         </select>
         {showRunControls ? (
           <div className="gc-top-run" title={runDesktopOnlyHint ? t("app.run.desktopOnlyHint") : undefined}>
-            <span className="gc-top-run-label">{t("app.run.heading")}</span>
+            <span className="gc-top-run-label">
+              {t("app.run.heading")}
+              {pendingRunCount > 0 ? (
+                <span
+                  className="gc-top-run-stepcache__badge"
+                  title={t("app.run.pendingQueueHint", { count: pendingRunCount })}
+                >
+                  +{pendingRunCount}
+                </span>
+              ) : null}
+            </span>
+            {liveRunIds.length > 1 ? (
+              <select
+                className="gc-workspace-select"
+                aria-label={t("app.run.focusRunLabel")}
+                value={focusedRunId ?? liveRunIds[0] ?? ""}
+                onChange={(ev) => {
+                  const v = ev.target.value;
+                  if (v) {
+                    onFocusedRunChange(v);
+                  }
+                }}
+              >
+                {liveRunIds.map((id) => (
+                  <option key={id} value={id}>
+                    {id.length > 12 ? `${id.slice(0, 8)}…` : id}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <input
               type="text"
               className="gc-top-run-input"
@@ -153,7 +199,7 @@ export function TopBar({
                 onRunGraphsDirChange(ev.target.value);
               }}
               placeholder={t("app.run.graphsDirPlaceholder")}
-              disabled={runActive}
+              disabled={sessionBlocking}
               spellCheck={false}
               autoComplete="off"
               aria-label={t("app.run.graphsDirPlaceholder")}
@@ -166,7 +212,7 @@ export function TopBar({
                 onRunArtifactsBaseChange(ev.target.value);
               }}
               placeholder={t("app.run.artifactsPlaceholder")}
-              disabled={runActive}
+              disabled={sessionBlocking}
               spellCheck={false}
               autoComplete="off"
               aria-label={t("app.run.artifactsPlaceholder")}
@@ -182,7 +228,7 @@ export function TopBar({
               <input
                 type="checkbox"
                 checked={stepCacheRunEnabled && hasArtifactsBase}
-                disabled={runActive || runDesktopOnlyHint || !hasArtifactsBase}
+                disabled={sessionBlocking || runDesktopOnlyHint || !hasArtifactsBase}
                 aria-label={t("app.run.stepCache")}
                 onChange={(ev) => {
                   onStepCacheRunEnabledChange(ev.target.checked);
@@ -199,7 +245,7 @@ export function TopBar({
               type="button"
               className="gc-btn gc-btn-primary"
               onClick={onRun}
-              disabled={runStartDisabled || runActive || runDesktopOnlyHint}
+              disabled={runStartDisabled || runDesktopOnlyHint}
             >
               {t("app.run.start")}
             </button>
@@ -207,12 +253,12 @@ export function TopBar({
               type="button"
               className="gc-btn"
               onClick={onRunHistory}
-              disabled={runActive || runHistoryDisabled || runDesktopOnlyHint}
+              disabled={sessionBlocking || runHistoryDisabled || runDesktopOnlyHint}
               title={runHistoryDisabled ? t("app.runHistory.needArtifactsAndGraph") : undefined}
             >
               {t("app.run.history")}
             </button>
-            <button type="button" className="gc-btn" onClick={onStopRun} disabled={!runActive}>
+            <button type="button" className="gc-btn" onClick={onStopRun} disabled={!hasLiveRun}>
               {t("app.run.stop")}
             </button>
           </div>

@@ -2,6 +2,7 @@
 
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
+import { launchGcStartJob } from "./runCommands";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
 import { isTauriRuntime } from "./tauriEnv";
@@ -27,13 +28,10 @@ export function useRunBridge(): void {
         if (typeof p.runId !== "string" || typeof p.line !== "string") {
           return;
         }
-        if (p.runId !== store.getRunSessionSnapshot().activeRunId) {
-          return;
-        }
         const prefix = p.stream === "stderr" ? "[stderr] " : "";
-        store.runSessionAppendLine(`${prefix}${p.line}`);
+        store.runSessionAppendLineForRun(p.runId, `${prefix}${p.line}`);
         if (p.stream !== "stderr") {
-          applyRunnerNdjsonSideEffects(p.line);
+          applyRunnerNdjsonSideEffects(p.line, p.runId);
         }
       });
       unlistenEx = await listen<{ runId?: string; code?: number }>("gc-run-exit", (e) => {
@@ -41,12 +39,13 @@ export function useRunBridge(): void {
         if (typeof p.runId !== "string") {
           return;
         }
-        if (p.runId !== store.getRunSessionSnapshot().activeRunId) {
-          return;
+        const code = typeof p.code === "number" ? p.code : null;
+        const next = store.runSessionOnRunProcessExited(p.runId, code);
+        if (next != null) {
+          void launchGcStartJob(next).catch(() => {
+            /* host lines in launchGcStartJob */
+          });
         }
-        store.runSessionSetLastExitCode(typeof p.code === "number" ? p.code : null);
-        store.runSessionSetActiveRunId(null);
-        store.runSessionSetActiveNodeId(null);
       });
       if (cancelled) {
         unlistenEv?.();

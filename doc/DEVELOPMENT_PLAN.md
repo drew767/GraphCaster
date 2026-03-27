@@ -127,7 +127,7 @@
 ## Фаза 8 — Запуск Run и интеграция с Python
 
 - Старт/стоп/cancel Run; стрим событий в консоль и на canvas (подсветка).
-- **Сделано (первая итерация):** десктоп **Tauri** — дочерний процесс `python -m graph_caster run` с **NDJSON в stdout** и **cancel по stdin** (как Flowise/n8n: один логический канал на `runId`); временный JSON графа на диске; отдельный WebSocket в UI не требуется. **Параллельные** Run из одного UI — позже (минимально).
+- **Сделано (первая итерация):** десктоп **Tauri** — дочерний процесс `python -m graph_caster run` с **NDJSON в stdout** и **cancel по stdin** (как Flowise/n8n: один логический канал на `runId`); временный JSON графа на диске; отдельный WebSocket в UI не требуется. **Несколько корневых Run** из одного UI — FIFO-очередь и лимит параллелизма (**`gc.run.maxConcurrent`**, **`GC_TAURI_MAX_RUNS`**, брокер **`GC_RUN_BROKER_MAX_RUNS`**); см. подраздел в `doc/IMPLEMENTED_FEATURES.md`.
 - Проброс **root run artifact dir** во вложенные вызовы `graph_ref` в Python (согласовано с фазой 2).
 
 ## Фаза 9 — MVP «Cursor CLI»

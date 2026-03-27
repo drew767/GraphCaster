@@ -23,14 +23,20 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
   return path;
 }
 
-let activeEventSource: EventSource | null = null;
-let activeStreamRunId: string | null = null;
+const brokerStreams = new Map<string, EventSource>();
 
 export function closeWebRunBrokerStream(): void {
-  if (activeEventSource != null) {
-    activeEventSource.close();
-    activeEventSource = null;
-    activeStreamRunId = null;
+  for (const es of brokerStreams.values()) {
+    es.close();
+  }
+  brokerStreams.clear();
+}
+
+export function closeWebRunBrokerStreamForRun(runId: string): void {
+  const es = brokerStreams.get(runId);
+  if (es != null) {
+    es.close();
+    brokerStreams.delete(runId);
   }
 }
 
@@ -96,25 +102,24 @@ export async function startWebBrokerRun(args: {
   }
   const j = (await r.json()) as { runId?: string };
   const rid = typeof j.runId === "string" ? j.runId : args.runId;
-  closeWebRunBrokerStream();
+
+  const existing = brokerStreams.get(rid);
+  if (existing != null) {
+    existing.close();
+    brokerStreams.delete(rid);
+  }
+
   let exitReceived = false;
   const es = new EventSource(runBrokerStreamRelativeStreamPath(rid));
-  activeEventSource = es;
-  activeStreamRunId = rid;
+  brokerStreams.set(rid, es);
 
   es.addEventListener("message", (e: MessageEvent<string>) => {
-    if (rid !== store.getRunSessionSnapshot().activeRunId) {
-      return;
-    }
     const line = e.data;
-    store.runSessionAppendLine(line);
-    applyRunnerNdjsonSideEffects(line);
+    store.runSessionAppendLineForRun(rid, line);
+    applyRunnerNdjsonSideEffects(line, rid);
   });
 
   es.addEventListener("err", (e: MessageEvent<string>) => {
-    if (rid !== store.getRunSessionSnapshot().activeRunId) {
-      return;
-    }
     let text = e.data;
     try {
       const o = JSON.parse(e.data) as { line?: string };
@@ -124,43 +129,45 @@ export async function startWebBrokerRun(args: {
     } catch {
       /* use raw */
     }
-    store.runSessionAppendLine(`[stderr] ${text}`);
+    store.runSessionAppendLineForRun(rid, `[stderr] ${text}`);
   });
 
   es.addEventListener("exit", (e: MessageEvent<string>) => {
     exitReceived = true;
-    if (rid === store.getRunSessionSnapshot().activeRunId) {
-      let code: number | null = null;
-      try {
-        const o = JSON.parse(e.data) as { code?: number };
-        if (typeof o.code === "number") {
-          code = o.code;
-        }
-      } catch {
-        /* ignore */
+    let code: number | null = null;
+    try {
+      const o = JSON.parse(e.data) as { code?: number };
+      if (typeof o.code === "number") {
+        code = o.code;
       }
-      store.runSessionSetLastExitCode(code);
-      store.runSessionSetActiveRunId(null);
-      store.runSessionSetActiveNodeId(null);
+    } catch {
+      /* ignore */
     }
-    closeWebRunBrokerStream();
+    closeWebRunBrokerStreamForRun(rid);
+    void import("./runCommands").then(({ launchGcStartJob }) => {
+      const next = store.runSessionOnRunProcessExited(rid, code);
+      if (next != null) {
+        void launchGcStartJob(next).catch(() => {
+          /* host lines in launchGcStartJob */
+        });
+      }
+    });
   });
 
   es.onerror = () => {
-    if (activeStreamRunId !== rid) {
+    if (!brokerStreams.has(rid)) {
       return;
     }
-    closeWebRunBrokerStream();
+    closeWebRunBrokerStreamForRun(rid);
     if (exitReceived) {
       return;
     }
-    queueMicrotask(() => {
-      if (store.getRunSessionSnapshot().activeRunId !== rid) {
-        return;
+    exitReceived = true;
+    void import("./runCommands").then(({ launchGcStartJob }) => {
+      const next = store.runSessionOnRunProcessExited(rid, null);
+      if (next != null) {
+        void launchGcStartJob(next).catch(() => {});
       }
-      store.runSessionSetLastExitCode(null);
-      store.runSessionSetActiveRunId(null);
-      store.runSessionSetActiveNodeId(null);
     });
   };
 }
@@ -171,7 +178,7 @@ export async function cancelWebBrokerRun(runId: string): Promise<void> {
     method: "POST",
     headers: brokerHeaders(),
   });
-  closeWebRunBrokerStream();
+  closeWebRunBrokerStreamForRun(runId);
 }
 
 export type WebPersistedRunListItem = {

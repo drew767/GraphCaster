@@ -6,10 +6,25 @@ import * as store from "./runSessionStore";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 
 describe("applyRunnerNdjsonSideEffects", () => {
-  it("updates active node on node_enter", () => {
-    const spy = vi.spyOn(store, "runSessionSetActiveNodeId");
+  it("updates active node on node_enter for focused live run", () => {
+    store.runSessionResetForTest();
+    store.runSessionRegisterLiveRun("run-a");
+    const spy = vi.spyOn(store, "runSessionSetActiveNodeIdForRun");
     applyRunnerNdjsonSideEffects('{"type":"node_enter","nodeId":"n1"}');
-    expect(spy).toHaveBeenCalledWith("n1");
+    expect(spy).toHaveBeenCalledWith("run-a", "n1");
+    spy.mockRestore();
+  });
+
+  it("stores node_outputs_snapshot for a non-focused runId", () => {
+    store.runSessionResetForTest();
+    store.runSessionRegisterLiveRun("run-a");
+    store.runSessionRegisterLiveRun("run-b");
+    const spy = vi.spyOn(store, "runSessionSetNodeOutputSnapshotForRun");
+    applyRunnerNdjsonSideEffects(
+      '{"type":"node_outputs_snapshot","nodeId":"x","snapshot":{"k":1}}',
+      "run-a",
+    );
+    expect(spy).toHaveBeenCalledWith("run-a", "x", { k: 1 });
     spy.mockRestore();
   });
 });

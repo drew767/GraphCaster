@@ -82,6 +82,12 @@ fn resolve_python() -> String {
     })
 }
 
+fn max_tauri_concurrent_runs() -> usize {
+    let raw = std::env::var("GC_TAURI_MAX_RUNS").unwrap_or_default();
+    let n: usize = raw.trim().parse().unwrap_or(2);
+    n.clamp(1, 32)
+}
+
 fn normalize_graph_id_for_fs(gid: &str) -> Result<String, String> {
     let s = gid.trim();
     if s.is_empty() || s == "default" {
@@ -207,10 +213,14 @@ pub fn gc_start_run(
         return Err("runId required".into());
     }
 
+    let max_runs = max_tauri_concurrent_runs();
     {
         let map = state.active.lock().map_err(|_| "state poisoned")?;
         if map.contains_key(&run_id) {
             return Err("a run with this runId is already active".into());
+        }
+        if map.len() >= max_runs {
+            return Err("max concurrent runs reached".into());
         }
     }
 
@@ -289,6 +299,28 @@ pub fn gc_start_run(
     let child_arc: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(Some(child)));
     {
         let mut map = state.active.lock().map_err(|_| "state poisoned")?;
+        if map.len() >= max_runs {
+            drop(map);
+            if let Ok(mut g) = child_arc.lock() {
+                if let Some(mut ch) = g.take() {
+                    let _ = ch.kill();
+                    let _ = ch.wait();
+                }
+            }
+            let _ = std::fs::remove_file(&tmp);
+            return Err("max concurrent runs reached".into());
+        }
+        if map.contains_key(&run_id) {
+            drop(map);
+            if let Ok(mut g) = child_arc.lock() {
+                if let Some(mut ch) = g.take() {
+                    let _ = ch.kill();
+                    let _ = ch.wait();
+                }
+            }
+            let _ = std::fs::remove_file(&tmp);
+            return Err("a run with this runId is already active".into());
+        }
         map.insert(run_id.clone(), Arc::clone(&child_arc));
     }
 
