@@ -86,7 +86,9 @@
       "multipleUnconditionalErrorOut": "Node {{sourceId}} (on-error out): more than one unconditional edge from the error handle.",
       "duplicateCondition": "Node {{sourceId}}: duplicate condition \"{{detail}}\".",
       "duplicateConditionErrorOut": "Node {{sourceId}} (on-error out): duplicate condition \"{{detail}}\".",
-      "outErrorUnreachable": "Node {{sourceId}}: out_error is never used (runner only fails over from task with command/argv or graph_ref)."
+      "outErrorUnreachable": "Node {{sourceId}}: out_error is never used (runner only fails over from task with command/argv or graph_ref).",
+      "invalidSourceHandle": "Edge {{edgeId}}: invalid source handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph.",
+      "invalidTargetHandle": "Edge {{edgeId}}: invalid target handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph."
     },
     "console": {
       "heading": "Console",

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "title": "invalid exit incoming handle"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    { "id": "x1", "type": "exit", "position": { "x": 200, "y": 0 }, "data": {} }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "out_default",
+      "condition": null
+    }
+  ]
+}

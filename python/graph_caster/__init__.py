@@ -10,6 +10,7 @@ from graph_caster.artifacts import (
     create_root_run_artifact_dir,
     tree_bytes,
 )
+from graph_caster.handle_contract import find_handle_compatibility_violations
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
@@ -33,6 +34,7 @@ from graph_caster.workspace import (
 )
 
 __all__ = [
+    "find_handle_compatibility_violations",
     "GraphDocument",
     "GraphRunner",
     "RunHostContext",

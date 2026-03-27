@@ -60,6 +60,24 @@
 
 ---
 
+## Статическая совместимость ручек **F18** (n8n connection types / Langflow `validate_edge`)
+
+Сравнение с **ComfyUI / Dify / Flowise / Langflow / n8n** по моделям портов и таблицы конкурентов — **§15** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); здесь только **факт реализации** GraphCaster.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Жёсткая проверка пинов до исполнения | **`validate_graph_structure`** вызывает **`find_handle_compatibility_violations`** (`python/graph_caster/handle_contract.py`); первая ошибка → **`GraphStructureError`** |
+| Мягкое предупреждение в редакторе | UI: **`findHandleCompatibilityIssues`** (`ui/src/graph/handleCompatibility.ts`), контракт пинов **`handleContract.ts`**, жёлтая полоса в **`AppShell`** (не входит в **`structureIssuesBlockRun`**) |
+| Паритет TS/Python | Фикстуры **`schemas/test-fixtures/handle-*.json`**; тесты **`python/tests/test_handle_compatibility.py`**, **`ui/src/graph/handleCompatibility.test.ts`** |
+
+**Правила (MVP):** **`start`** — только **`out_default`**; **`exit`** — только **`in_default`**, без исходящих как источник; **`task`** / **`graph_ref`** — **`out_default`** \| **`out_error`** в исход, **`in_default`** в приём; **`comment`** — рёбра к комментарию не проверяются.
+
+**Неизвестный `node.type`:** в TS и Python трактуется как исполняемая нода с теми же пинами, что **`task`** (исход **`out_default`** \| **`out_error`**, вход **`in_default`**), пока нет отдельного контракта типа.
+
+**Дубликаты `nodes[].id`:** индекс **id → нода** в проверке ручек — последняя нода с таким **id**; отдельная валидация уникальности **id** в документе не входит в F18.
+
+---
+
 ## Ветка после ошибки **F19** (`out_error`, конспект **§16** / **§37**)
 
 | Идея конкурента | Реализация GC |

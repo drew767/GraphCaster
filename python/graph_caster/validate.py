@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from graph_caster.handle_contract import find_handle_compatibility_violations
 from graph_caster.models import GraphDocument, Node
 
 _OUT_ERROR_HANDLE = "out_error"
@@ -87,4 +88,22 @@ def validate_graph_structure(doc: GraphDocument) -> str:
     gid = str(doc.graph_id).strip() if doc.graph_id else ""
     if not gid or gid == "default":
         raise GraphStructureError("meta.graphId (or top-level graphId) must be set to a non-empty unique id")
+    violations = find_handle_compatibility_violations(doc)
+    if violations:
+        v = violations[0]
+        kind = v["kind"]
+        if kind == "invalid_source_handle":
+            raise GraphStructureError(
+                f"edge '{v['edgeId']}': invalid source handle '{v['handle']}' "
+                f"for node '{v['nodeId']}' (type {v['nodeType']})"
+            )
+        if kind == "invalid_target_handle":
+            raise GraphStructureError(
+                f"edge '{v['edgeId']}': invalid target handle '{v['handle']}' "
+                f"for node '{v['nodeId']}' (type {v['nodeType']})"
+            )
+        raise GraphStructureError(
+            f"edge '{v['edgeId']}': invalid handle compatibility ({kind!r}) "
+            f"for node '{v['nodeId']}' (type {v['nodeType']}), handle '{v['handle']}'"
+        )
     return start_id

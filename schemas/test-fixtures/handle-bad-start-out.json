@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "title": "invalid start outgoing handle"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    { "id": "t1", "type": "task", "position": { "x": 100, "y": 0 }, "data": { "command": "echo" } }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_error",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

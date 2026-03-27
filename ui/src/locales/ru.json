@@ -86,7 +86,9 @@
       "multipleUnconditionalErrorOut": "Нода {{sourceId}} (выход при ошибке): несколько безусловных рёбер с пина «ошибка».",
       "duplicateCondition": "Нода {{sourceId}}: повтор условия \"{{detail}}\".",
       "duplicateConditionErrorOut": "Нода {{sourceId}} (выход при ошибке): повтор условия \"{{detail}}\".",
-      "outErrorUnreachable": "Нода {{sourceId}}: out_error не используется раннером (переход только после сбоя task с command/argv или graph_ref)."
+      "outErrorUnreachable": "Нода {{sourceId}}: out_error не используется раннером (переход только после сбоя task с command/argv или graph_ref).",
+      "invalidSourceHandle": "Ребро {{edgeId}}: недопустимая исходящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф.",
+      "invalidTargetHandle": "Ребро {{edgeId}}: недопустимая входящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф."
     },
     "console": {
       "heading": "Консоль",

@@ -37,6 +37,7 @@ import {
   presentationForReadFailure,
 } from "../graph/openGraphErrorPresentation";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
+import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
 import { findStructureIssues, structureIssuesBlockRun } from "../graph/structureWarnings";
 import { nodeLabel } from "../graph/toReactFlow";
 import {
@@ -99,6 +100,7 @@ export function AppShell({ onLangChange }: Props) {
   });
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
   const structureIssues = useMemo(() => findStructureIssues(graphDocument), [graphDocument]);
+  const handleIssues = useMemo(() => findHandleCompatibilityIssues(graphDocument), [graphDocument]);
   const [danglingEdgesExportIds, setDanglingEdgesExportIds] = useState<string[] | null>(null);
 
   const [layoutEpoch, setLayoutEpoch] = useState(0);
@@ -803,6 +805,7 @@ export function AppShell({ onLangChange }: Props) {
       />
       {branchIssues.length > 0 ||
       structureIssues.length > 0 ||
+      handleIssues.length > 0 ||
       (danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0) ? (
         <div className="gc-branch-warnings" role="status">
           {danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0 ? (
@@ -832,6 +835,27 @@ export function AppShell({ onLangChange }: Props) {
                             : `${issue.ids.slice(0, 12).join(", ")} (+${issue.ids.length - 12})`,
                       })
                     : t("app.structure.startHasIncoming", { id: issue.startId })}
+            </div>
+          ))}
+          {handleIssues.map((issue, idx) => (
+            <div
+              key={`hdl-${issue.kind}-${issue.edgeId}-${idx}`}
+              className="gc-branch-warnings__line"
+            >
+              <span aria-hidden="true">⚠</span>{" "}
+              {issue.kind === "invalid_source_handle"
+                ? t("app.warnings.invalidSourceHandle", {
+                    edgeId: issue.edgeId,
+                    nodeId: issue.sourceId,
+                    nodeType: issue.sourceType,
+                    handle: issue.handle,
+                  })
+                : t("app.warnings.invalidTargetHandle", {
+                    edgeId: issue.edgeId,
+                    nodeId: issue.targetId,
+                    nodeType: issue.targetType,
+                    handle: issue.handle,
+                  })}
             </div>
           ))}
           {branchIssues.map((issue, idx) => (

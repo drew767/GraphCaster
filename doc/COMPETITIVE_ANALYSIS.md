@@ -18,8 +18,8 @@
 
 | Слой | Ответственность | У GC сейчас (коротко) |
 |------|-----------------|------------------------|
-| **A. Документ и схема** | JSON Schema, `GraphDocument`, версии, инварианты графа; контракт строк раннера | `schemas/graph-document.schema.json`, **`schemas/run-event.schema.json`**, `models.py`, `validate.py`; **`schemaVersion`** и миграции документа — **§30** (**F2**); типы портов / совместимость рёбер — **§15** (**F18**); новые **`kind`** нод — **§18** (**F15**) |
-| **B. Редактор (UI)** | Канвас, ноды, инспектор, предупреждения, экспорт, история правок | `ui/` (**@xyflow/react**), `ui/src/graph/` (в т.ч. **`nodePalette.ts`**, **`nodeKinds.ts`**); канвас и паттерны UX — **§28** (**F1**); **нативная оболочка** (**Tauri**) — **§33** (**F16**); **Run/Stop** из десктопа — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); пины — **§15**; типы нод — **§18**; i18n — **§26** (**F21**); undo/redo (**F20**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md), детали — **§21** |
+| **A. Документ и схема** | JSON Schema, `GraphDocument`, версии, инварианты графа; контракт строк раннера | `schemas/graph-document.schema.json`, **`schemas/run-event.schema.json`**, `models.py`, `validate.py`; **`schemaVersion`** и миграции документа — **§30** (**F2**); **F18** (статическая совместимость **`sourceHandle`/`targetHandle`** по **`node.type`**, MVP) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); расширенная типизация портов (primitive/json, мультишины) и эталоны конкурентов — **§15**; новые **`kind`** нод — **§18** (**F15**) |
+| **B. Редактор (UI)** | Канвас, ноды, инспектор, предупреждения, экспорт, история правок | `ui/` (**@xyflow/react**), `ui/src/graph/` (в т.ч. **`nodePalette.ts`**, **`nodeKinds.ts`**); канвас и паттерны UX — **§28** (**F1**); **нативная оболочка** (**Tauri**) — **§33** (**F16**); **Run/Stop** из десктопа — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); предупреждения по ручкам (**F18**) — там же; эталоны пинов у конкурентов и открытые темы — **§15**; типы нод — **§18**; i18n — **§26** (**F21**); undo/redo (**F20**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md), детали — **§21** |
 | **C. Workspace** | Каталог `graphs/`, индекс `graphId` → путь, автосохранение | `workspace.py`, планы в `DEVELOPMENT_PLAN.md` / `PRODUCT_DESIGNE.md`; **`graphId`** для **`graph_ref`** — **§29** (**F5**); мультиредактирование и-merge из нескольких клиентов — **§19** (**F22**), в core GC не заложено |
 | **D. Рантайм** | Обход графа, условия на рёбрах, вложенные графы, субпроцессы, политика сбоев, опционально кэш шагов | `runner.py` (**§31** порядок обхода и достижимость, **F3**; **§32** условия на рёбрах и «первое истинное», **F4**; **§29** **`graph_ref`**, **F5**; диспетчер по **`kind`**, `unknown_node` — **§18**), **`process_exec.py`** (**§27**, **F7**), события NDJSON; очередь / буфер между исполнителем и транспортом — **§13** / **§13.3** (**F6**); ошибки — **§16** / **§37** (**F19**); кэш между прогонами / dirty-nodes — **§22** / **§36** (**F17**) |
 | **E. Артефакты и Run** | Папки run, метаданные, учёт диска | `artifacts.py`, события `run_*` в раннере |
@@ -565,7 +565,7 @@
 | Langflow | да | SPA (**React**) в дереве фронтенда; каталог компонентов синхронизируется с **LFX** на бэкенде. |
 | n8n | да | **`packages/frontend/editor-ui`** (**Vue 3**): canvas, интеграционные ноды, **sticky notes**, сложные выходы, merge веток. |
 | Vibe Workflow | да | **`workflow-builder`** + **Next.js** клиент. |
-| **GraphCaster** | **частично** | Слой **B**: **@xyflow/react**, кастомные **`GcFlowNode`** / **`GcCommentNode`**, **`normalizeHandles`**, инспектор, предупреждения структуры; **undo/redo**, **run-lock** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F20**); **сериализация без связей «в никуда»** (**P2** `sanitizeGraphConnectivity`) — там же; **§28.2** — мини-карта, производительность, прочий паритет подсказок (**§15**). |
+| **GraphCaster** | **частично** | Слой **B**: **@xyflow/react**, кастомные **`GcFlowNode`** / **`GcCommentNode`**, **`normalizeHandles`**, инспектор, предупреждения структуры; **совместимость ручек F18** (MVP) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **undo/redo**, **run-lock** — там же (**F20**); **сериализация без связей «в никуда»** (**P2** `sanitizeGraphConnectivity`) — там же; **§28.2** — мини-карта, производительность; полная типизация пинов как у конкурентов — **§15**. |
 
 ### F2 — Схема данных графа и миграции версий
 
@@ -797,7 +797,7 @@
 | Langflow | да | **`lfx/graph/edge/base.py`** — `validate_handles` / `validate_edge`; **`graph/base.py`** — валидация вершин и потока (**§15**). |
 | n8n | да | Несколько видов рёбер — **`NodeConnectionTypes`** в **`packages/workflow`** (`main`, `AiAgent`, `AiVectorStore`, …); редактор и ран-тайм знают допустимые комбо. |
 | Vibe Workflow | частично | Зависит от набора нод в `workflow-builder`. |
-| **GraphCaster** | **частично** | **A+B:** `in_default`/`out_default`; `structureWarnings.ts`, `branchWarnings.ts`, **`validate.py`**; строгие типы пинов — фаза 4 + **§15**. |
+| **GraphCaster** | **частично** | **A+B:** именованные ручки **`in_default`/`out_default`/`out_error`**; статический контракт по **`node.type`** в UI + **`validate_graph_structure`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F18**). **Не** в MVP: типы портов (primitive/json/…), мультишины как у **n8n** — **§15.2**. |
 
 ### F19 — Политика ошибок: ветка on_error / error workflow
 
@@ -1110,7 +1110,7 @@
 
 ## 15. Типизация пинов и совместимость соединений (**F18**)
 
-**F18** связывает **редактор** (что можно соединить на canvas), **схему документа** (какие поля ребра/портов в JSON) и **рантайм** (что исполнитель готов читать). У конкурентов это либо **жёсткая типизация сокетов** (Comfy), либо **несколько семейств рёбер** (n8n), либо **Pydantic + отдельный граф-валидатор** (Dify Graphon).
+**F18** связывает **редактор** (что можно соединить на canvas), **схему документа** (какие поля ребра/портов в JSON) и **рантайм** (что исполнитель готов читать). У конкурентов это либо **жёсткая типизация сокетов** (Comfy), либо **несколько семейств рёбер** (n8n), либо **Pydantic + отдельный граф-валидатор** (Dify Graphon). **Уже в GraphCaster (MVP):** статический контракт строковых handle по **`node.type`** до run — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); ниже — сравнение с продуктами и **что ещё не** в MVP.
 
 ### 15.1. Сводка (уровень B)
 
@@ -1122,14 +1122,14 @@
 | **Langflow** | Поля компонента + **edge** с именованными handles; проверка совместимости источник/цель | При сборке графа LFX | **`src/lfx/src/lfx/graph/edge/base.py`** (`validate_handles`, `validate_edge`), **`graph/graph/base.py`** |
 | **n8n** | Матрица соединений по **`NodeConnectionType`**: основной поток **`main`**, отдельные шины для AI (**`AiAgent`**, **`AiVectorStore`**, …) | Редактор + `workflow` пакет при анализе графа | **`packages/workflow/src/interfaces`** (`NodeConnectionTypes`, `IConnections`), editor-ui |
 | **Vibe Workflow** | Зависит от builder | — | `workflow-builder` |
-| **GraphCaster** | Сейчас **унифицированные** `in_default` / `out_default`; предупреждения структуры без полной типизации пинов | UI: **`structureWarnings.ts`**, **`branchWarnings.ts`**; Python: **`validate.py`** + схема | **`schemas/graph-document.schema.json`**; целевая жёсткость — как у **Langflow** handles + **Dify** правила графа |
+| **GraphCaster** | **MVP F18:** фиксированный набор handle id по **`node.type`** (**`in_default`/`out_default`/`out_error`**); проверка рёбер в UI и в **`validate_graph_structure`** | UI: **`handleContract.ts`**, **`handleCompatibility.ts`**, **`structureWarnings.ts`**, **`branchWarnings.ts`**; Python: **`handle_contract.py`**, **`validate.py`** | Факты и пути — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F18**). **Дальше:** типы данных на портах (как **Comfy**), мультишины (**n8n**) — **§15.2**. |
 
 ### 15.2. Планирование для GC
 
-1. **Фаза 4 (план):** ввести **именованные порты** или **типы портов** в `graph-document` (как минимум перечисление для каждого `kind` ноды), согласовать с **React Flow** handles и с **`validate.py`**, чтобы один и тот же граф не расходился между UI и CLI.
-2. **Не копировать Comfy 1:1:** там доменные типы медиа (IMAGE, LATENT, …); для GC достаточно небольшого набора **`primitive` / `json` / `blob_ref`** и опционально `stream`, плюс запрет соединений «данные → только control». Новый **`kind`** ноды задаёт набор портов — согласовать с **§18** (**F15**).
+1. **Сделано (MVP F18):** таблица допустимых исходящих/входящих **`sourceHandle`/`targetHandle`** для каждого известного **`node.type`**, паритет TypeScript/Python, предупреждения в редакторе и **`GraphStructureError`** при **`validate_graph_structure`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F18**).
+2. **Открыто — типы портов в документе:** ввести **типы портов** в `graph-document` (например **`primitive` / `json` / `blob_ref`**, опционально `stream`), перечисление для каждого **`kind`** ноды, согласовать с **React Flow** и **`validate.py`**; **не копировать Comfy 1:1** (IMAGE/LATENT, …) без домена медиа. Новый **`kind`** ноды задаёт набор портов — **§18** (**F15**).
 3. **n8n как идея мультишин:** если появятся **LLM-цепочки** рядом с **обычным** `task`, можно разнести роли рёбер (аналог `main` vs `ai_*`) без смешения в одном handle; иначе достаточно типизированных имён портов на одном ребре.
-4. **Связь с F19:** несовместимое ребро — либо **ошибка на этапе сохранения**, либо **мягкое предупреждение** + падение в run; политику согласовать с **§16** / **F19**.
+4. **Связь с F19:** ошибка **исполнения** шага — **`process_*`** / **`out_error`**; инварианты **совместимости ручек** — до run (**F18**); расширенная политика «несовместимое ребро при сохранении» — по продукту, **§16** / **F19**.
 
 **Точечные углубления позже:** полный список `NodeConnectionTypes` n8n и правил editor-ui; детали `GraphValidationIssue` в Dify Graphon; матрица совместимости Comfy `VALIDATE_MAP` — только при импорте workflow из Comfy.
 
