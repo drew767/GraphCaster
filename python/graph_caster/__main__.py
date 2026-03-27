@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
 from graph_caster.validate import GraphStructureError
@@ -78,14 +79,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     def sink(ev: dict) -> None:
         print(json.dumps(ev, ensure_ascii=False), flush=True)
 
-    graphs_root = Path(args.graphs_dir).resolve() if args.graphs_dir is not None else None
-    runner = GraphRunner(doc, sink=sink, graphs_root=graphs_root)
+    graphs_root = Path(args.graphs_dir) if args.graphs_dir is not None else None
+    artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
+    host = RunHostContext(graphs_root=graphs_root, artifacts_base=artifacts_base)
+    runner = GraphRunner(doc, sink=sink, host=host)
     try:
         ctx = {"last_result": True}
-        if graphs_root is not None:
-            ctx["graphs_root"] = graphs_root
-        if args.artifacts_base is not None:
-            ctx["artifacts_base"] = Path(args.artifacts_base).resolve()
         if args.start:
             runner.run_from(args.start, context=ctx)
         else:

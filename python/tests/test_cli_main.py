@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -50,6 +50,16 @@ def test_main_run_explicit_subcommand(tmp_path: Path) -> None:
     p = tmp_path / "g.json"
     p.write_text(json.dumps(_minimal_valid_doc(gid)), encoding="utf-8")
     assert main(["run", "-d", str(p)]) == 0
+
+
+def test_main_run_with_artifacts_base_emits_run_root_ready(capsys, tmp_path: Path) -> None:
+    gid = "77777777-7777-4777-8777-777777777777"
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps(_minimal_valid_doc(gid)), encoding="utf-8")
+    base = tmp_path / "ws"
+    base.mkdir()
+    assert main(["run", "-d", str(p), "--artifacts-base", str(base)]) == 0
+    assert "run_root_ready" in capsys.readouterr().out
 
 
 def test_main_artifacts_size_total(capsys, tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from graph_caster.artifacts import create_root_run_artifact_dir
+from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
 from graph_caster.workspace import clear_graph_index_cache
@@ -27,8 +28,8 @@ def test_run_root_ready_emitted_and_dir_exists(tmp_path: Path) -> None:
     doc = GraphDocument.from_dict(raw)
     gid = doc.graph_id
     events: list[dict] = []
-    GraphRunner(doc, sink=lambda e: events.append(e)).run(
-        context={"last_result": True, "artifacts_base": tmp_path}
+    GraphRunner(doc, sink=lambda e: events.append(e), host=RunHostContext(artifacts_base=tmp_path)).run(
+        context={"last_result": True}
     )
     ready = [e for e in events if e["type"] == "run_root_ready"]
     assert len(ready) == 1
@@ -92,9 +93,11 @@ def test_nested_graph_ref_shares_root_run_artifact_dir(tmp_path: Path) -> None:
     (graphs / "parent.json").write_text(json.dumps(parent), encoding="utf-8")
     root_doc = GraphDocument.from_dict(parent)
     events: list[dict] = []
-    GraphRunner(root_doc, sink=lambda e: events.append(e), graphs_root=graphs).run(
-        context={"last_result": True, "artifacts_base": arts}
-    )
+    GraphRunner(
+        root_doc,
+        sink=lambda e: events.append(e),
+        host=RunHostContext(graphs_root=graphs, artifacts_base=arts),
+    ).run(context={"last_result": True})
     assert sum(1 for e in events if e["type"] == "run_root_ready") == 1
     nested = next(e for e in events if e["type"] == "nested_graph_enter")
     root_ready = next(e for e in events if e["type"] == "run_root_ready")

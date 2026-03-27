@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import sys
 import time
 from pathlib import Path
 
+from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
 
@@ -57,7 +58,9 @@ def test_task_process_exit_code_success(tmp_path: Path) -> None:
         )
     )
     events: list[dict] = []
-    GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True, "artifacts_base": tmp_path})
+    GraphRunner(doc, sink=lambda e: events.append(e), host=RunHostContext(artifacts_base=tmp_path)).run(
+        context={"last_result": True}
+    )
     assert events[-1]["type"] == "run_success"
     assert any(e["type"] == "process_complete" and e.get("success") is True for e in events)
 

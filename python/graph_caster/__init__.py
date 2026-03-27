@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 """GraphCaster Python runner: load graph JSON, traverse with edge conditions, emit run events."""
 
@@ -10,6 +10,7 @@ from graph_caster.artifacts import (
     create_root_run_artifact_dir,
     tree_bytes,
 )
+from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
 from graph_caster.validate import GraphStructureError, validate_graph_structure
@@ -23,6 +24,7 @@ from graph_caster.workspace import (
 __all__ = [
     "GraphDocument",
     "GraphRunner",
+    "RunHostContext",
     "GraphStructureError",
     "WorkspaceIndexError",
     "artifacts_runs_total_bytes",

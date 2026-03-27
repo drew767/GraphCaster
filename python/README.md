@@ -29,6 +29,8 @@ python -m graph_caster artifacts-clear --base . --graph-id '<uuid>'
 - **`artifacts-size`:** вывод суммарного размера в байтах (**`runs/`** целиком или **`--graph-id`**).
 - **`artifacts-clear`:** **`--all`** или **`--graph-id`** — удаление дерева артефактов.
 
+**`RunHostContext`** (`graph_caster.host_context`): каталог **`graphs_root`** для **`graph_ref`** и **`artifacts_base`** для **`runs/<graphId>/…`**. Передаётся в **`GraphRunner(..., host=…)`**; устаревший сахар **`graphs_root=`** на конструкторе сводится к тому же. Словарь **`run` / `run_from` `context`** — только состояние прогона (**`node_outputs`**, **`last_result`**, **`root_run_artifact_dir`**, …). Ключи **`graphs_root`** и **`artifacts_base`** в **`context`** игнорируются (**удаляются при старте прогона**); задавайте их только через **`host=`**.
+
 Из кода (для UI / обслуживания): **`artifacts_tree_bytes_for_graph`**, **`artifacts_runs_total_bytes`**, **`clear_artifacts_for_graph`**, **`clear_all_artifact_runs`**, **`tree_bytes`** — см. пакет **`graph_caster.artifacts`**.
 
 **Нода `task` с подпроцессом:** в **`data`** задайте **`command`** (строка или список аргументов) или **`argv`**. Опционально: **`cwd`**, **`env`** (объект строк — дополняет **`os.environ`**), **`successMode`** (`exit_code` / `stdout` / `marker_file`), **`timeoutSec`**, **`retryCount`**, **`retryBackoffSec`**. Логика в **`graph_caster.process_exec`**.

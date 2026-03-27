@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
 
 RunEvent = dict[str, Any]
@@ -41,14 +42,14 @@ def _task_has_process_command(node: Node) -> bool:
     return d.get("command") is not None or d.get("argv") is not None
 
 
-def _prepare_context(ctx: dict[str, Any] | None, graphs_root: Path | None) -> dict[str, Any]:
+def _prepare_context(ctx: dict[str, Any] | None) -> dict[str, Any]:
     c: dict[str, Any] = {} if ctx is None else ctx
+    c.pop("graphs_root", None)
+    c.pop("artifacts_base", None)
     c.setdefault("nesting_depth", 0)
     c.setdefault("node_outputs", {})
     c.setdefault("max_nesting_depth", 16)
     c.setdefault("last_result", True)
-    if graphs_root is not None:
-        c.setdefault("graphs_root", graphs_root)
     return c
 
 
@@ -58,11 +59,16 @@ class GraphRunner:
         document: GraphDocument,
         sink: EventSink | None = None,
         *,
+        host: RunHostContext | None = None,
         graphs_root: Path | None = None,
     ) -> None:
+        if host is not None and graphs_root is not None:
+            raise ValueError("pass only one of host= or graphs_root=")
+        if host is None:
+            host = RunHostContext(graphs_root=graphs_root)
         self._doc = document
         self._sink = sink or (lambda _e: None)
-        self._graphs_root = Path(graphs_root).resolve() if graphs_root is not None else None
+        self._host = host
 
     def emit(self, event_type: str, **payload: Any) -> None:
         ev: RunEvent = {"type": event_type, **payload}
@@ -71,7 +77,7 @@ class GraphRunner:
     def run(self, context: dict[str, Any] | None = None, start_node_id: str | None = None) -> None:
         from graph_caster.validate import validate_graph_structure
 
-        ctx = _prepare_context(context, self._graphs_root)
+        ctx = _prepare_context(context)
         if start_node_id is not None:
             entry = start_node_id
         else:
@@ -79,21 +85,18 @@ class GraphRunner:
         self.run_from(entry, ctx)
 
     def run_from(self, start_node_id: str, context: dict[str, Any] | None = None) -> None:
-        ctx = _prepare_context(context, self._graphs_root)
+        ctx = _prepare_context(context)
         ctx["_run_success"] = False
         nd0 = int(ctx.get("nesting_depth", 0))
         if nd0 == 0 and not ctx.get("root_run_artifact_dir"):
-            ab = ctx.get("artifacts_base")
+            ab = self._host.artifacts_base
             if ab is not None:
                 from graph_caster.artifacts import create_root_run_artifact_dir
 
-                run_dir = create_root_run_artifact_dir(Path(ab), self._doc.graph_id)
+                run_dir = create_root_run_artifact_dir(ab, self._doc.graph_id)
                 path_str = str(run_dir)
                 ctx["root_run_artifact_dir"] = path_str
                 self.emit("run_root_ready", rootGraphId=self._doc.graph_id, rootRunArtifactDir=path_str)
-        roots = self._graphs_root
-        if roots is None and ctx.get("graphs_root") is not None:
-            roots = Path(ctx["graphs_root"]).resolve()
         node_by_id: dict[str, Node] = {n.id: n for n in self._doc.nodes}
         current_id: str | None = start_node_id
         visited_guard = 0
@@ -112,8 +115,10 @@ class GraphRunner:
             outs_map = ctx.setdefault("node_outputs", {})
             outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data)}
 
-            if node.type == "graph_ref":
-                ok = self._execute_graph_ref(node, ctx, roots)
+            if node.type == "comment":
+                pass
+            elif node.type == "graph_ref":
+                ok = self._execute_graph_ref(node, ctx)
                 if not ok:
                     self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
                     break
@@ -154,11 +159,11 @@ class GraphRunner:
         if visited_guard >= max_steps:
             self.emit("error", message="run_aborted_cycle_guard")
 
-    def _execute_graph_ref(self, node: Node, ctx: dict[str, Any], graphs_root: Path | None) -> bool:
+    def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure
         from graph_caster.workspace import WorkspaceIndexError, resolve_graph_path
 
-        root = graphs_root or self._graphs_root
+        root = self._host.graphs_root
         if root is None:
             self.emit("error", nodeId=node.id, message="graph_ref_requires_graphs_directory")
             return False
@@ -217,7 +222,7 @@ class GraphRunner:
         child_ctx = dict(ctx)
         child_ctx["nesting_depth"] = depth_next
 
-        child = GraphRunner(nested, self._sink, graphs_root=root)
+        child = GraphRunner(nested, self._sink, host=self._host)
         child.run(context=child_ctx)
 
         self.emit(
