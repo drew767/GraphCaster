@@ -75,9 +75,12 @@ import {
   useRunSession,
 } from "../run/runSessionStore";
 import {
+  markStepCacheDirtyWithNestedBubble,
+  type NestedGraphRefFrame,
+} from "../run/nestedStepCacheDirtyBubble";
+import {
   clearStepCacheDirtyIds,
   getStepCacheDirtySnapshot,
-  markStepCacheDirtyTransitive,
   useStepCacheDirtyCount,
 } from "../run/stepCacheDirtyStore";
 import { isTauriRuntime } from "../run/tauriEnv";
@@ -168,6 +171,8 @@ export function AppShell({ onLangChange }: Props) {
   selectionRef.current = selection;
   const nodeSearchOpenRef = useRef(nodeSearchOpen);
   nodeSearchOpenRef.current = nodeSearchOpen;
+  const nestedGraphRefStackRef = useRef<NestedGraphRefFrame[]>([]);
+  const stepCacheDirtyBubbleChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const [historyTick, setHistoryTick] = useState(0);
 
   const bumpHistoryUi = useCallback(() => {
@@ -359,6 +364,7 @@ export function AppShell({ onLangChange }: Props) {
   }, []);
 
   const onNewGraph = useCallback(() => {
+    nestedGraphRefStackRef.current = [];
     preDragDocumentRef.current = null;
     setDanglingEdgesExportIds(null);
     setGraphDocument(createMinimalGraphDocument());
@@ -399,6 +405,7 @@ export function AppShell({ onLangChange }: Props) {
         setGraphOpenError(presentationForParseError(t, res.error));
         return;
       }
+      nestedGraphRefStackRef.current = [];
       setActiveWorkspaceFile(null);
       preDragDocumentRef.current = null;
       setDanglingEdgesExportIds(null);
@@ -430,28 +437,34 @@ export function AppShell({ onLangChange }: Props) {
   }, [rescanWorkspace, t]);
 
   const onOpenWorkspaceGraph = useCallback(
-    async (fileName: string) => {
+    async (
+      fileName: string,
+      options?: { keepNestedStack?: boolean; nestedFrameToAppend?: NestedGraphRefFrame },
+    ): Promise<boolean> => {
       if (!workspaceGraphsDir) {
-        return;
+        return false;
+      }
+      if (!options?.keepNestedStack) {
+        nestedGraphRefStackRef.current = [];
       }
       let text: string;
       try {
         text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
       } catch {
         setGraphOpenError(presentationForReadFailure(t));
-        return;
+        return false;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch (err) {
         setGraphOpenError(presentationForJsonSyntaxError(t, err));
-        return;
+        return false;
       }
       const res = parseGraphDocumentJsonResult(parsed);
       if (!res.ok) {
         setGraphOpenError(presentationForParseError(t, res.error));
-        return;
+        return false;
       }
       preDragDocumentRef.current = null;
       setDanglingEdgesExportIds(null);
@@ -461,8 +474,40 @@ export function AppShell({ onLangChange }: Props) {
       setActiveWorkspaceFile(fileName);
       bumpLayoutEpoch();
       setSelection(null);
+      const frame = options?.nestedFrameToAppend;
+      if (frame != null && frame.graphRefNodeId.trim() !== "" && frame.parentWorkspaceFileName !== "") {
+        nestedGraphRefStackRef.current = [...nestedGraphRefStackRef.current, frame];
+      }
+      return true;
     },
     [bumpHistoryUi, bumpLayoutEpoch, workspaceGraphsDir, t],
+  );
+
+  const readParentGraphDocument = useCallback(
+    async (name: string): Promise<GraphDocumentJson | null> => {
+      if (!workspaceGraphsDir) {
+        return null;
+      }
+      try {
+        const text = await readWorkspaceGraphFile(workspaceGraphsDir, name);
+        const parsed: unknown = JSON.parse(text);
+        const res = parseGraphDocumentJsonResult(parsed);
+        return res.ok ? res.doc : null;
+      } catch {
+        return null;
+      }
+    },
+    [workspaceGraphsDir],
+  );
+
+  const markStepCacheDirtyWithBubble = useCallback(
+    (doc: GraphDocumentJson, seeds: readonly string[]) => {
+      const stackSnap = [...nestedGraphRefStackRef.current];
+      stepCacheDirtyBubbleChainRef.current = stepCacheDirtyBubbleChainRef.current
+        .then(() => markStepCacheDirtyWithNestedBubble(doc, seeds, stackSnap, readParentGraphDocument))
+        .catch(() => {});
+    },
+    [readParentGraphDocument],
   );
 
   const workspaceGraphRows = useMemo((): WorkspaceGraphAddMenuRow[] => {
@@ -706,7 +751,7 @@ export function AppShell({ onLangChange }: Props) {
     setGraphDocument(nextDoc);
     const prevType = prevNodes.find((n) => n.id === nodeId)?.type;
     if (nodeTypeTriggersStepCacheDirtyOnDataEdit(prevType)) {
-      markStepCacheDirtyTransitive(nextDoc, [nodeId]);
+      markStepCacheDirtyWithBubble(nextDoc, [nodeId]);
     }
     setSelection((prev) => {
       if (!prev || prev.kind !== "node" || prev.id !== nodeId) {
@@ -718,7 +763,7 @@ export function AppShell({ onLangChange }: Props) {
         label: nodeLabel(data, nodeId),
       };
     });
-  }, [commitHistorySnapshot]);
+  }, [commitHistorySnapshot, markStepCacheDirtyWithBubble]);
 
   const onApplyEdgeCondition = useCallback((edgeId: string, condition: string | null) => {
     const api = canvasRef.current;
@@ -733,7 +778,7 @@ export function AppShell({ onLangChange }: Props) {
     setGraphDocument(nextDoc);
     const src = prevEdges.find((e) => e.id === edgeId)?.source;
     if (src != null && src !== "") {
-      markStepCacheDirtyTransitive(nextDoc, [src]);
+      markStepCacheDirtyWithBubble(nextDoc, [src]);
     }
     setSelection((prev) => {
       if (!prev || prev.kind !== "edge" || prev.id !== edgeId) {
@@ -741,7 +786,7 @@ export function AppShell({ onLangChange }: Props) {
       }
       return { ...prev, condition };
     });
-  }, [commitHistorySnapshot]);
+  }, [commitHistorySnapshot, markStepCacheDirtyWithBubble]);
 
   const onConnectNewEdge = useCallback((edge: GraphEdgeJson) => {
     const api = canvasRef.current;
@@ -757,9 +802,9 @@ export function AppShell({ onLangChange }: Props) {
     setGraphDocument(nextDoc);
     const src = edge.source;
     if (src != null && src !== "") {
-      markStepCacheDirtyTransitive(nextDoc, [src]);
+      markStepCacheDirtyWithBubble(nextDoc, [src]);
     }
-  }, [commitHistorySnapshot]);
+  }, [commitHistorySnapshot, markStepCacheDirtyWithBubble]);
 
   const onExportRemovedDanglingEdges = useCallback((removedEdgeIds: string[]) => {
     setDanglingEdgesExportIds(removedEdgeIds);
@@ -878,7 +923,7 @@ export function AppShell({ onLangChange }: Props) {
   }, [isRunActive]);
 
   const onOpenNestedGraph = useCallback(
-    (targetGraphId: string) => {
+    (targetGraphId: string, graphRefNodeId?: string) => {
       const tid = targetGraphId.trim();
       if (!tid) {
         return;
@@ -892,9 +937,18 @@ export function AppShell({ onLangChange }: Props) {
         window.alert(t("app.workspace.graphNotInIndex", { id: tid }));
         return;
       }
-      void onOpenWorkspaceGraph(matches[0].fileName);
+      const parentFile = activeWorkspaceFile;
+      const grId = graphRefNodeId?.trim() ?? "";
+      const nestedFrameToAppend =
+        parentFile != null && grId !== ""
+          ? { parentWorkspaceFileName: parentFile, graphRefNodeId: grId }
+          : undefined;
+      void onOpenWorkspaceGraph(matches[0].fileName, {
+        keepNestedStack: true,
+        nestedFrameToAppend,
+      });
     },
-    [onOpenWorkspaceGraph, t, workspaceGraphsDir, workspaceIndex],
+    [activeWorkspaceFile, onOpenWorkspaceGraph, t, workspaceGraphsDir, workspaceIndex],
   );
 
   useEffect(() => {
@@ -1264,6 +1318,7 @@ export function AppShell({ onLangChange }: Props) {
           onRemoveNodes={onRemoveCanvasNodes}
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
+          onMarkStepCacheDirtyTransitive={markStepCacheDirtyWithBubble}
           runLocked={isRunActive}
           onRunUntilThisNode={onRunUntilSelectedNode}
           runUntilThisNodeEnabled={runUntilSelectionEnabled}

@@ -23,7 +23,8 @@ type Props = {
   onApplyEdgeCondition: (edgeId: string, condition: string | null) => void;
   onRemoveNodes?: (ids: readonly string[]) => void;
   workspaceLinked: boolean;
-  onOpenNestedGraph?: (targetGraphId: string) => void;
+  onOpenNestedGraph?: (targetGraphId: string, graphRefNodeId?: string) => void;
+  onMarkStepCacheDirtyTransitive?: (doc: GraphDocumentJson, seeds: readonly string[]) => void;
   runLocked?: boolean;
   onRunUntilThisNode?: () => void;
   runUntilThisNodeEnabled?: boolean;
@@ -90,6 +91,7 @@ export function InspectorPanel({
   onRemoveNodes,
   workspaceLinked,
   onOpenNestedGraph,
+  onMarkStepCacheDirtyTransitive,
   runLocked = false,
   onRunUntilThisNode,
   runUntilThisNodeEnabled = false,
@@ -391,7 +393,11 @@ export function InspectorPanel({
                   onClick={() => {
                     const doc = getDocumentForStepCacheDirty?.() ?? graphDocument;
                     const before = new Set(getStepCacheDirtySnapshot().ids);
-                    markStepCacheDirtyTransitive(doc, [selection.id]);
+                    const mark =
+                      onMarkStepCacheDirtyTransitive ??
+                      ((d: GraphDocumentJson, s: readonly string[]) =>
+                        markStepCacheDirtyTransitive(d, s));
+                    mark(doc, [selection.id]);
                     const snap = getStepCacheDirtySnapshot();
                     const added = snap.ids.filter((id) => !before.has(id));
                     runSessionAppendLine(
@@ -423,7 +429,7 @@ export function InspectorPanel({
                 onClick={() => {
                   const tid = graphRefTargetId(selection.raw);
                   if (tid && onOpenNestedGraph) {
-                    onOpenNestedGraph(tid);
+                    onOpenNestedGraph(tid, selection.id);
                   }
                 }}
               >

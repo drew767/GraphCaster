@@ -554,7 +554,15 @@ class GraphRunner:
                     graph_rev = str(ctx.get("graph_rev") or "")
                     tenant_id = ctx.get("tenant_id")
                     tenant_s = str(tenant_id).strip() if tenant_id is not None else None
-                    dirty = bool(pol and pol.enabled and node.id in pol.dirty_nodes)
+                    parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
+                    dirty = bool(
+                        pol
+                        and pol.enabled
+                        and (
+                            node.id in pol.dirty_nodes
+                            or (parent_ref != "" and parent_ref in pol.dirty_nodes)
+                        )
+                    )
                     upstream_incomplete = False
 
                     if not pin_short and cache_active:
@@ -779,6 +787,7 @@ class GraphRunner:
 
         child_ctx = dict(ctx)
         child_ctx["nesting_depth"] = depth_next
+        child_ctx["_parent_graph_ref_node_id"] = node.id
 
         child = GraphRunner(
             nested,
