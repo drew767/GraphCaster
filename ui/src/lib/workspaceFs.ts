@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import type { GraphDocumentJson } from "../graph/types";
 import { graphIdFromDocument, parseGraphDocumentJson } from "../graph/parseDocument";
@@ -40,6 +40,15 @@ function sanitizeFileName(name: string): string {
     return "graph.json";
   }
   return base;
+}
+
+/** Basename for a graph JSON under `graphs/`; ensures `.json` suffix. */
+export function sanitizeWorkspaceGraphFileName(name: string): string {
+  const base = sanitizeFileName(name);
+  if (base.toLowerCase().endsWith(".json")) {
+    return base;
+  }
+  return `${base}.json`;
 }
 
 export async function scanWorkspaceGraphs(
@@ -103,7 +112,7 @@ export async function writeJsonFileToDir(
   fileName: string,
   data: unknown,
 ): Promise<void> {
-  const safe = sanitizeFileName(fileName);
+  const safe = sanitizeWorkspaceGraphFileName(fileName);
   const file = await dir.getFileHandle(safe, { create: true });
   const writable = await file.createWritable();
   await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));

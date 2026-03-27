@@ -13,11 +13,22 @@
       "addNodeFilterPh": "Filter by type…",
       "addNodeNoMatch": "No matching node type.",
       "onlyOneStart": "This graph already has a start node.",
+      "addNodeGraphsHeading": "Graphs in folder",
+      "nodeContextMenuTitle": "Node",
+      "deleteNode": "Delete node",
       "nodeTypes": {
         "start": "Start",
         "exit": "Exit",
         "task": "Task",
-        "graph_ref": "Nested graph"
+        "graph_ref": "Nested graph",
+        "comment": "Comment frame"
+      },
+      "flowControls": {
+        "panel": "Canvas zoom and view",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "fitView": "Fit graph to view",
+        "interactivity": "Lock or unlock dragging, connecting, and selection"
       }
     },
     "structure": {
@@ -27,7 +38,8 @@
     },
     "inspector": {
       "heading": "Inspector",
-      "hint": "Click a node or edge. Drag between handles to connect. Delete/Backspace removes the selection. Right-click canvas adds a node. Inspector: data or edge condition.",
+      "hint": "Click a node or edge. With nothing selected: edit graph title, id, I/O contract. Drag between handles to connect. Delete/Backspace removes the selection. Right-click canvas adds a node.",
+      "commentFrameHint": "Editor-only area title. Drag nodes into the frame (or create them inside) so they move with the frame. Resize with the handles. Use JSON data \"title\", \"width\", \"height\".",
       "nodeId": "Id",
       "nodeType": "Type",
       "label": "Title",
@@ -43,7 +55,19 @@
       "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner).",
       "applyEdgeCondition": "Apply condition",
       "openGraphRef": "Open nested graph",
-      "openGraphRefNeedWorkspace": "Link a project folder so nested graphs can be opened from graphs/."
+      "openGraphRefNeedWorkspace": "Link a project folder so nested graphs can be opened from graphs/.",
+      "graphSection": "Graph",
+      "graphTitle": "Title",
+      "graphId": "Graph id (fixed)",
+      "graphAuthor": "Author",
+      "graphSchemaVersion": "Schema version",
+      "graphInputs": "Inputs (JSON)",
+      "graphOutputs": "Outputs (JSON)",
+      "graphInputsHint": "Optional contract for callers, e.g. [{\"name\":\"x\",\"type\":\"string\"}]. Leave empty to omit.",
+      "graphOutputsHint": "Optional declared outputs. Leave empty to omit.",
+      "applyGraph": "Apply graph settings",
+      "graphParamsInvalidJson": "Inputs and outputs must be JSON arrays or objects.",
+      "graphSchemaInvalid": "Schema version must be an integer."
     },
     "warnings": {
       "multipleUnconditional": "Node {{sourceId}}: more than one outgoing edge with no condition (runner uses JSON order).",
@@ -54,12 +78,51 @@
       "stub": "Run log / NDJSON stream from the Python runner will appear here."
     },
     "lang": {
+      "selectLabel": "Language",
       "en": "English",
       "ru": "Русский"
     },
     "errors": {
       "invalidGraphJson": "Invalid graph file: need a JSON object with \"nodes\" and \"edges\" arrays.",
-      "readJsonFailed": "Could not read or parse the file as JSON."
+      "readJsonFailed": "Could not read or parse the file as JSON.",
+      "openModal": {
+        "title": "Could not open graph",
+        "read_failed": "The file could not be read.",
+        "json_invalid": "Invalid JSON: {{message}}",
+        "copy": "Copy details",
+        "copied": "Copied",
+        "close": "Close",
+        "not_object": "The file must be a JSON object (not an array or plain value).",
+        "invalid_meta": "Property \"meta\" must be a JSON object when present.",
+        "invalid_viewport": "Property \"viewport\" must be a JSON object when present.",
+        "invalid_schema_version_root": "Root \"schemaVersion\" must be a finite integer (or omit it).",
+        "invalid_schema_version_meta": "\"meta.schemaVersion\" must be a finite integer (or omit it).",
+        "nodes_not_array": "Property \"nodes\" must be a JSON array.",
+        "edges_not_array": "Property \"edges\" must be a JSON array.",
+        "invalid_node_not_object": "nodes[{{index}}] must be a JSON object.",
+        "invalid_node_id": "nodes[{{index}}].id must be a non-empty string.",
+        "invalid_node_data": "nodes[{{index}}].data must be a JSON object when present.",
+        "invalid_node_position": "nodes[{{index}}].position must be a JSON object when present.",
+        "invalid_edge_not_object": "edges[{{index}}] must be a JSON object.",
+        "invalid_edge_id": "edges[{{index}}].id must be a non-empty string.",
+        "invalid_edge_endpoints": "edges[{{index}}].source and .target must be strings.",
+        "invalid_edge_empty": "edges[{{index}}].source and .target must be non-empty.",
+        "invalid_graph_id_meta": "\"meta.graphId\" must be a string or number when present.",
+        "invalid_graph_id_root": "Root \"graphId\" must be a string or number when present.",
+        "schema_normalize_root": "Root \"schemaVersion\" could not be normalized to an integer.",
+        "schema_normalize_meta": "\"meta.schemaVersion\" could not be normalized to an integer."
+      }
+    },
+    "saveModal": {
+      "title": "Save graph",
+      "pickCardHint": "Pick a file tile to overwrite it, or type a new file name below.",
+      "noFilesYet": "No JSON files in graphs/ yet — enter a file name to create one.",
+      "noWorkspaceHint": "Project folder is not linked. You will choose where to save (system dialog in Chromium, or browser download). Link a folder to save inside graphs/ with tiles.",
+      "fileName": "File name",
+      "save": "Save",
+      "cancel": "Cancel",
+      "emptyName": "Enter a file name.",
+      "writeFailed": "Could not save the file."
     },
     "workspace": {
       "link": "Link project folder…",

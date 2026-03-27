@@ -61,7 +61,9 @@ def test_task_process_exit_code_success(tmp_path: Path) -> None:
     GraphRunner(doc, sink=lambda e: events.append(e), host=RunHostContext(artifacts_base=tmp_path)).run(
         context={"last_result": True}
     )
-    assert events[-1]["type"] == "run_success"
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
+    assert events[-2]["type"] == "run_success"
     assert any(e["type"] == "process_complete" and e.get("success") is True for e in events)
 
 
@@ -81,6 +83,9 @@ def test_task_process_spawns_and_failure_stops_run(tmp_path: Path) -> None:
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
     assert any(e["type"] == "process_failed" for e in events)
     assert not any(e["type"] == "run_success" for e in events)
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "failed"
+    assert events[-1].get("finishedAt")
 
 
 def test_task_process_stdout_mode(tmp_path: Path) -> None:
@@ -98,7 +103,8 @@ def test_task_process_stdout_mode(tmp_path: Path) -> None:
     )
     events: list[dict] = []
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
-    assert events[-1]["type"] == "run_success"
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
 
 
 def test_task_process_marker_file_mode(tmp_path: Path) -> None:
@@ -120,7 +126,8 @@ def test_task_process_marker_file_mode(tmp_path: Path) -> None:
     )
     events: list[dict] = []
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
-    assert events[-1]["type"] == "run_success"
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
     assert (tmp_path / "done.flag").is_file()
 
 
@@ -154,7 +161,8 @@ def test_task_process_retry_then_success(tmp_path: Path) -> None:
     )
     events: list[dict] = []
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
-    assert events[-1]["type"] == "run_success"
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
     assert sum(1 for e in events if e["type"] == "process_retry") == 1
 
 
@@ -174,7 +182,8 @@ def test_task_process_env_merged(tmp_path: Path) -> None:
     )
     events: list[dict] = []
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
-    assert events[-1]["type"] == "run_success"
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
 
 
 def test_task_process_timeout(tmp_path: Path) -> None:
@@ -196,3 +205,6 @@ def test_task_process_timeout(tmp_path: Path) -> None:
     assert time.monotonic() - t0 < 5.0
     assert any(e["type"] == "process_complete" and e.get("timedOut") for e in events)
     assert any(e["type"] == "process_failed" for e in events)
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "failed"
+    assert events[-1].get("finishedAt")

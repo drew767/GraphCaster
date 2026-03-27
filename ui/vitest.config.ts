@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import path from "node:path";
 

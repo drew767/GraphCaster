@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import {
   Background,
@@ -28,17 +28,21 @@ import {
   type MutableRefObject,
 } from "react";
 import type { MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
 import { flowToDocument } from "../graph/fromReactFlow";
+import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
-import type { PaletteNodeType } from "../graph/nodePalette";
+import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
 import { newGraphEdgeId } from "../graph/nodePalette";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
+import { NodeContextMenu } from "./NodeContextMenu";
+import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
 
 export type GraphCanvasSelection =
@@ -82,13 +86,15 @@ type Props = {
   onSelect: (selection: GraphCanvasSelection | null) => void;
   /** Fires after a node drag ends (for workspace autosave). */
   onNodeDragEnd?: () => void;
-  onAddNode: (nodeType: PaletteNodeType, flowPosition: { x: number; y: number }) => void;
+  workspaceGraphsForAddMenu: ReadonlyArray<WorkspaceGraphAddMenuRow>;
+  onAddNode: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
   onConnectNewEdge: (edge: GraphEdgeJson) => void;
   onFlowStructureChange: () => void;
 };
 
 const nodeTypes = {
   gcNode: GcFlowNode,
+  gcComment: GcCommentNode,
 } as const satisfies NodeTypes;
 
 type BridgeProps = {
@@ -151,6 +157,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onSelect,
       onNodeDragEnd,
       onAddNode,
+      workspaceGraphsForAddMenu,
       onConnectNewEdge,
       onFlowStructureChange,
     },
@@ -165,20 +172,35 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       fx: number;
       fy: number;
     } | null>(null);
+    const [nodeCtxMenu, setNodeCtxMenu] = useState<{ sx: number; sy: number; nodeId: string } | null>(null);
     const hasStartNode = useMemo(
       () => (graphDocument.nodes ?? []).some((n) => n.type === "start"),
       [graphDocument],
     );
 
+    const { t, i18n } = useTranslation();
+    const flowAriaLabels = useMemo(
+      () => ({
+        "controls.ariaLabel": t("app.canvas.flowControls.panel"),
+        "controls.zoomIn.ariaLabel": t("app.canvas.flowControls.zoomIn"),
+        "controls.zoomOut.ariaLabel": t("app.canvas.flowControls.zoomOut"),
+        "controls.fitView.ariaLabel": t("app.canvas.flowControls.fitView"),
+        "controls.interactive.ariaLabel": t("app.canvas.flowControls.interactivity"),
+      }),
+      [t, i18n.language],
+    );
+
     const initial = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
+    const nodesRef = useRef(nodes);
+    nodesRef.current = nodes;
 
     const onNodesChangeWrapped = useCallback(
-      (changes: NodeChange<Node<GcNodeData>>[]) => {
-        onNodesChange(changes);
-        const removed = changes.some((c) => c.type === "remove");
-        if (removed) {
+      (changes: NodeChange<Node>[]) => {
+        onNodesChange(changes as NodeChange<Node<GcNodeData>>[]);
+        const syncDoc = changes.some((c) => c.type === "remove" || c.type === "dimensions");
+        if (syncDoc) {
           window.requestAnimationFrame(() => {
             onFlowStructureChange();
           });
@@ -205,6 +227,11 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         if (!c.source || !c.target || c.source === c.target) {
           return;
         }
+        const src = nodes.find((n) => n.id === c.source);
+        const tgt = nodes.find((n) => n.id === c.target);
+        if (src?.type === "gcComment" || tgt?.type === "gcComment") {
+          return;
+        }
         const sh = flowConnectionHandle(c.sourceHandle, "out_default");
         const th = flowConnectionHandle(c.targetHandle, "in_default");
         if (
@@ -227,7 +254,63 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           condition: null,
         });
       },
-      [edges, onConnectNewEdge],
+      [edges, nodes, onConnectNewEdge],
+    );
+
+    const onBeforeDelete = useCallback(
+      async ({ nodes: pending, edges: pendingEdges }: { nodes: Node[]; edges: Edge[] }) => {
+        const all = nodesRef.current;
+        const removeIds = new Set(pending.map((n) => n.id));
+        const filtered = pending.filter((n) => {
+          if (n.parentId && removeIds.has(n.parentId)) {
+            const parent = all.find((p) => p.id === n.parentId);
+            if (parent?.type === "gcComment") {
+              return false;
+            }
+          }
+          return true;
+        });
+        return { nodes: filtered, edges: pendingEdges };
+      },
+      [],
+    );
+
+    const onNodesDelete = useCallback(
+      (deleted: Node[]) => {
+        const deadCommentIds = new Set(
+          deleted.filter((n) => n.type === "gcComment").map((n) => n.id),
+        );
+        if (deadCommentIds.size === 0) {
+          return;
+        }
+        setNodes((nds) => {
+          const byId = new Map(nds.map((n) => [n.id, n]));
+          return nds.map((n) => {
+            if (!n.parentId || !deadCommentIds.has(n.parentId)) {
+              return n;
+            }
+            const abs = getWorldTopLeft(n, byId);
+            const { parentId: _p, extent: _e, ...rest } = n;
+            return { ...rest, position: abs } as Node<GcNodeData>;
+          });
+        });
+      },
+      [setNodes],
+    );
+
+    const onNodeDragStopWrapped = useCallback(
+      (_e: unknown, node: Node) => {
+        if (node.type === "gcComment") {
+          onNodeDragEnd?.();
+          return;
+        }
+        setNodes((nds) => reparentDraggedNode(nds as Node<GcNodeData>[], node.id));
+        window.requestAnimationFrame(() => {
+          onFlowStructureChange();
+          onNodeDragEnd?.();
+        });
+      },
+      [onFlowStructureChange, onNodeDragEnd, setNodes],
     );
 
     useEffect(() => {
@@ -237,8 +320,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     }, [graphDocument, setNodes, setEdges]);
 
     const onNodeClick = useCallback(
-      (_event: MouseEvent, node: Node<GcNodeData>) => {
-        const d = node.data;
+      (_event: MouseEvent, node: Node) => {
+        const d = node.data as GcNodeData | undefined;
         if (!d) {
           return;
         }
@@ -268,12 +351,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     const onPaneClick = useCallback(() => {
       setAddMenu(null);
+      setNodeCtxMenu(null);
       onSelect(null);
     }, [onSelect]);
 
     const onPaneContextMenu = useCallback(
       (e: { preventDefault: () => void; clientX: number; clientY: number }) => {
         e.preventDefault();
+        setNodeCtxMenu(null);
         const project = projectScreenToFlowRef.current;
         if (!project) {
           return;
@@ -284,9 +369,47 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [],
     );
 
+    const onNodeContextMenu = useCallback((e: MouseEvent, node: Node) => {
+      e.preventDefault();
+      setAddMenu(null);
+      setNodeCtxMenu({ sx: e.clientX, sy: e.clientY, nodeId: node.id });
+    }, []);
+
+    const onDeleteNodeFromMenu = useCallback(
+      (nodeId: string) => {
+        setNodes((nds) => {
+          const target = nds.find((n) => n.id === nodeId);
+          const byId = new Map(nds.map((n) => [n.id, n]));
+          const rest = nds.filter((n) => n.id !== nodeId);
+          if (target?.type === "gcComment") {
+            return rest.map((n) => {
+              if (n.parentId !== nodeId) {
+                return n;
+              }
+              const abs = getWorldTopLeft(n, byId);
+              const { parentId: _p, extent: _e, ...stripped } = n as Node<GcNodeData> & {
+                parentId?: string;
+                extent?: unknown;
+              };
+              return { ...stripped, position: abs } as Node<GcNodeData>;
+            });
+          }
+          return rest;
+        });
+        setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+        onSelect(null);
+        window.requestAnimationFrame(() => {
+          onFlowStructureChange();
+        });
+      },
+      [onFlowStructureChange, onSelect, setEdges, setNodes],
+    );
+
     return (
       <div className="gc-flow-wrap">
         <ReactFlow
+          colorMode="system"
+          ariaLabelConfig={flowAriaLabels}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChangeWrapped}
@@ -299,10 +422,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
           onPaneContextMenu={onPaneContextMenu}
-          onNodeDragStop={onNodeDragEnd}
+          onNodeContextMenu={onNodeContextMenu}
+          onNodeDragStop={onNodeDragStopWrapped}
+          onBeforeDelete={onBeforeDelete}
+          onNodesDelete={onNodesDelete}
           nodesConnectable
           nodesDraggable
           elementsSelectable
+          deleteKeyCode={["Delete", "Backspace"]}
         >
           <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
           <RefitOnLayoutEpoch epoch={layoutEpoch} />
@@ -316,11 +443,28 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           screenPos={addMenu != null ? { x: addMenu.sx, y: addMenu.sy } : { x: 0, y: 0 }}
           flowPos={addMenu != null ? { x: addMenu.fx, y: addMenu.fy } : { x: 0, y: 0 }}
           hasStartNode={hasStartNode}
+          workspaceGraphs={workspaceGraphsForAddMenu}
           onClose={() => {
             setAddMenu(null);
           }}
-          onPick={(ty, flowPosition) => {
-            onAddNode(ty, flowPosition);
+          onPick={(pick, flowPosition) => {
+            onAddNode(pick, flowPosition);
+          }}
+        />
+        <NodeContextMenu
+          open={nodeCtxMenu != null}
+          screenPos={
+            nodeCtxMenu != null ? { x: nodeCtxMenu.sx, y: nodeCtxMenu.sy } : { x: 0, y: 0 }
+          }
+          nodeId={nodeCtxMenu?.nodeId ?? ""}
+          onClose={() => {
+            setNodeCtxMenu(null);
+          }}
+          onDelete={() => {
+            if (nodeCtxMenu != null) {
+              onDeleteNodeFromMenu(nodeCtxMenu.nodeId);
+            }
+            setNodeCtxMenu(null);
           }}
         />
       </div>

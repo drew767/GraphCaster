@@ -1,0 +1,19 @@
+# Copyright GraphCaster. All Rights Reserved.
+
+[package]
+name = "graph-caster-desktop"
+version = "0.1.0"
+description = "GraphCaster native window (Tauri)"
+authors = ["GraphCaster"]
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

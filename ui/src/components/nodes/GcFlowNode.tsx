@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
@@ -10,9 +10,10 @@ function GcFlowNodeInner(props: NodeProps) {
   const kind = data?.graphNodeType ?? "unknown";
   const showTarget = kind !== "start";
   const showSource = kind !== "exit";
+  const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}`;
 
   return (
-    <div className={`gc-flow-node gc-flow-node--${kind}`}>
+    <div className={cls}>
       {showTarget ? <Handle type="target" position={Position.Left} id="in_default" /> : null}
       <div className="gc-flow-node__body">
         <span className="gc-flow-node__pill">{kind}</span>

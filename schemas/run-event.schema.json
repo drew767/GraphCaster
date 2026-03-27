@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphcaster.local/schemas/run-event.schema.json",
+  "title": "GraphCaster run event (NDJSON line, v0.1)",
+  "description": "One JSON object per line as emitted by graph_caster.GraphRunner and process_exec. Root runs include stable runId on every line; nested graphs share the root runId.",
+  "type": "object",
+  "required": ["type"],
+  "additionalProperties": true,
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "run_started",
+        "run_finished",
+        "run_root_ready",
+        "node_enter",
+        "node_execute",
+        "node_exit",
+        "edge_traverse",
+        "run_success",
+        "run_end",
+        "error",
+        "nested_graph_enter",
+        "nested_graph_exit",
+        "process_spawn",
+        "process_complete",
+        "process_failed",
+        "process_retry"
+      ]
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable id for one root run; present on all events when the runner was started at nesting depth 0."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "type": { "const": "run_started" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "rootGraphId", "startedAt", "mode"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "rootGraphId": { "type": "string", "minLength": 1 },
+          "startedAt": { "type": "string", "minLength": 1 },
+          "mode": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Execution mode (host-injected); default manual. Mirrors n8n execution mode / trigger channel."
+          },
+          "graphTitle": { "type": "string", "description": "Optional display title; n8n workflowName analog." }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "run_finished" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "rootGraphId", "status", "finishedAt"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "rootGraphId": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["success", "failed"] },
+          "finishedAt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ISO-8601 timestamp when the root run ended (UTC from emitter)."
+          },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "run_root_ready" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "rootGraphId", "rootRunArtifactDir"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "rootGraphId": { "type": "string", "minLength": 1 },
+          "rootRunArtifactDir": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_enter" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "nodeType", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "nodeType": { "type": "string" },
+          "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_execute" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "nodeType", "data"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "nodeType": { "type": "string" },
+          "data": { "type": "object" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "node_exit" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "nodeType", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "nodeType": { "type": "string" },
+          "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "edge_traverse" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["edgeId", "fromNode", "toNode"],
+        "properties": {
+          "edgeId": { "type": "string", "minLength": 1 },
+          "fromNode": { "type": "string", "minLength": 1 },
+          "toNode": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "run_success" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "run_end" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["reason"],
+        "properties": {
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "error" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" },
+          "nodeId": { "type": "string" },
+          "targetGraphId": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "nested_graph_enter" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["parentNodeId", "targetGraphId", "depth", "path"],
+        "properties": {
+          "parentNodeId": { "type": "string", "minLength": 1 },
+          "targetGraphId": { "type": "string", "minLength": 1 },
+          "depth": { "type": "integer", "minimum": 0 },
+          "path": { "type": "string", "minLength": 1 },
+          "rootRunArtifactDir": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "nested_graph_exit" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["parentNodeId", "targetGraphId", "depth"],
+        "properties": {
+          "parentNodeId": { "type": "string", "minLength": 1 },
+          "targetGraphId": { "type": "string", "minLength": 1 },
+          "depth": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "process_spawn" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "argv", "cwd", "attempt"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "argv": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "cwd": { "type": "string" },
+          "attempt": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "process_complete" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "exitCode", "timedOut", "attempt"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "exitCode": { "type": "integer" },
+          "timedOut": { "type": "boolean" },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "success": { "type": "boolean" },
+          "stdoutTail": { "type": "string" },
+          "stderrTail": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "process_failed" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "reason", "message", "attempt"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string" },
+          "message": { "type": "string" },
+          "attempt": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "process_retry" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "attempt", "delaySec", "reason"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "delaySec": { "type": "number", "minimum": 0 },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

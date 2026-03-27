@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 /** XYFlow `Connection` / `Edge` handle id after trim; empty → fallback (matches export). */
 export function flowConnectionHandle(v: string | null | undefined, fallback: string): string {

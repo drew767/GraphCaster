@@ -1,17 +1,24 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { NODE_TYPE_ORDER, type PaletteNodeType } from "../graph/nodePalette";
+import {
+  ADD_MENU_PRIMITIVE_ORDER,
+  type AddMenuPrimitiveType,
+  type AddNodeMenuPick,
+  type WorkspaceGraphAddMenuRow,
+} from "../graph/addNodeMenu";
+import { GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
 
 type Props = {
   open: boolean;
   screenPos: { x: number; y: number };
   flowPos: { x: number; y: number };
   hasStartNode: boolean;
+  workspaceGraphs: ReadonlyArray<WorkspaceGraphAddMenuRow>;
   onClose: () => void;
-  onPick: (nodeType: PaletteNodeType, flowPosition: { x: number; y: number }) => void;
+  onPick: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
 };
 
 export function CanvasAddNodeMenu({
@@ -19,6 +26,7 @@ export function CanvasAddNodeMenu({
   screenPos,
   flowPos,
   hasStartNode,
+  workspaceGraphs,
   onClose,
   onPick,
 }: Props) {
@@ -46,9 +54,9 @@ export function CanvasAddNodeMenu({
     };
   }, [open, onClose]);
 
-  const options = useMemo(() => {
+  const { primitiveOptions, graphOptions } = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return NODE_TYPE_ORDER.filter((ty) => {
+    const primitives = ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
       if (ty === "start" && hasStartNode) {
         return false;
       }
@@ -58,11 +66,24 @@ export function CanvasAddNodeMenu({
       const label = t(`app.canvas.nodeTypes.${ty}`).toLowerCase();
       return ty.includes(q) || label.includes(q);
     });
-  }, [filter, hasStartNode, t]);
+    const graphs = workspaceGraphs.filter((row) => {
+      if (q === "") {
+        return true;
+      }
+      return (
+        row.graphId.toLowerCase().includes(q) ||
+        row.label.toLowerCase().includes(q) ||
+        row.fileName.toLowerCase().includes(q)
+      );
+    });
+    return { primitiveOptions: primitives, graphOptions: graphs };
+  }, [filter, hasStartNode, t, workspaceGraphs]);
 
   if (!open) {
     return null;
   }
+
+  const totalCount = primitiveOptions.length + graphOptions.length;
 
   return (
     <div
@@ -86,25 +107,52 @@ export function CanvasAddNodeMenu({
         autoFocus
       />
       <ul className="gc-ctx-menu__list">
-        {options.length === 0 ? (
+        {totalCount === 0 ? (
           <li className="gc-ctx-menu__empty">{t("app.canvas.addNodeNoMatch")}</li>
         ) : (
-          options.map((ty) => (
-            <li key={ty}>
-              <button
-                type="button"
-                className="gc-ctx-menu__btn"
-                role="menuitem"
-                onClick={() => {
-                  onPick(ty, flowPos);
-                  onClose();
-                }}
-              >
-                <span className="gc-ctx-menu__ty">{ty}</span>
-                <span className="gc-ctx-menu__lbl">{t(`app.canvas.nodeTypes.${ty}`)}</span>
-              </button>
-            </li>
-          ))
+          <>
+            {primitiveOptions.map((ty: AddMenuPrimitiveType) => (
+              <li key={ty}>
+                <button
+                  type="button"
+                  className="gc-ctx-menu__btn"
+                  role="menuitem"
+                  onClick={() => {
+                    onPick({ kind: "primitive", nodeType: ty }, flowPos);
+                    onClose();
+                  }}
+                >
+                  <span className="gc-ctx-menu__ty">{ty}</span>
+                  <span className="gc-ctx-menu__lbl">{t(`app.canvas.nodeTypes.${ty}`)}</span>
+                </button>
+              </li>
+            ))}
+            {graphOptions.length > 0 ? (
+              <>
+                {primitiveOptions.length > 0 ? (
+                  <li className="gc-ctx-menu__section" aria-hidden="true">
+                    {t("app.canvas.addNodeGraphsHeading")}
+                  </li>
+                ) : null}
+                {graphOptions.map((row) => (
+                  <li key={row.fileName}>
+                    <button
+                      type="button"
+                      className="gc-ctx-menu__btn"
+                      role="menuitem"
+                      onClick={() => {
+                        onPick({ kind: "graph_ref", targetGraphId: row.graphId }, flowPos);
+                        onClose();
+                      }}
+                    >
+                      <span className="gc-ctx-menu__ty">{GRAPH_NODE_TYPE_GRAPH_REF}</span>
+                      <span className="gc-ctx-menu__lbl">{row.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </>
+            ) : null}
+          </>
         )}
       </ul>
     </div>

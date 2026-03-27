@@ -1,8 +1,11 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
-export const NODE_TYPE_ORDER = ["start", "exit", "task", "graph_ref"] as const;
-
-export type PaletteNodeType = (typeof NODE_TYPE_ORDER)[number];
+import {
+  GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_EXIT,
+  GRAPH_NODE_TYPE_GRAPH_REF,
+  GRAPH_NODE_TYPE_TASK,
+} from "./nodeKinds";
 
 export function newGraphNodeId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -20,12 +23,14 @@ export function newGraphEdgeId(): string {
 
 export function defaultDataForNodeType(type: string): Record<string, unknown> {
   switch (type) {
-    case "graph_ref":
+    case GRAPH_NODE_TYPE_GRAPH_REF:
       return { targetGraphId: "" };
-    case "task":
+    case GRAPH_NODE_TYPE_TASK:
       return { title: "Task" };
-    case "exit":
+    case GRAPH_NODE_TYPE_EXIT:
       return { title: "Exit" };
+    case GRAPH_NODE_TYPE_COMMENT:
+      return { title: "Section", width: 360, height: 220 };
     default:
       return {};
   }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.1)",
+  "title": "GraphCaster graph document (v1.2)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -58,6 +58,11 @@
         "data": {
           "type": "object",
           "additionalProperties": true
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional id of a comment frame this node belongs to (editor-only grouping)."
         }
       }
     },

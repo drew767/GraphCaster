@@ -1,0 +1,26 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../../external-repos/ComfyUI-master"
+		},
+		{
+			"path": "../../../external-repos/dify-main"
+		},
+		{
+			"path": "../../../external-repos/Flowise-main"
+		},
+		{
+			"path": "../../../external-repos/langflow-main"
+		},
+		{
+			"path": "../../../external-repos/n8n-master"
+		},
+		{
+			"path": "../../../external-repos/Vibe-Workflow-main"
+		}
+	],
+	"settings": {}
+}

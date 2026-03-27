@@ -1,7 +1,14 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import type { Edge, Node } from "@xyflow/react";
 
+import {
+  absoluteJsonPosition,
+  commentSizeFromData,
+  sanitizeNodeParents,
+  sortNodesParentsFirst,
+} from "./flowHierarchy";
+import { GRAPH_NODE_TYPE_COMMENT } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 
@@ -30,16 +37,55 @@ function edgeHandles(e: GraphEdgeJson): { sourceHandle: string; targetHandle: st
 }
 
 export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNodeData>[]; edges: Edge[] } {
-  const rawNodes = doc.nodes ?? [];
+  const rawNodes = sanitizeNodeParents(doc.nodes ?? []);
   const rawEdges = doc.edges ?? [];
 
-  const nodes: Node<GcNodeData>[] = rawNodes.map((n) => {
+  const byJsonId = new Map(rawNodes.map((n) => [n.id, n]));
+
+  const flowNodesUnsorted: Node<GcNodeData>[] = rawNodes.map((n) => {
     const data = n.data ?? {};
     const graphNodeType = typeof n.type === "string" && n.type.length > 0 ? n.type : "unknown";
+
+    if (graphNodeType === GRAPH_NODE_TYPE_COMMENT) {
+      const { w, h } = commentSizeFromData(data);
+      const pos = absoluteJsonPosition(n);
+      return {
+        id: n.id,
+        type: "gcComment",
+        position: pos,
+        zIndex: 0,
+        data: {
+          graphNodeType: GRAPH_NODE_TYPE_COMMENT,
+          label: nodeLabel(data, n.id),
+          raw: { ...data },
+        },
+        style: { width: w, height: h, zIndex: 0 },
+        connectable: false,
+        selectable: true,
+        draggable: true,
+        focusable: true,
+      };
+    }
+
+    const abs = absoluteJsonPosition(n);
+    const pidRaw = n.parentId;
+    const pid = typeof pidRaw === "string" && pidRaw.trim() !== "" ? pidRaw.trim() : undefined;
+    const parentJson = pid ? byJsonId.get(pid) : undefined;
+    const parentId =
+      pid && parentJson?.type === GRAPH_NODE_TYPE_COMMENT ? pid : undefined;
+    const pAbs = parentId ? absoluteJsonPosition(parentJson!) : null;
+    const position =
+      parentId && pAbs
+        ? { x: abs.x - pAbs.x, y: abs.y - pAbs.y }
+        : { x: abs.x, y: abs.y };
+
     return {
       id: n.id,
       type: "gcNode",
-      position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
+      position,
+      parentId,
+      extent: parentId ? ("parent" as const) : undefined,
+      zIndex: 1,
       data: {
         graphNodeType,
         label: nodeLabel(data, n.id),
@@ -47,6 +93,8 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
       },
     };
   });
+
+  const nodes = sortNodesParentsFirst(flowNodesUnsorted);
 
   const edges: Edge[] = rawEdges.map((e) => {
     const { sourceHandle, targetHandle } = edgeHandles(e);

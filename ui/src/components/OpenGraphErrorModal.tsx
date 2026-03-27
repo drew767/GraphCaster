@@ -1,0 +1,124 @@
+// Copyright GraphCaster. All Rights Reserved.
+
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
+
+import type { OpenGraphErrorPresentation } from "../graph/openGraphErrorPresentation";
+
+type Props = {
+  open: boolean;
+  presentation: OpenGraphErrorPresentation | null;
+  onClose: () => void;
+};
+
+export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
+  const { t } = useTranslation();
+  const [copyDone, setCopyDone] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setCopyDone(false);
+    }
+  }, [open, presentation?.copyText]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  const onBackdropClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  const onCopy = useCallback(async () => {
+    if (!presentation) {
+      return;
+    }
+    const text = presentation.copyText;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyDone(true);
+    } catch {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (ok) {
+              resolve();
+            } else {
+              reject(new Error("execCommand"));
+            }
+          } catch (e) {
+            document.body.removeChild(ta);
+            reject(e);
+          }
+        });
+        setCopyDone(true);
+      } catch {
+        setCopyDone(false);
+      }
+    }
+  }, [presentation]);
+
+  if (!open || !presentation) {
+    return null;
+  }
+
+  return (
+    <div
+      className="gc-modal-backdrop"
+      role="presentation"
+      onClick={onBackdropClick}
+    >
+      <div
+        className="gc-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gc-open-error-title"
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        <h2 id="gc-open-error-title" className="gc-modal-title">
+          {presentation.title}
+        </h2>
+        <p className="gc-modal-hint gc-modal-hint--prewrap">{presentation.message}</p>
+        {presentation.copyText !== presentation.message ? (
+          <pre className="gc-modal-detail" tabIndex={0}>
+            {presentation.copyText}
+          </pre>
+        ) : null}
+        <div className="gc-modal-actions">
+          <button type="button" className="gc-btn" onClick={onClose}>
+            {t("app.errors.openModal.close")}
+          </button>
+          <button type="button" className="gc-btn gc-btn-primary" onClick={() => void onCopy()}>
+            {copyDone ? t("app.errors.openModal.copied") : t("app.errors.openModal.copy")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

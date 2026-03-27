@@ -1,9 +1,11 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 export type GraphNodeJson = {
   id: string;
   type: string;
   position?: { x?: number; y?: number };
+  /** When set, this node is visually grouped inside a `comment` frame (`parentId` targets that frame). */
+  parentId?: string;
   data?: Record<string, unknown>;
 };
 
@@ -27,8 +29,23 @@ export type GraphDocumentJson = {
     graphId?: string;
     title?: string;
     author?: string;
+    [key: string]: unknown;
   };
+  /** Declared inputs when this graph is invoked (e.g. from a parent / nested call); JSON value. */
+  inputs?: unknown;
+  /** Declared outputs / result shape; JSON value. */
+  outputs?: unknown;
   viewport?: { x?: number; y?: number; zoom?: number };
   nodes?: GraphNodeJson[];
   edges?: GraphEdgeJson[];
+};
+
+/** Inspector apply for document-level fields (no selection). */
+export type GraphDocumentSettingsPatch = {
+  title?: string;
+  graphId?: string;
+  author?: string;
+  schemaVersion?: number;
+  inputs?: unknown;
+  outputs?: unknown;
 };

@@ -1,8 +1,8 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { describe, expect, it } from "vitest";
 
-import { graphIdFromDocument, parseGraphDocumentJson } from "./parseDocument";
+import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "./parseDocument";
 
 describe("parseGraphDocumentJson", () => {
   it("returns null for non-object root", () => {
@@ -49,5 +49,42 @@ describe("parseGraphDocumentJson", () => {
     });
     expect(doc!.edges![0].sourceHandle).toBe("alt");
     expect((doc!.edges![0] as Record<string, unknown>).source_handle).toBeUndefined();
+  });
+});
+
+describe("parseGraphDocumentJsonResult", () => {
+  it("returns not_object for null root", () => {
+    const r = parseGraphDocumentJsonResult(null);
+    expect(r.ok).toBe(false);
+    if (r.ok) {
+      return;
+    }
+    expect(r.error).toEqual({ kind: "not_object" });
+  });
+
+  it("returns nodes_not_array when nodes is string", () => {
+    const r = parseGraphDocumentJsonResult({
+      meta: { schemaVersion: 1, graphId: "g" },
+      nodes: "bad",
+      edges: [],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) {
+      return;
+    }
+    expect(r.error).toEqual({ kind: "nodes_not_array" });
+  });
+
+  it("returns invalid_node with index when node id missing", () => {
+    const r = parseGraphDocumentJsonResult({
+      meta: { schemaVersion: 1, graphId: "g" },
+      nodes: [{ id: "" }],
+      edges: [],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) {
+      return;
+    }
+    expect(r.error).toEqual({ kind: "invalid_node", index: 0, reason: "id" });
   });
 });

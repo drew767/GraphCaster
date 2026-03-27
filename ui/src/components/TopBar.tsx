@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { useTranslation } from "react-i18next";
 
@@ -74,22 +74,17 @@ export function TopBar({
         </select>
       </div>
       <div className="gc-top-actions">
-        <button
-          type="button"
-          className="gc-btn"
-          aria-pressed={i18n.language.startsWith("en")}
-          onClick={() => onLangChange("en")}
+        <select
+          className="gc-lang-select"
+          aria-label={t("app.lang.selectLabel")}
+          value={i18n.language.startsWith("ru") ? "ru" : "en"}
+          onChange={(ev) => {
+            onLangChange(ev.target.value);
+          }}
         >
-          {t("app.lang.en")}
-        </button>
-        <button
-          type="button"
-          className="gc-btn"
-          aria-pressed={i18n.language.startsWith("ru")}
-          onClick={() => onLangChange("ru")}
-        >
-          {t("app.lang.ru")}
-        </button>
+          <option value="en">{t("app.lang.en")}</option>
+          <option value="ru">{t("app.lang.ru")}</option>
+        </select>
       </div>
     </header>
   );

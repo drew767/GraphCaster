@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson } from "./types";
@@ -64,6 +64,30 @@ function normalizeEdgeConditionParsed(cond: unknown): string | null | undefined 
   return null;
 }
 
+export type GraphDocumentParseError =
+  | { kind: "not_object" }
+  | { kind: "invalid_meta" }
+  | { kind: "invalid_viewport" }
+  | { kind: "invalid_schema_version"; scope: "root" | "meta" }
+  | { kind: "nodes_not_array" }
+  | { kind: "edges_not_array" }
+  | {
+      kind: "invalid_node";
+      index: number;
+      reason: "not_object" | "id" | "data" | "position";
+    }
+  | {
+      kind: "invalid_edge";
+      index: number;
+      reason: "not_object" | "id" | "endpoints" | "endpoint_empty";
+    }
+  | { kind: "invalid_graph_id"; scope: "meta" | "root" }
+  | { kind: "schema_normalize_failed"; scope: "root" | "meta" };
+
+export type ParseGraphDocumentJsonResult =
+  | { ok: true; doc: GraphDocumentJson }
+  | { ok: false; error: GraphDocumentParseError };
+
 export function graphIdFromDocument(doc: GraphDocumentJson): string | undefined {
   const m = doc.meta?.graphId;
   if (typeof m === "string" && m.trim() !== "") {
@@ -82,24 +106,24 @@ export function graphIdFromDocument(doc: GraphDocumentJson): string | undefined 
   return undefined;
 }
 
-export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
+export function parseGraphDocumentJsonResult(raw: unknown): ParseGraphDocumentJsonResult {
   if (!isPlainObject(raw)) {
-    return null;
+    return { ok: false, error: { kind: "not_object" } };
   }
   const o = raw;
   if (o.meta !== undefined && !isPlainObject(o.meta)) {
-    return null;
+    return { ok: false, error: { kind: "invalid_meta" } };
   }
   if (o.viewport !== undefined && !isPlainObject(o.viewport)) {
-    return null;
+    return { ok: false, error: { kind: "invalid_viewport" } };
   }
   if ("schemaVersion" in o && o.schemaVersion !== undefined && !isSchemaVersionAcceptable(o.schemaVersion)) {
-    return null;
+    return { ok: false, error: { kind: "invalid_schema_version", scope: "root" } };
   }
   if (isPlainObject(o.meta)) {
     const ms = o.meta.schemaVersion;
     if (ms !== undefined && !isSchemaVersionAcceptable(ms)) {
-      return null;
+      return { ok: false, error: { kind: "invalid_schema_version", scope: "meta" } };
     }
   }
   const oo = o as Record<string, unknown>;
@@ -108,21 +132,22 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
   if (nodesRaw === undefined) {
     oo.nodes = [];
   } else if (!Array.isArray(nodesRaw)) {
-    return null;
+    return { ok: false, error: { kind: "nodes_not_array" } };
   }
   if (edgesRaw === undefined) {
     oo.edges = [];
   } else if (!Array.isArray(edgesRaw)) {
-    return null;
+    return { ok: false, error: { kind: "edges_not_array" } };
   }
   const nodesArr = oo.nodes as unknown[];
   const edgesArr = oo.edges as unknown[];
-  for (const node of nodesArr) {
+  for (let i = 0; i < nodesArr.length; i++) {
+    const node = nodesArr[i];
     if (!isPlainObject(node)) {
-      return null;
+      return { ok: false, error: { kind: "invalid_node", index: i, reason: "not_object" } };
     }
     if (typeof node.id !== "string" || node.id.trim().length === 0) {
-      return null;
+      return { ok: false, error: { kind: "invalid_node", index: i, reason: "id" } };
     }
     const nr = node as Record<string, unknown>;
     nr.id = node.id.trim();
@@ -134,24 +159,32 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
       nr.type = t === "" ? "unknown" : t;
     }
     if (node.data !== undefined && !isPlainObject(node.data)) {
-      return null;
+      return { ok: false, error: { kind: "invalid_node", index: i, reason: "data" } };
     }
     if (node.position !== undefined && !isPlainObject(node.position)) {
-      return null;
+      return { ok: false, error: { kind: "invalid_node", index: i, reason: "position" } };
+    }
+    if (nr.parentId !== undefined) {
+      if (typeof nr.parentId !== "string" || nr.parentId.trim() === "") {
+        delete nr.parentId;
+      } else {
+        nr.parentId = nr.parentId.trim();
+      }
     }
   }
-  for (const edge of edgesArr) {
+  for (let i = 0; i < edgesArr.length; i++) {
+    const edge = edgesArr[i];
     if (!isPlainObject(edge)) {
-      return null;
+      return { ok: false, error: { kind: "invalid_edge", index: i, reason: "not_object" } };
     }
     if (typeof edge.id !== "string" || edge.id.trim().length === 0) {
-      return null;
+      return { ok: false, error: { kind: "invalid_edge", index: i, reason: "id" } };
     }
     if (typeof edge.source !== "string" || typeof edge.target !== "string") {
-      return null;
+      return { ok: false, error: { kind: "invalid_edge", index: i, reason: "endpoints" } };
     }
     if (edge.source.trim() === "" || edge.target.trim() === "") {
-      return null;
+      return { ok: false, error: { kind: "invalid_edge", index: i, reason: "endpoint_empty" } };
     }
     const er = edge as Record<string, unknown>;
     er.id = edge.id.trim();
@@ -171,7 +204,7 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
   if ("schemaVersion" in oo && oo.schemaVersion !== undefined) {
     const n = normalizeSchemaVersionField(oo.schemaVersion);
     if (n === undefined) {
-      return null;
+      return { ok: false, error: { kind: "schema_normalize_failed", scope: "root" } };
     }
     oo.schemaVersion = n;
   }
@@ -180,14 +213,14 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
     if ("schemaVersion" in mo && mo.schemaVersion !== undefined) {
       const n = normalizeSchemaVersionField(mo.schemaVersion);
       if (n === undefined) {
-        return null;
+        return { ok: false, error: { kind: "schema_normalize_failed", scope: "meta" } };
       }
       mo.schemaVersion = n;
     }
     if ("graphId" in mo) {
       const g = coerceGraphIdField(mo.graphId);
       if (!g.ok) {
-        return null;
+        return { ok: false, error: { kind: "invalid_graph_id", scope: "meta" } };
       }
       if (g.value === undefined) {
         delete mo.graphId;
@@ -205,7 +238,7 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
   if ("graphId" in oo) {
     const g = coerceGraphIdField(oo.graphId);
     if (!g.ok) {
-      return null;
+      return { ok: false, error: { kind: "invalid_graph_id", scope: "root" } };
     }
     if (g.value === undefined) {
       delete oo.graphId;
@@ -214,5 +247,10 @@ export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
     }
   }
 
-  return raw as GraphDocumentJson;
+  return { ok: true, doc: raw as GraphDocumentJson };
+}
+
+export function parseGraphDocumentJson(raw: unknown): GraphDocumentJson | null {
+  const r = parseGraphDocumentJsonResult(raw);
+  return r.ok ? r.doc : null;
 }

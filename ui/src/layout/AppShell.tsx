@@ -1,32 +1,43 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import exampleDocument from "@schemas/graph-document.example.json";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GraphCanvasHandle, GraphCanvasSelection } from "../components/GraphCanvas";
+import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { ConsolePanel } from "../components/ConsolePanel";
+import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
+import { GraphSaveModal } from "../components/GraphSaveModal";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
-import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
+import type {
+  GraphDocumentJson,
+  GraphDocumentSettingsPatch,
+  GraphEdgeJson,
+} from "../graph/types";
 import { findBranchAmbiguities } from "../graph/branchWarnings";
+import { pickCommentParentId } from "../graph/flowHierarchy";
+import { defaultDataForNodeType, newGraphNodeId } from "../graph/nodePalette";
+import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
+import type { OpenGraphErrorPresentation } from "../graph/openGraphErrorPresentation";
 import {
-  defaultDataForNodeType,
-  newGraphNodeId,
-  type PaletteNodeType,
-} from "../graph/nodePalette";
-import { graphIdFromDocument, parseGraphDocumentJson } from "../graph/parseDocument";
+  presentationForJsonSyntaxError,
+  presentationForParseError,
+  presentationForReadFailure,
+} from "../graph/openGraphErrorPresentation";
+import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findStructureIssues } from "../graph/structureWarnings";
 import { nodeLabel } from "../graph/toReactFlow";
-import { downloadJsonFile, safeGraphDownloadBasename } from "../lib/downloadJson";
 import {
   defaultWorkspaceFileName,
   ensureGraphsDirectory,
   findWorkspaceGraphIdConflict,
   pickProjectRootDirectory,
   readWorkspaceGraphFile,
+  sanitizeWorkspaceGraphFileName,
   scanWorkspaceGraphs,
   supportsFileSystemAccess,
   writeJsonFileToDir,
@@ -56,6 +67,9 @@ export function AppShell({ onLangChange }: Props) {
   const [layoutDirtyEpoch, setLayoutDirtyEpoch] = useState(0);
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
+  const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
 
   const bumpLayoutEpoch = useCallback(() => {
     setLayoutEpoch((n) => n + 1);
@@ -87,21 +101,29 @@ export function AppShell({ onLangChange }: Props) {
       if (!file) {
         return;
       }
+      let text: string;
       try {
-        const text = await file.text();
-        const parsed: unknown = JSON.parse(text);
-        const doc = parseGraphDocumentJson(parsed);
-        if (!doc) {
-          window.alert(t("app.errors.invalidGraphJson"));
-          return;
-        }
-        setActiveWorkspaceFile(null);
-        setGraphDocument(doc);
-        bumpLayoutEpoch();
-        setSelection(null);
+        text = await file.text();
       } catch {
-        window.alert(t("app.errors.readJsonFailed"));
+        setGraphOpenError(presentationForReadFailure(t));
+        return;
       }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (err) {
+        setGraphOpenError(presentationForJsonSyntaxError(t, err));
+        return;
+      }
+      const res = parseGraphDocumentJsonResult(parsed);
+      if (!res.ok) {
+        setGraphOpenError(presentationForParseError(t, res.error));
+        return;
+      }
+      setActiveWorkspaceFile(null);
+      setGraphDocument(res.doc);
+      bumpLayoutEpoch();
+      setSelection(null);
     },
     [bumpLayoutEpoch, t],
   );
@@ -129,76 +151,89 @@ export function AppShell({ onLangChange }: Props) {
       if (!workspaceGraphsDir) {
         return;
       }
+      let text: string;
       try {
-        const text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
-        const parsed: unknown = JSON.parse(text);
-        const doc = parseGraphDocumentJson(parsed);
-        if (!doc) {
-          window.alert(t("app.errors.invalidGraphJson"));
-          return;
-        }
-        setGraphDocument(doc);
-        setActiveWorkspaceFile(fileName);
-        bumpLayoutEpoch();
-        setSelection(null);
+        text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
       } catch {
-        window.alert(t("app.errors.readJsonFailed"));
+        setGraphOpenError(presentationForReadFailure(t));
+        return;
       }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (err) {
+        setGraphOpenError(presentationForJsonSyntaxError(t, err));
+        return;
+      }
+      const res = parseGraphDocumentJsonResult(parsed);
+      if (!res.ok) {
+        setGraphOpenError(presentationForParseError(t, res.error));
+        return;
+      }
+      setGraphDocument(res.doc);
+      setActiveWorkspaceFile(fileName);
+      bumpLayoutEpoch();
+      setSelection(null);
     },
     [bumpLayoutEpoch, workspaceGraphsDir, t],
   );
 
+  const workspaceGraphRows = useMemo((): WorkspaceGraphAddMenuRow[] => {
+    return workspaceIndex.map((e) => ({
+      fileName: e.fileName,
+      graphId: e.graphId,
+      label: e.duplicateGraphId
+        ? `${e.fileName} ⚠ ${e.graphId}`
+        : e.title
+          ? `${e.fileName} — ${e.title}`
+          : e.fileName,
+    }));
+  }, [workspaceIndex]);
+
   const workspaceGraphOptions = useMemo(
-    () =>
-      workspaceIndex.map((e) => ({
-        fileName: e.fileName,
-        label: e.duplicateGraphId
-          ? `${e.fileName} ⚠ ${e.graphId}`
-          : e.title
-            ? `${e.fileName} — ${e.title}`
-            : e.fileName,
-      })),
-    [workspaceIndex],
+    () => workspaceGraphRows.map(({ fileName, label }) => ({ fileName, label })),
+    [workspaceGraphRows],
   );
 
-  const persistToWorkspace = useCallback(async (): Promise<boolean> => {
-    if (!workspaceGraphsDir || !canvasRef.current) {
-      return false;
+  const saveDocumentToWorkspace = useCallback(
+    async (doc: GraphDocumentJson, targetFileName: string): Promise<boolean> => {
+      if (!workspaceGraphsDir) {
+        return false;
+      }
+      const gid = graphIdFromDocument(doc) ?? "";
+      const safeTarget = sanitizeWorkspaceGraphFileName(targetFileName);
+      const conflict = findWorkspaceGraphIdConflict(workspaceIndex, gid, safeTarget);
+      if (conflict) {
+        window.alert(t("app.workspace.duplicateGraphId", { file: conflict }));
+        return false;
+      }
+      try {
+        await writeJsonFileToDir(workspaceGraphsDir, safeTarget, doc);
+        setGraphDocument(doc);
+        setActiveWorkspaceFile(safeTarget);
+        await rescanWorkspace(workspaceGraphsDir);
+        return true;
+      } catch {
+        window.alert(t("app.workspace.writeFailed"));
+        return false;
+      }
+    },
+    [rescanWorkspace, t, workspaceGraphsDir, workspaceIndex],
+  );
+
+  const openSaveModal = useCallback(() => {
+    const api = canvasRef.current;
+    if (!api) {
+      return;
     }
-    const doc = canvasRef.current.exportDocument();
-    const gid = graphIdFromDocument(doc) ?? "";
-    const targetName = activeWorkspaceFile ?? defaultWorkspaceFileName(doc);
-    const conflict = findWorkspaceGraphIdConflict(workspaceIndex, gid, activeWorkspaceFile);
-    if (conflict) {
-      window.alert(t("app.workspace.duplicateGraphId", { file: conflict }));
-      return false;
-    }
-    try {
-      await writeJsonFileToDir(workspaceGraphsDir, targetName, doc);
-      setGraphDocument(doc);
-      setActiveWorkspaceFile(targetName);
-      await rescanWorkspace(workspaceGraphsDir);
-      return true;
-    } catch {
-      window.alert(t("app.workspace.writeFailed"));
-      return false;
-    }
-  }, [activeWorkspaceFile, rescanWorkspace, t, workspaceGraphsDir, workspaceIndex]);
+    const doc = api.exportDocument();
+    setSaveModalSuggestedName(activeWorkspaceFile ?? defaultWorkspaceFileName(doc));
+    setSaveModalOpen(true);
+  }, [activeWorkspaceFile]);
 
   const onSaveGraph = useCallback(() => {
-    void (async () => {
-      const api = canvasRef.current;
-      if (!api) {
-        return;
-      }
-      if (workspaceGraphsDir) {
-        await persistToWorkspace();
-      } else {
-        const doc = api.exportDocument();
-        downloadJsonFile(safeGraphDownloadBasename(graphIdFromDocument(doc) ?? "graph"), doc);
-      }
-    })();
-  }, [persistToWorkspace, workspaceGraphsDir]);
+    openSaveModal();
+  }, [openSaveModal]);
 
   useEffect(() => {
     if (!workspaceGraphsDir || !activeWorkspaceFile) {
@@ -290,25 +325,87 @@ export function AppShell({ onLangChange }: Props) {
     setGraphDocument(api.exportDocument());
   }, []);
 
+  const onApplyGraphDocumentSettings = useCallback((patch: GraphDocumentSettingsPatch) => {
+    setGraphDocument((prev) => {
+      const meta = { ...(prev.meta ?? {}) };
+      if (patch.title !== undefined) {
+        meta.title = patch.title;
+      }
+      if (patch.author !== undefined) {
+        meta.author = patch.author;
+      }
+      if (patch.graphId !== undefined) {
+        const gid = patch.graphId.trim();
+        meta.graphId = gid;
+      }
+      if (patch.schemaVersion !== undefined) {
+        meta.schemaVersion = patch.schemaVersion;
+      }
+      const next: GraphDocumentJson = {
+        ...prev,
+        meta,
+      };
+      if (patch.schemaVersion !== undefined) {
+        next.schemaVersion = patch.schemaVersion;
+      }
+      if (patch.graphId !== undefined) {
+        next.graphId = patch.graphId.trim();
+      }
+      if ("inputs" in patch) {
+        if (patch.inputs === undefined) {
+          delete next.inputs;
+        } else {
+          next.inputs = patch.inputs;
+        }
+      }
+      if ("outputs" in patch) {
+        if (patch.outputs === undefined) {
+          delete next.outputs;
+        } else {
+          next.outputs = patch.outputs;
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const onAddNode = useCallback(
-    (nodeType: PaletteNodeType, flowPosition: { x: number; y: number }) => {
+    (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => {
       const api = canvasRef.current;
       if (!api) {
         return;
       }
       const doc = api.exportDocument();
       const nodes = doc.nodes ?? [];
-      if (nodeType === "start" && nodes.some((n) => n.type === "start")) {
-        window.alert(t("app.canvas.onlyOneStart"));
+      if (pick.kind === "primitive") {
+        if (pick.nodeType === "start" && nodes.some((n) => n.type === "start")) {
+          window.alert(t("app.canvas.onlyOneStart"));
+          return;
+        }
+        const id = newGraphNodeId();
+        const data = defaultDataForNodeType(pick.nodeType);
+        const parentId =
+          pick.nodeType !== GRAPH_NODE_TYPE_COMMENT
+            ? pickCommentParentId(nodes, flowPosition.x, flowPosition.y)
+            : undefined;
+        const newNode = {
+          id,
+          type: pick.nodeType,
+          position: { x: flowPosition.x, y: flowPosition.y },
+          data,
+          ...(parentId ? { parentId } : {}),
+        };
+        setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
         return;
       }
       const id = newGraphNodeId();
-      const data = defaultDataForNodeType(nodeType);
+      const parentId = pickCommentParentId(nodes, flowPosition.x, flowPosition.y);
       const newNode = {
         id,
-        type: nodeType,
+        type: GRAPH_NODE_TYPE_GRAPH_REF,
         position: { x: flowPosition.x, y: flowPosition.y },
-        data,
+        data: { targetGraphId: pick.targetGraphId },
+        ...(parentId ? { parentId } : {}),
       };
       setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
     },
@@ -409,6 +506,7 @@ export function AppShell({ onLangChange }: Props) {
               graphDocument={graphDocument}
               layoutEpoch={layoutEpoch}
               onSelect={setSelection}
+              workspaceGraphsForAddMenu={workspaceGraphRows}
               onAddNode={onAddNode}
               onConnectNewEdge={onConnectNewEdge}
               onFlowStructureChange={onFlowStructureChange}
@@ -420,6 +518,8 @@ export function AppShell({ onLangChange }: Props) {
         </div>
         <InspectorPanel
           selection={selection}
+          graphDocument={graphDocument}
+          onApplyGraphDocumentSettings={onApplyGraphDocumentSettings}
           onApplyNodeData={onApplyNodeData}
           onApplyEdgeCondition={onApplyEdgeCondition}
           workspaceLinked={workspaceGraphsDir != null}
@@ -427,6 +527,24 @@ export function AppShell({ onLangChange }: Props) {
         />
       </div>
       <ConsolePanel heightPx={height} onResizeStart={startDrag} />
+      <GraphSaveModal
+        open={saveModalOpen}
+        suggestedFileName={saveModalSuggestedName}
+        workspaceLinked={workspaceGraphsDir != null}
+        workspaceEntries={workspaceIndex}
+        getDocument={() => canvasRef.current?.exportDocument() ?? null}
+        onSaveToWorkspace={(fileName, doc) => saveDocumentToWorkspace(doc, fileName)}
+        onClose={() => {
+          setSaveModalOpen(false);
+        }}
+      />
+      <OpenGraphErrorModal
+        open={graphOpenError != null}
+        presentation={graphOpenError}
+        onClose={() => {
+          setGraphOpenError(null);
+        }}
+      />
     </div>
   );
 }

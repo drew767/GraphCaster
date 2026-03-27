@@ -13,11 +13,22 @@
       "addNodeFilterPh": "Фильтр по типу…",
       "addNodeNoMatch": "Нет подходящего типа.",
       "onlyOneStart": "В графе уже есть нода start.",
+      "addNodeGraphsHeading": "Графы в папке",
+      "nodeContextMenuTitle": "Нода",
+      "deleteNode": "Удалить ноду",
       "nodeTypes": {
         "start": "Старт",
         "exit": "Выход",
         "task": "Задача",
-        "graph_ref": "Вложенный граф"
+        "graph_ref": "Вложенный граф",
+        "comment": "Комментарий (рамка)"
+      },
+      "flowControls": {
+        "panel": "Масштаб и вид полотна",
+        "zoomIn": "Увеличить",
+        "zoomOut": "Уменьшить",
+        "fitView": "Показать весь граф",
+        "interactivity": "Блокировка: перетаскивание, соединения и выделение"
       }
     },
     "structure": {
@@ -27,7 +38,8 @@
     },
     "inspector": {
       "heading": "Инспектор",
-      "hint": "Клик по ноде/ребру. Соединение — от пина к пину. Delete/Backspace — удалить выделение. ПКМ — новая нода. Инспектор: данные или условие.",
+      "hint": "Клик по ноде/ребру. Без выделения — название графа, id, входы/выходы. Соединение — от пина к пину. Delete/Backspace — удалить выделение. ПКМ — новая нода.",
+      "commentFrameHint": "Заголовок области только для редактора. Перетащите ноды в рамку (или создайте внутри) — они поедут вместе с рамкой. Тяните за маркеры, чтобы изменить размер. В JSON: поля \"title\", \"width\", \"height\".",
       "nodeId": "Id",
       "nodeType": "Тип",
       "label": "Заголовок",
@@ -43,7 +55,19 @@
       "edgeConditionHint": "Раннер берёт первое ребро без условия или с истинным условием (см. Python).",
       "applyEdgeCondition": "Применить условие",
       "openGraphRef": "Открыть вложенный граф",
-      "openGraphRefNeedWorkspace": "Привяжите папку проекта, чтобы открывать вложенные графы из graphs/."
+      "openGraphRefNeedWorkspace": "Привяжите папку проекта, чтобы открывать вложенные графы из graphs/.",
+      "graphSection": "Граф",
+      "graphTitle": "Название",
+      "graphId": "Id графа (GUID, без изменений в редакторе)",
+      "graphAuthor": "Автор",
+      "graphSchemaVersion": "Версия схемы",
+      "graphInputs": "Входы (JSON)",
+      "graphOutputs": "Выходы (JSON)",
+      "graphInputsHint": "Необязательный контракт для вызова, напр. [{\"name\":\"x\",\"type\":\"string\"}]. Пусто — не сохранять поле.",
+      "graphOutputsHint": "Необязательные объявленные выходы. Пусто — не сохранять поле.",
+      "applyGraph": "Применить настройки графа",
+      "graphParamsInvalidJson": "Входы и выходы должны быть JSON-массивом или объектом.",
+      "graphSchemaInvalid": "Версия схемы должна быть целым числом."
     },
     "warnings": {
       "multipleUnconditional": "Нода {{sourceId}}: несколько исходящих рёбер без условия (порядок как в JSON).",
@@ -54,12 +78,51 @@
       "stub": "Здесь будет лог выполнения / поток NDJSON из Python-раннера."
     },
     "lang": {
+      "selectLabel": "Язык",
       "en": "English",
       "ru": "Русский"
     },
     "errors": {
       "invalidGraphJson": "Неверный файл графа: нужен JSON-объект с массивами \"nodes\" и \"edges\".",
-      "readJsonFailed": "Не удалось прочитать или разобрать файл как JSON."
+      "readJsonFailed": "Не удалось прочитать или разобрать файл как JSON.",
+      "openModal": {
+        "title": "Не удалось открыть граф",
+        "read_failed": "Не удалось прочитать файл.",
+        "json_invalid": "Некорректный JSON: {{message}}",
+        "copy": "Копировать детали",
+        "copied": "Скопировано",
+        "close": "Закрыть",
+        "not_object": "Нужен JSON-объект (не массив и не примитив).",
+        "invalid_meta": "Поле \"meta\" должно быть JSON-объектом, если указано.",
+        "invalid_viewport": "Поле \"viewport\" должно быть JSON-объектом, если указано.",
+        "invalid_schema_version_root": "Корневое \"schemaVersion\" должно быть целым числом (или отсутствовать).",
+        "invalid_schema_version_meta": "\"meta.schemaVersion\" должно быть целым числом (или отсутствовать).",
+        "nodes_not_array": "Поле \"nodes\" должно быть JSON-массивом.",
+        "edges_not_array": "Поле \"edges\" должно быть JSON-массивом.",
+        "invalid_node_not_object": "nodes[{{index}}] должен быть JSON-объектом.",
+        "invalid_node_id": "nodes[{{index}}].id должна быть непустая строка.",
+        "invalid_node_data": "nodes[{{index}}].data должен быть JSON-объектом, если указан.",
+        "invalid_node_position": "nodes[{{index}}].position должен быть JSON-объектом, если указан.",
+        "invalid_edge_not_object": "edges[{{index}}] должен быть JSON-объектом.",
+        "invalid_edge_id": "edges[{{index}}].id должна быть непустая строка.",
+        "invalid_edge_endpoints": "edges[{{index}}].source и .target должны быть строками.",
+        "invalid_edge_empty": "edges[{{index}}].source и .target не должны быть пустыми.",
+        "invalid_graph_id_meta": "\"meta.graphId\" должна быть строка или число, если указано.",
+        "invalid_graph_id_root": "Корневое \"graphId\" должно быть строка или число, если указано.",
+        "schema_normalize_root": "Корневое \"schemaVersion\" не удалось привести к целому.",
+        "schema_normalize_meta": "\"meta.schemaVersion\" не удалось привести к целому."
+      }
+    },
+    "saveModal": {
+      "title": "Сохранить граф",
+      "pickCardHint": "Нажмите плитку файла, чтобы перезаписать его, или введите новое имя ниже.",
+      "noFilesYet": "В graphs/ пока нет JSON — введите имя файла для создания.",
+      "noWorkspaceHint": "Папка проекта не привязана. Выберите место в системном диалоге (Chromium) или скачайте файл. Привяжите папку, чтобы сохранять в graphs/ с плитками.",
+      "fileName": "Имя файла",
+      "save": "Сохранить",
+      "cancel": "Отмена",
+      "emptyName": "Введите имя файла.",
+      "writeFailed": "Не удалось сохранить файл."
     },
     "workspace": {
       "link": "Привязать папку проекта…",

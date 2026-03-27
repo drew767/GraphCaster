@@ -1,7 +1,8 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import type { Edge, Node } from "@xyflow/react";
 
+import { getCommentNodeSize, sanitizeNodeParents } from "./flowHierarchy";
 import { flowConnectionHandle } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson, GraphNodeJson } from "./types";
 import type { GcNodeData } from "./toReactFlow";
@@ -30,17 +31,63 @@ function coerceSchemaVersion(v: unknown, fallback: number): number {
   return fallback;
 }
 
+function absoluteFlowPosition(n: Node<GcNodeData>, byId: Map<string, Node<GcNodeData>>): { x: number; y: number } {
+  let x = n.position.x;
+  let y = n.position.y;
+  let pid: string | undefined = n.parentId ?? undefined;
+  while (pid) {
+    const p = byId.get(pid);
+    if (!p) {
+      break;
+    }
+    x += p.position.x;
+    y += p.position.y;
+    pid = p.parentId ?? undefined;
+  }
+  return { x, y };
+}
+
 export function flowToDocument(
   nodes: Node<GcNodeData>[],
   edges: Edge[],
   base: GraphDocumentJson,
 ): GraphDocumentJson {
-  const outNodes: GraphNodeJson[] = nodes.map((n) => ({
-    id: n.id,
-    type: n.data?.graphNodeType ?? "unknown",
-    position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
-    data: { ...(n.data?.raw ?? {}) },
-  }));
+  const typed = nodes as Node<GcNodeData>[];
+  const byId = new Map(typed.map((n) => [n.id, n]));
+
+  const outNodes: GraphNodeJson[] = typed.map((n) => {
+    const abs = absoluteFlowPosition(n, byId);
+    const rawBase = { ...(n.data?.raw ?? {}) };
+
+    if (n.type === "gcComment") {
+      const s = getCommentNodeSize(n);
+      rawBase.width = s.w;
+      rawBase.height = s.h;
+      const hasTitle = typeof rawBase.title === "string" && rawBase.title.trim() !== "";
+      if (!hasTitle && typeof n.data?.label === "string" && n.data.label.trim() !== "") {
+        rawBase.title = n.data.label.trim();
+      }
+      const row: GraphNodeJson = {
+        id: n.id,
+        type: "comment",
+        position: abs,
+        data: rawBase,
+      };
+      return row;
+    }
+
+    const row: GraphNodeJson = {
+      id: n.id,
+      type: n.data?.graphNodeType ?? "unknown",
+      position: abs,
+      data: rawBase,
+    };
+    const pid = n.parentId;
+    if (typeof pid === "string" && pid.trim() !== "") {
+      row.parentId = pid.trim();
+    }
+    return row;
+  });
 
   const outEdges: GraphEdgeJson[] = edges.map((e) => {
     const sh = flowConnectionHandle(e.sourceHandle, "out_default");
@@ -73,16 +120,24 @@ export function flowToDocument(
         ? String(topGidRaw)
         : "";
   const graphId = metaGid || topGid || "default";
-  return {
+  const nextMeta: GraphDocumentJson["meta"] = {
+    ...meta,
     schemaVersion: resolvedSv,
-    meta: {
-      schemaVersion: resolvedSv,
-      graphId,
-      ...(meta.title != null ? { title: meta.title } : {}),
-      ...(meta.author != null ? { author: meta.author } : {}),
-    },
-    viewport: base.viewport ?? { x: 0, y: 0, zoom: 1 },
-    nodes: outNodes,
-    edges: outEdges,
+    graphId,
   };
+  const doc: GraphDocumentJson = {
+    schemaVersion: resolvedSv,
+    meta: nextMeta,
+    viewport: base.viewport ?? { x: 0, y: 0, zoom: 1 },
+    nodes: sanitizeNodeParents(outNodes),
+    edges: outEdges,
+    graphId,
+  };
+  if (base.inputs !== undefined) {
+    doc.inputs = base.inputs;
+  }
+  if (base.outputs !== undefined) {
+    doc.outputs = base.outputs;
+  }
+  return doc;
 }

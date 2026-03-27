@@ -20,6 +20,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 ui/dist/
+ui/src-tauri/target/
 
 # Tooling / coverage
 .coverage
@@ -34,3 +35,6 @@ htmlcov/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Local Windows shortcut from build.bat (next to repo root)
+GraphCaster.lnk

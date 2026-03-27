@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { describe, expect, it } from "vitest";
 
@@ -28,5 +28,18 @@ describe("flowToDocument", () => {
     const doc = flowToDocument([], [], base);
     expect(doc.schemaVersion).toBe(7);
     expect(doc.meta?.schemaVersion).toBe(7);
+  });
+
+  it("preserves inputs and outputs from base", () => {
+    const base: GraphDocumentJson = {
+      meta: { graphId: "x" },
+      inputs: [{ name: "a" }],
+      outputs: { result: "string" },
+      nodes: [],
+      edges: [],
+    };
+    const doc = flowToDocument([], [], base);
+    expect(doc.inputs).toEqual([{ name: "a" }]);
+    expect(doc.outputs).toEqual({ result: "string" });
   });
 });

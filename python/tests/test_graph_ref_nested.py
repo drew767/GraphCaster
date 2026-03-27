@@ -64,10 +64,14 @@ def test_nested_graph_ref_runs_child_then_parent_exit(tmp_path: Path) -> None:
         context={"last_result": True}
     )
     types = [e["type"] for e in events]
+    run_ids = {e.get("runId") for e in events if e.get("runId")}
+    assert len(run_ids) == 1
     assert types.count("run_success") == 2
-    assert events[-1]["type"] == "run_success"
-    assert events[-1]["nodeId"] == "pe"
-    assert events[-1]["graphId"] == parent_id
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
+    assert events[-2]["type"] == "run_success"
+    assert events[-2]["nodeId"] == "pe"
+    assert events[-2]["graphId"] == parent_id
     assert "nested_graph_enter" in types
     assert "nested_graph_exit" in types
     assert events[types.index("nested_graph_enter")]["targetGraphId"] == child_id
@@ -83,6 +87,9 @@ def test_graph_ref_without_graphs_dir_errors(tmp_path: Path) -> None:
     events: list[dict] = []
     GraphRunner(root_doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
     assert any(e["type"] == "error" and e.get("message") == "graph_ref_requires_graphs_directory" for e in events)
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "failed"
+    assert events[-1].get("finishedAt")
 
 
 def test_nested_task_failure_does_not_report_success_to_parent(tmp_path: Path) -> None:
@@ -114,6 +121,9 @@ def test_nested_task_failure_does_not_report_success_to_parent(tmp_path: Path) -
         e["type"] == "error" and e.get("message") == "nested_graph_run_incomplete" for e in events
     )
     assert not any(e["type"] == "run_success" for e in events)
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "failed"
+    assert events[-1].get("finishedAt")
 
 
 def test_max_nesting_depth_blocks_deeper_ref(tmp_path: Path) -> None:
@@ -135,3 +145,6 @@ def test_max_nesting_depth_blocks_deeper_ref(tmp_path: Path) -> None:
         context={"last_result": True, "max_nesting_depth": 1}
     )
     assert any(e["type"] == "error" and e.get("message") == "max_nesting_depth_exceeded" for e in events)
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "failed"
+    assert events[-1].get("finishedAt")

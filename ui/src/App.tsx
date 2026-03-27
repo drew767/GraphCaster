@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";

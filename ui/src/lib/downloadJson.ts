@@ -1,4 +1,4 @@
-// Copyright Aura. All Rights Reserved.
+// Copyright GraphCaster. All Rights Reserved.
 
 const OBJECT_URL_REVOKE_MS = 15_000;
 
