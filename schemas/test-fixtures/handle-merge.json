@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "title": "merge handles ok"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    { "id": "t1", "type": "task", "position": { "x": 100, "y": 0 }, "data": { "command": "echo" } },
+    { "id": "m1", "type": "merge", "position": { "x": 200, "y": 0 }, "data": { "title": "Merge" } },
+    { "id": "x1", "type": "exit", "position": { "x": 300, "y": 0 }, "data": {} }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e3",
+      "source": "m1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

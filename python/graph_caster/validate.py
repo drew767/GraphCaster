@@ -46,6 +46,31 @@ def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> lis
     return sorted(out)
 
 
+def find_merge_incoming_warnings(doc: GraphDocument) -> list[dict[str, int | str]]:
+    """
+    Non-blocking: merge nodes with fewer than two incoming edges from non-comment
+    sources look degenerate (n8n Merge typically expects multiple inputs).
+    """
+    by_id = {n.id: n for n in doc.nodes}
+    incoming_non_comment: dict[str, int] = {}
+    for e in doc.edges:
+        tgt = by_id.get(e.target)
+        if tgt is None or tgt.type != "merge":
+            continue
+        src = by_id.get(e.source)
+        if src is None or src.type == "comment":
+            continue
+        incoming_non_comment[tgt.id] = incoming_non_comment.get(tgt.id, 0) + 1
+    out: list[dict[str, int | str]] = []
+    for n in doc.nodes:
+        if n.type != "merge":
+            continue
+        cnt = incoming_non_comment.get(n.id, 0)
+        if cnt < 2:
+            out.append({"nodeId": n.id, "incomingEdges": cnt})
+    return out
+
+
 def find_unreachable_out_error_sources(doc: GraphDocument) -> list[str]:
     """
     Source node ids that have at least one out_error edge but whose type cannot

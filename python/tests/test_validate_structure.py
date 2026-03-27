@@ -10,6 +10,7 @@ import pytest
 from graph_caster.models import Edge, GraphDocument, Node
 from graph_caster.validate import (
     GraphStructureError,
+    find_merge_incoming_warnings,
     find_unreachable_non_comment_nodes,
     find_unreachable_out_error_sources,
     validate_graph_structure,
@@ -136,3 +137,56 @@ def test_find_unreachable_out_error_sources_flags_start_and_task_without_command
     )
     ids = find_unreachable_out_error_sources(doc)
     assert set(ids) == {"s1", "t0"}
+
+
+def test_find_merge_incoming_warnings_flags_few_in_edges() -> None:
+    doc = GraphDocument.from_dict(
+        json.loads((GRAPH_CASTER_ROOT / "schemas" / "test-fixtures" / "handle-merge.json").read_text(encoding="utf-8"))
+    )
+    w = find_merge_incoming_warnings(doc)
+    assert len(w) == 1
+    assert w[0]["nodeId"] == "m1"
+    assert w[0]["incomingEdges"] == 1
+
+
+def test_find_merge_incoming_warnings_two_branches_ok() -> None:
+    gid = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "t"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "t1", "type": "task", "position": {"x": 0, "y": 0}, "data": {"command": "x"}},
+                {"id": "m1", "type": "merge", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "source": "s1",
+                    "sourceHandle": "out_default",
+                    "target": "t1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+                {
+                    "id": "e2",
+                    "source": "t1",
+                    "sourceHandle": "out_default",
+                    "target": "m1",
+                    "targetHandle": "in_default",
+                    "condition": "false",
+                },
+                {
+                    "id": "e3",
+                    "source": "t1",
+                    "sourceHandle": "out_default",
+                    "target": "m1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+            ],
+        }
+    )
+    assert find_merge_incoming_warnings(doc) == []

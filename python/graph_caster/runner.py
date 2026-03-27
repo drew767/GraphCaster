@@ -218,6 +218,16 @@ class GraphRunner:
                     path_str = str(run_dir)
                     ctx["root_run_artifact_dir"] = path_str
                     self.emit("run_root_ready", rootGraphId=self._doc.graph_id, rootRunArtifactDir=path_str)
+            from graph_caster.validate import find_merge_incoming_warnings
+
+            for w in find_merge_incoming_warnings(self._doc):
+                self.emit(
+                    "structure_warning",
+                    kind="merge_few_inputs",
+                    nodeId=w["nodeId"],
+                    incomingEdges=w["incomingEdges"],
+                    graphId=self._doc.graph_id,
+                )
             node_by_id: dict[str, Node] = {n.id: n for n in self._doc.nodes}
             current_id: str | None = start_node_id
             visited_guard = 0
@@ -241,6 +251,8 @@ class GraphRunner:
 
                 outs_map = ctx.setdefault("node_outputs", {})
                 outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data)}
+                if node.type == "merge":
+                    outs_map[node.id]["merge"] = {"passthrough": True}
 
                 if node.type == "comment":
                     pass

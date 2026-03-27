@@ -79,6 +79,13 @@ def test_process_like_events_validate() -> None:
             "message": "enoent",
             "attempt": 0,
         },
+        {
+            "type": "structure_warning",
+            "kind": "merge_few_inputs",
+            "nodeId": "m1",
+            "incomingEdges": 1,
+            "graphId": "g1",
+        },
     ]
     for ev in samples:
         validator.validate(ev)

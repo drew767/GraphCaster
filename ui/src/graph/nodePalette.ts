@@ -4,6 +4,7 @@ import {
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_GRAPH_REF,
+  GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
 
@@ -31,6 +32,8 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
       return { title: "Exit" };
     case GRAPH_NODE_TYPE_COMMENT:
       return { title: "Section", width: 360, height: 220 };
+    case GRAPH_NODE_TYPE_MERGE:
+      return { title: "Merge" };
     default:
       return {};
   }

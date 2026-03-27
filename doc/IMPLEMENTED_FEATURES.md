@@ -30,7 +30,7 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
-Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; в **`COMPETITIVE_ANALYSIS.md`** (**§32.2**, «Открыто») остаются fork/join, ИИ-ветвление, продуктовая документация и контекст предикатов. In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
+Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; явная нода **`merge`** (реконвергенция после **F4**, пасс-тру под однопоточный раннер) — отдельный подраздел после таблицы. В **`COMPETITIVE_ANALYSIS.md`** (**§32.2**, «Открыто») остаются параллельный fork / barrier-merge как у полного **n8n Merge**, ИИ-ветвление, продуктовая документация и контекст предикатов. In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -41,7 +41,18 @@
 | Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc) |
 | Событие выбранной ветки | **`edge_traverse`** (совместимость); перед ним при ветвлении — **`branch_skipped`** (`reason`: **`condition_false`**) для оценённых ложных условий, **`branch_taken`** (с **`graphId`**) если исходящих больше одного или были skip (**`runner.py`**, **`schemas/run-event.schema.json`**) |
 
-**Открыто в F4 (см. `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), **fork/join** как у **n8n merge**, ИИ-ветвление без отдельной ноды (**фаза 6**). In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — раздел **F19** ниже (в competitive больше не помечается как «нет в документе»).
+**Открыто в F4 (см. `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), **параллельный fork** и **barrier** «дождаться всех входов» как у полноценного **n8n Merge** / очередь **Dify**, ИИ-ветвление без отдельной ноды (**фаза 6**). In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — раздел **F19** ниже (в competitive больше не помечается как «нет в документе»).
+
+### Merge (`join`) — реконвергенция после ветки (MVP)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** — отдельная нода **Merge**, несколько входов | Тип ноды **`merge`**: **`in_default`** / **`out_default`** только (**F18**); в меню полотна (ПКМ); ромб на канвасе (`ui/`) |
+| **Dify** — неявное ожидание предков в **GraphEngine** | При **одном активном пути** (**F4**) — **passthrough**: **`node_outputs[id].merge.passthrough`**, без барьера на N входах (иначе зависание на невзятых ветках до **F6** / partial-run) |
+| Статика | Python: **`find_merge_incoming_warnings`** (`validate.py`, публичный экспорт пакета); UI: **`merge_few_inputs`** в **`findStructureIssues`** (не блокирует Run). Раннер эмитит **`structure_warning`** (`kind`: **`merge_few_inputs`**) в NDJSON — паритет с предупреждением редактора для headless/CLI |
+| Контракт документа | `schemas/graph-document.schema.json` (описание **`type`**), фикстуры **`schemas/test-fixtures/handle-merge.json`**, **`merge-after-branch.json`** |
+
+Код: **`python/graph_caster/runner.py`**, **`handle_contract.py`**, **`validate.py`**; тесты **`python/tests/test_merge_node.py`**, **`test_validate_structure.py`**, **`test_handle_compatibility.py`**.
 
 Документация: `python/README.md` (раздел «Условия на рёбрах»), `schemas/graph-document.schema.json` (`edges[].condition`). Углублённое сравнение с конкурентами — **§32** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md).
 
@@ -57,6 +68,7 @@
 | Все исходящие рёбра считаем возможными (без симуляции **`condition`**) | Over-approximation: directed BFS по **`edges`** |
 | Run / Save | Run **не** блокируется только из‑за **`unreachable_nodes`** (**`structureIssuesBlockRun`**); критичные проблемы **`start`** по-прежнему блокируют запуск |
 | Паритет с хостом / CLI | **`find_unreachable_non_comment_nodes`** в **`python/graph_caster/validate.py`**, тесты в **`tests/test_validate_structure.py`** |
+| Визуальная точка **join** после ветвления (**F4**) | Нода **`merge`**: **passthrough** при одном активном пути раннера; статический BFS **F3** её не «склеивает». Детали — подраздел **Merge (`join`)** в разделе **F4** выше по этому файлу |
 
 ---
 
@@ -70,7 +82,7 @@
 | Мягкое предупреждение в редакторе | UI: **`findHandleCompatibilityIssues`** (`ui/src/graph/handleCompatibility.ts`), контракт пинов **`handleContract.ts`**, жёлтая полоса в **`AppShell`** (не входит в **`structureIssuesBlockRun`**) |
 | Паритет TS/Python | Фикстуры **`schemas/test-fixtures/handle-*.json`**; тесты **`python/tests/test_handle_compatibility.py`**, **`ui/src/graph/handleCompatibility.test.ts`** |
 
-**Правила (MVP):** **`start`** — только **`out_default`**; **`exit`** — только **`in_default`**, без исходящих как источник; **`task`** / **`graph_ref`** — **`out_default`** \| **`out_error`** в исход, **`in_default`** в приём; **`comment`** — рёбра к комментарию не проверяются.
+**Правила (MVP):** **`start`** — только **`out_default`**; **`exit`** — только **`in_default`**, без исходящих как источник; **`task`** / **`graph_ref`** — **`out_default`** \| **`out_error`** в исход, **`in_default`** в приём; **`merge`** — только **`in_default`** / **`out_default`**; **`comment`** — рёбра к комментарию не проверяются.
 
 **Неизвестный `node.type`:** в TS и Python трактуется как исполняемая нода с теми же пинами, что **`task`** (исход **`out_default`** \| **`out_error`**, вход **`in_default`**), пока нет отдельного контракта типа.
 

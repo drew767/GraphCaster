@@ -151,4 +151,13 @@ describe("findHandleCompatibilityIssues", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.kind).toBe("invalid_target_handle");
   });
+
+  it("fixture handle-merge.json has no issues", () => {
+    expect(findHandleCompatibilityIssues(loadFixture("handle-merge.json"))).toEqual([]);
+  });
+
+  it("flags merge node with out_error source handle", () => {
+    const issues = findHandleCompatibilityIssues(loadFixture("handle-bad-merge-out-error.json"));
+    expect(issues.some((i) => i.kind === "invalid_source_handle")).toBe(true);
+  });
 });

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    "title": "branch to merge"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    {
+      "id": "t1",
+      "type": "task",
+      "position": { "x": 100, "y": 0 },
+      "data": { "command": "PLACEHOLDER_CMD" }
+    },
+    { "id": "m1", "type": "merge", "position": { "x": 220, "y": 0 }, "data": {} },
+    { "id": "x1", "type": "exit", "position": { "x": 340, "y": 0 }, "data": {} }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e_skip",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": "false"
+    },
+    {
+      "id": "e_take",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e_out",
+      "source": "m1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

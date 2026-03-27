@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from graph_caster.models import GraphDocument
+from graph_caster.models import GraphDocument, Node
 
 HANDLE_IN_DEFAULT = "in_default"
 HANDLE_OUT_DEFAULT = "out_default"
@@ -13,6 +13,7 @@ _EXIT = "exit"
 _TASK = "task"
 _GRAPH_REF = "graph_ref"
 _COMMENT = "comment"
+_MERGE = "merge"
 
 
 def _allowed_source_handles(node_type: str) -> frozenset[str]:
@@ -20,6 +21,8 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_OUT_DEFAULT})
     if node_type == _EXIT:
         return frozenset()
+    if node_type == _MERGE:
+        return frozenset({HANDLE_OUT_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
     if node_type == _COMMENT:
@@ -31,6 +34,8 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
     if node_type == _START:
         return frozenset()
     if node_type == _EXIT:
+        return frozenset({HANDLE_IN_DEFAULT})
+    if node_type == _MERGE:
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF):
         return frozenset({HANDLE_IN_DEFAULT})

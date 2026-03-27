@@ -27,7 +27,8 @@
         "process_spawn",
         "process_complete",
         "process_failed",
-        "process_retry"
+        "process_retry",
+        "structure_warning"
       ]
     },
     "runId": {
@@ -92,6 +93,29 @@
           "runId": { "type": "string", "minLength": 1 },
           "rootGraphId": { "type": "string", "minLength": 1 },
           "rootRunArtifactDir": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "structure_warning" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["kind", "nodeId", "incomingEdges", "graphId"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["merge_few_inputs"],
+            "description": "Non-blocking graph shape hint; mirrors UI findStructureIssues where applicable."
+          },
+          "nodeId": { "type": "string", "minLength": 1 },
+          "incomingEdges": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of incoming edges from non-comment nodes for this merge."
+          },
+          "graphId": { "type": "string", "minLength": 1 }
         }
       }
     },

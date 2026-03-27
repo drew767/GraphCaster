@@ -418,6 +418,15 @@ body {
   border-color: #af52de;
 }
 
+.gc-flow-node--merge {
+  border-color: #0a84ff;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #0a84ff 12%, var(--gc-surface-1)),
+    var(--gc-surface-1)
+  );
+}
+
 .gc-flow-node__body {
   padding: 0.45rem 0.55rem;
   display: flex;

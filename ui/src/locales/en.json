@@ -29,6 +29,7 @@
         "exit": "Exit",
         "task": "Task",
         "graph_ref": "Nested graph",
+        "merge": "Merge",
         "comment": "Comment frame"
       },
       "flowControls": {
@@ -43,7 +44,8 @@
       "noStart": "No start node (runner expects a single start).",
       "multipleStarts": "More than one start node: {{ids}}.",
       "startHasIncoming": "Start node {{id}} has incoming edges (should have none).",
-      "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}."
+      "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}.",
+      "mergeFewInputs": "Merge node {{id}} has {{count}} incoming branch edge(s) from non-comment nodes (usually 2+ after a split)."
     },
     "inspector": {
       "heading": "Inspector",

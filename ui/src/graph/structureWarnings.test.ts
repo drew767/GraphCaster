@@ -42,6 +42,12 @@ describe("structureIssuesBlockRun", () => {
       structureIssuesBlockRun([{ kind: "multiple_starts", ids: ["a", "b"] }]),
     ).toBe(true);
   });
+
+  it("is false when only merge_few_inputs", () => {
+    expect(
+      structureIssuesBlockRun([{ kind: "merge_few_inputs", nodeId: "m1", incomingEdges: 1 }]),
+    ).toBe(false);
+  });
 });
 
 describe("findStructureIssues", () => {
@@ -87,5 +93,30 @@ describe("findStructureIssues", () => {
     });
     const issues = findStructureIssues(g);
     expect(issues.some((i) => i.kind === "unreachable_nodes")).toBe(false);
+  });
+
+  it("adds merge_few_inputs when merge has one incoming from non-comment", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "m1", type: "merge", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(
+      issues.some(
+        (i) => i.kind === "merge_few_inputs" && i.nodeId === "m1" && i.incomingEdges === 1,
+      ),
+    ).toBe(true);
   });
 });

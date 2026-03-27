@@ -43,3 +43,19 @@ def test_find_violations_matches_fixtures() -> None:
     assert len(bad_src) == 1 and bad_src[0]["kind"] == "invalid_source_handle"
     bad_tgt = find_handle_compatibility_violations(_load_fixture("handle-bad-exit-in.json"))
     assert len(bad_tgt) == 1 and bad_tgt[0]["kind"] == "invalid_target_handle"
+
+
+def test_merge_out_error_source_invalid() -> None:
+    doc = _load_fixture("handle-bad-merge-out-error.json")
+    v = find_handle_compatibility_violations(doc)
+    assert len(v) == 1
+    assert v[0]["kind"] == "invalid_source_handle"
+    assert v[0]["nodeType"] == "merge"
+    with pytest.raises(GraphStructureError, match="invalid source handle"):
+        validate_graph_structure(doc)
+
+
+def test_merge_fixture_validates() -> None:
+    doc = _load_fixture("handle-merge.json")
+    assert find_handle_compatibility_violations(doc) == []
+    assert validate_graph_structure(doc) == "s1"

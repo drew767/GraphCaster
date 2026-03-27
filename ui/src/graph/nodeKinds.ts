@@ -5,3 +5,4 @@ export const GRAPH_NODE_TYPE_EXIT = "exit" as const;
 export const GRAPH_NODE_TYPE_TASK = "task" as const;
 export const GRAPH_NODE_TYPE_GRAPH_REF = "graph_ref" as const;
 export const GRAPH_NODE_TYPE_COMMENT = "comment" as const;
+export const GRAPH_NODE_TYPE_MERGE = "merge" as const;

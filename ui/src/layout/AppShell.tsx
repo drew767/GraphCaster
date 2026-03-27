@@ -834,7 +834,12 @@ export function AppShell({ onLangChange }: Props) {
                             ? issue.ids.join(", ")
                             : `${issue.ids.slice(0, 12).join(", ")} (+${issue.ids.length - 12})`,
                       })
-                    : t("app.structure.startHasIncoming", { id: issue.startId })}
+                    : issue.kind === "merge_few_inputs"
+                      ? t("app.structure.mergeFewInputs", {
+                          id: issue.nodeId,
+                          count: issue.incomingEdges,
+                        })
+                      : t("app.structure.startHasIncoming", { id: issue.startId })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (
