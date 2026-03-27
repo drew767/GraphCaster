@@ -4,6 +4,7 @@
     "menu": {
       "file": "File",
       "edit": "Edit",
+      "view": "View",
       "new": "New graph",
       "open": "Open…",
       "save": "Save"
@@ -38,7 +39,14 @@
         "zoomOut": "Zoom out",
         "fitView": "Fit graph to view",
         "interactivity": "Lock or unlock dragging, connecting, and selection"
-      }
+      },
+      "findNode": "Find node…",
+      "findNodeTitle": "Go to node",
+      "findNodeFilterPh": "Filter by id, title, type, graph id…",
+      "findNodeEmpty": "No matching nodes",
+      "findNodeShortcut": "Ctrl+F or Ctrl+K — arrow keys — Enter to focus",
+      "findNodeTruncated": "Showing first {{count}} matches — narrow your filter",
+      "findNodeClose": "Close"
     },
     "structure": {
       "noStart": "No start node (runner expects a single start).",

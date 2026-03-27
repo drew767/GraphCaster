@@ -20,6 +20,7 @@ type Props = {
   onLinkWorkspace: () => void;
   workspaceGraphOptions: WorkspaceGraphOption[];
   onOpenWorkspaceGraph: (fileName: string) => void;
+  onOpenFindNode?: () => void;
   showRunControls?: boolean;
   runGraphsDir?: string;
   runArtifactsBase?: string;
@@ -45,6 +46,7 @@ export function TopBar({
   onLinkWorkspace,
   workspaceGraphOptions,
   onOpenWorkspaceGraph,
+  onOpenFindNode = () => {},
   showRunControls = false,
   runGraphsDir = "",
   runArtifactsBase = "",
@@ -90,6 +92,15 @@ export function TopBar({
           title={t("app.edit.redoHint")}
         >
           {t("app.edit.redo")}
+        </button>
+        <span className="gc-top-menu-label">{t("app.menu.view")}</span>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onOpenFindNode}
+          title={t("app.canvas.findNodeShortcut")}
+        >
+          {t("app.canvas.findNode")}
         </button>
         <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={runActive}>
           {t("app.workspace.link")}

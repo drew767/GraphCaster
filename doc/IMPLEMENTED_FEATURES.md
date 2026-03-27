@@ -192,6 +192,22 @@
 
 ---
 
+## Поиск и переход к ноде на canvas (n8n «Add node» palette / Langflow поиск компонентов)
+
+Снятие пункта «поиск ноды на полотне» из **открытого** плана в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28.2** (п.4 «Мини-карта / навигация»): факт реализации только здесь, без дублирования таблиц в competitive.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Быстрый поиск по графу, стрелки + Enter, без правки документа | **`NodeSearchPalette`** (`ui/src/components/NodeSearchPalette.tsx`): оверлей, поле фильтра, до 200 строк + подсказка об усечении; **↑/↓**, **Enter**, **Escape** |
+| Горячие клавиши | **Ctrl+F** / **Ctrl+K** (глобально, если фокус не в поле ввода); во время **Run** не блокируется (навигация и выбор ноды, как из консоли) |
+| Меню | **Вид → Найти ноду…** (`TopBar`, i18n `app.canvas.findNode*`) |
+| Индекс по документу | **`buildCanvasNodeSearchRows`** / **`filterCanvasNodeSearchRows`** (`ui/src/graph/canvasNodeSearch.ts`): **id**, **type**, **`nodeLabel`**, для **`graph_ref`** — **`graphId`** и **`targetGraphId`** |
+| Фокус на полотне | Тот же путь, что клик по ноде из консоли: **`setSelection`** + **`GraphCanvasHandle.focusNode`** (`AppShell` / **`onConsoleNavigateToNode`**) |
+
+Код: `ui/src/graph/canvasNodeSearch.ts`, **`canvasNodeSearch.test.ts`** (Vitest), `ui/src/styles/app.css` (`.gc-node-search*`), локали **en/ru**.
+
+---
+
 ## CI в монорепозитории Aura (PR-гейт для субмодуля)
 
 Рабочий код GraphCaster живёт в **`third_party/graph-caster/`** внутри корня **Aura**; автоматический прогон тестов и сборки UI настроен **в родительском репо**, не в изолированном клоне только graph-caster.

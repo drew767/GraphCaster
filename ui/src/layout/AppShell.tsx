@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { GraphCanvasHandle, GraphCanvasSelection } from "../components/GraphCanvas";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { NodeSearchPalette } from "../components/NodeSearchPalette";
 import { ConsolePanel } from "../components/ConsolePanel";
 import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
 import { GraphSaveModal } from "../components/GraphSaveModal";
@@ -36,6 +37,7 @@ import {
   presentationForParseError,
   presentationForReadFailure,
 } from "../graph/openGraphErrorPresentation";
+import { buildCanvasNodeSearchRows } from "../graph/canvasNodeSearch";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
 import { findStructureIssues, structureIssuesBlockRun } from "../graph/structureWarnings";
@@ -98,6 +100,7 @@ export function AppShell({ onLangChange }: Props) {
     const parsed = parseGraphDocumentJson(exampleDocument as unknown);
     return parsed ?? createMinimalGraphDocument();
   });
+  const nodeSearchRows = useMemo(() => buildCanvasNodeSearchRows(graphDocument), [graphDocument]);
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
   const structureIssues = useMemo(() => findStructureIssues(graphDocument), [graphDocument]);
   const handleIssues = useMemo(() => findHandleCompatibilityIssues(graphDocument), [graphDocument]);
@@ -113,6 +116,7 @@ export function AppShell({ onLangChange }: Props) {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
   const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
+  const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
   const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
   const [runArtifactsBase, setRunArtifactsBase] = useState(
     () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
@@ -246,6 +250,30 @@ export function AppShell({ onLangChange }: Props) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [performRedo, performUndo]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (nodeSearchOpen) {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) {
+        return;
+      }
+      const k = e.key.toLowerCase();
+      if (k === "f" || k === "k") {
+        e.preventDefault();
+        setNodeSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [nodeSearchOpen]);
 
   useEffect(() => {
     localStorage.setItem(LS_RUN_GRAPHS, runGraphsDir);
@@ -788,6 +816,9 @@ export function AppShell({ onLangChange }: Props) {
         onOpenWorkspaceGraph={(name) => {
           void onOpenWorkspaceGraph(name);
         }}
+        onOpenFindNode={() => {
+          setNodeSearchOpen(true);
+        }}
         showRunControls
         runGraphsDir={runGraphsDir}
         runArtifactsBase={runArtifactsBase}
@@ -939,6 +970,17 @@ export function AppShell({ onLangChange }: Props) {
         presentation={graphOpenError}
         onClose={() => {
           setGraphOpenError(null);
+        }}
+      />
+      <NodeSearchPalette
+        open={nodeSearchOpen}
+        allRows={nodeSearchRows}
+        onClose={() => {
+          setNodeSearchOpen(false);
+        }}
+        onPick={(nodeId) => {
+          setNodeSearchOpen(false);
+          onConsoleNavigateToNode(nodeId);
         }}
       />
     </div>

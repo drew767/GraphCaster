@@ -4,6 +4,7 @@
     "menu": {
       "file": "Файл",
       "edit": "Правка",
+      "view": "Вид",
       "new": "Новый граф",
       "open": "Открыть…",
       "save": "Сохранить"
@@ -38,7 +39,14 @@
         "zoomOut": "Уменьшить",
         "fitView": "Показать весь граф",
         "interactivity": "Блокировка: перетаскивание, соединения и выделение"
-      }
+      },
+      "findNode": "Найти ноду…",
+      "findNodeTitle": "Перейти к ноде",
+      "findNodeFilterPh": "Фильтр: id, заголовок, тип, id графа…",
+      "findNodeEmpty": "Нет подходящих нод",
+      "findNodeShortcut": "Ctrl+F или Ctrl+K — стрелки — Enter для фокуса",
+      "findNodeTruncated": "Показаны первые {{count}} совпадений — уточните фильтр",
+      "findNodeClose": "Закрыть"
     },
     "structure": {
       "noStart": "Нет ноды start (раннеру нужен один start).",
