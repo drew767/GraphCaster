@@ -12,10 +12,11 @@ from typing import Any
 from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.run_event_sink import RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.run_sessions import RunSession, RunSessionRegistry
+from graph_caster.step_queue import ExecutionFrame, StepQueue
 
-RunEvent = dict[str, Any]
-EventSink = Callable[[RunEvent], None]
+EventSink = Callable[[RunEventDict], None] | RunEventSink
 
 BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
 
@@ -111,17 +112,17 @@ class GraphRunner:
         if host is None:
             host = RunHostContext(graphs_root=graphs_root)
         self._doc = document
-        self._sink = sink or (lambda _e: None)
+        self._event_sink: RunEventSink = normalize_run_event_sink(sink)
         self._host = host
         self._run_id = run_id
         self._session_registry = session_registry
 
     def emit(self, event_type: str, **payload: Any) -> None:
-        ev: RunEvent = {"type": event_type, **payload}
+        ev: RunEventDict = {"type": event_type, **payload}
         rid = self._run_id
         if rid:
             ev["runId"] = rid
-        self._sink(ev)
+        self._event_sink.emit(ev)
 
     def _follow_edges_from(
         self,
@@ -229,11 +230,11 @@ class GraphRunner:
                     graphId=self._doc.graph_id,
                 )
             node_by_id: dict[str, Node] = {n.id: n for n in self._doc.nodes}
-            current_id: str | None = start_node_id
+            step_q = StepQueue(start_node_id)
             visited_guard = 0
             max_steps = max(1, len(self._doc.nodes) * 4)
 
-            while current_id is not None and visited_guard < max_steps:
+            while step_q and visited_guard < max_steps:
                 visited_guard += 1
                 sess_coop = ctx.get("_gc_run_session")
                 if sess_coop is not None and sess_coop.cancel_event.is_set():
@@ -241,6 +242,8 @@ class GraphRunner:
                         self.emit("run_end", reason="cancel_requested")
                     ctx["_run_cancelled"] = True
                     break
+                frame = step_q.popleft()
+                current_id = frame.node_id
                 node = node_by_id.get(current_id)
                 if node is None:
                     self.emit("error", nodeId=current_id, message="unknown_node")
@@ -264,7 +267,7 @@ class GraphRunner:
                             ctx["last_result"] = False
                             nxt = self._follow_edges_from(node.id, ctx, error_route=True)
                             if nxt is not None:
-                                current_id = nxt
+                                step_q.append(ExecutionFrame(nxt))
                                 continue
                         break
                 elif node.type == "task" and _task_has_process_command(node):
@@ -292,7 +295,7 @@ class GraphRunner:
                         ctx["last_result"] = False
                         nxt = self._follow_edges_from(node.id, ctx, error_route=True)
                         if nxt is not None:
-                            current_id = nxt
+                            step_q.append(ExecutionFrame(nxt))
                             continue
                         break
 
@@ -306,7 +309,7 @@ class GraphRunner:
                 nxt = self._follow_edges_from(node.id, ctx, error_route=False)
                 if nxt is None:
                     break
-                current_id = nxt
+                step_q.append(ExecutionFrame(nxt))
 
             if visited_guard >= max_steps:
                 self.emit("error", message="run_aborted_cycle_guard")
@@ -392,7 +395,7 @@ class GraphRunner:
 
         child = GraphRunner(
             nested,
-            self._sink,
+            self._event_sink,
             host=self._host,
             run_id=self._run_id,
             session_registry=self._session_registry,

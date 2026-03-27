@@ -11,6 +11,7 @@ from pathlib import Path
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
+from graph_caster.run_event_sink import NdjsonStdoutSink
 from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
 from graph_caster.validate import GraphStructureError
@@ -137,8 +138,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             print(f"graph-caster: graph_ref dependency cycle in workspace: {chain}", file=sys.stderr)
             return 3
 
-    def sink(ev: dict) -> None:
-        print(json.dumps(ev, ensure_ascii=False), flush=True)
+    sink = NdjsonStdoutSink(sys.stdout.write, sys.stdout.flush)
 
     artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
     host = RunHostContext(graphs_root=graphs_root, artifacts_base=artifacts_base)

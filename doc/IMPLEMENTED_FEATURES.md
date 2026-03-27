@@ -149,9 +149,21 @@
 | Нормализация пустого / невалидного `run_id` из контекста | Пустое / `None` / пробелы → новый UUID; см. `_normalize_run_id_candidate` в `runner.py` |
 | Ограничение размера `mode` в потоке | Обрезка до 128 символов |
 
-Контракт: `schemas/run-event.schema.json`. Код: `python/graph_caster/runner.py` (`emit`, `run_from`, вложенный `GraphRunner(..., run_id=…)`).
+Контракт: `schemas/run-event.schema.json`. Код: `python/graph_caster/runner.py` (`_event_sink.emit`, `run_from`, вложенный `GraphRunner(..., run_id=…)`).
 
 **Намеренно не перенесено** (см. обсуждение в `COMPETITIVE_ANALYSIS.md` §3.2.1–§3.2.4): `ExecutionPushMessage` целиком, `pushRef`, WebSocket/SSE, redaction / `flattedRunData`, relay кадров.
+
+### Слой события → транспорт и очередь шагов (срез **F6**, без worker pool)
+
+Сравнение продуктов по очередям прогонов, режимам **n8n** `queue`, **Dify**/**Comfy** и планирование межпрогонового параллелизма / моста (**§13.2–§13.3**) — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) §**13**; ниже только то, что уже в коде **graph-caster**.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **Langflow** — `EventManager.send_event` → буфер → выдача в HTTP | **`RunEventSink`** (`python/graph_caster/run_event_sink.py`): **`emit(event: RunEventDict)`**; CLI — **`NdjsonStdoutSink(write, flush)`**; обратная совместимость: **`Callable[[RunEventDict], None]`** → **`CallableRunEventSink`**; **`RunEventDict`** экспортируется из **`graph_caster`** |
+| **Dify** — готовые к выполнению узлы в очереди движка (концепция) | **`StepQueue`** + **`ExecutionFrame(node_id)`** (`step_queue.py`): синхронный FIFO, один поток; следующая нода ставится после **`_follow_edges_from`**; отмена опрашивается в начале каждой итерации |
+| **Comfy** — раздельные очереди исполнения и WebSocket | В GC одна цепочка: очередь визитов → события только через sink (расширение «буфер до медленного клиента» — **§39** / мост Aura) |
+
+Тесты: `python/tests/test_run_event_sink.py`, `test_step_queue.py`, `test_runner_event_order_golden.py` (порядок `type` на `graph-document.example.json`).
 
 ---
 
