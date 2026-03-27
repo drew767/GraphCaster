@@ -2,11 +2,13 @@
 
 """Edge conditions: JSON Logic subset, mustache templates, legacy last_result truthiness.
 
-Template (n8n-style ergonomics, no VM): ``{{ dotted.path }}`` for truthiness, or
-``{{ dotted.path }} <op> <literal>`` with op in ==, !=, <, <=, >, >=. The first path
-segment may be ``$json`` (reserved): same object as ``last_result`` when it is a
-dict, else ``{"value": last_result}`` (compare n8n ``$json`` on the current item).
-Otherwise segments match ``[a-zA-Z_][a-zA-Z0-9_]*`` joined by dots; at most
+Templates (n8n-style ergonomics, no VM): ``{{ path }}`` truthiness or
+``{{ path }} <op> <literal>`` (op in ==, !=, <, <=, >, >=). Paths may use dotted
+segments ``a.b.c``, reserved ``$json`` (``last_result`` as dict else
+``{"value": last_result}``), or reserved ``$node`` as in n8n: ``$node["id"]`` /
+``$node['id']`` with optional ``.tail``, ``$node.shortId.tail``, or bare ``$node``.
+``$node`` in predicate data aliases the same ``node_outputs`` dict (read-only use in
+eval). Other segment names match ``[a-zA-Z_][a-zA-Z0-9_]*``. At most
 MAX_TEMPLATE_PLACEHOLDERS per string. See python/README.md.
 """
 
@@ -24,7 +26,8 @@ MAX_EDGE_CONDITION_CHARS = 65536
 MAX_TEMPLATE_PLACEHOLDERS = 32
 
 _PATH_SEGMENT = r"[a-zA-Z_][a-zA-Z0-9_]*"
-_DOTTED_PATH = rf"(?:\$json|{_PATH_SEGMENT})(?:\.{_PATH_SEGMENT})*"
+_NODE_BRACKET = rf"(?:\$node\[\s*\"[^\"]*\"\s*\]|\$node\[\s*\'[^\']*\'\s*\])(?:\.{_PATH_SEGMENT})*"
+_DOTTED_PATH = rf"(?:\$json(?:\.{_PATH_SEGMENT})*|{_NODE_BRACKET}|\$node\.{_PATH_SEGMENT}(?:\.{_PATH_SEGMENT})*|\$node(?![.\[])|{_PATH_SEGMENT}(?:\.{_PATH_SEGMENT})*)"
 _RE_TEMPLATE_TRUTHY = re.compile(rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*$")
 _RE_TEMPLATE_CMP = re.compile(
     rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*(==|!=|<=|>=|<|>)\s*(.+?)\s*$",
@@ -67,6 +70,8 @@ def _last_result_as_json_envelope(last: Any) -> Any:
 def _predicate_data(context: dict[str, Any]) -> dict[str, Any]:
     out = dict(_public_context(context))
     out["$json"] = _last_result_as_json_envelope(context.get("last_result"))
+    no = context.get("node_outputs")
+    out["$node"] = no if isinstance(no, dict) else {}
     return out
 
 
@@ -94,7 +99,83 @@ def _coerce_num(a: Any, b: Any) -> tuple[Any, Any]:
     return a, b
 
 
+_SEGMENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _walk_segments(cur: Any, parts: list[str]) -> Any:
+    for p in parts:
+        if not p or p.startswith("_"):
+            return None
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(p)
+    return cur
+
+
+def _parse_node_bracket_path(path: str) -> tuple[str, list[str]] | None:
+    if not path.startswith("$node["):
+        return None
+    i = 6
+    n = len(path)
+    while i < n and path[i].isspace():
+        i += 1
+    if i >= n:
+        return None
+    q = path[i]
+    if q not in "\"'":
+        return None
+    i += 1
+    j = i
+    while j < n and path[j] != q:
+        j += 1
+    if j >= n:
+        return None
+    node_id = path[i:j]
+    j += 1
+    while j < n and path[j].isspace():
+        j += 1
+    if j >= n or path[j] != "]":
+        return None
+    j += 1
+    tail: list[str] = []
+    if j < n:
+        if path[j] != ".":
+            return None
+        j += 1
+        if j >= n:
+            return None
+        rest = path[j:]
+        for seg in rest.split("."):
+            if not _SEGMENT_RE.match(seg):
+                return None
+            tail.append(seg)
+    return (node_id, tail)
+
+
 def _get_path(root: dict[str, Any], path: str) -> Any:
+    bracket = _parse_node_bracket_path(path)
+    if bracket is not None:
+        node_id, tail = bracket
+        base = root.get("$node")
+        if not isinstance(base, dict):
+            return None
+        return _walk_segments(base.get(node_id), tail)
+
+    if path == "$node":
+        return root.get("$node")
+
+    if path.startswith("$node."):
+        parts = path.split(".")
+        if len(parts) < 2 or parts[0] != "$node":
+            return None
+        node_id = parts[1]
+        if not _SEGMENT_RE.match(node_id):
+            return None
+        base = root.get("$node")
+        if not isinstance(base, dict):
+            return None
+        return _walk_segments(base.get(node_id), parts[2:])
+
     cur: Any = root
     parts = path.split(".")
     for p in parts:

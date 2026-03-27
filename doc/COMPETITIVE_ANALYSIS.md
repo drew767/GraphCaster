@@ -1,6 +1,6 @@
 # Сравнительный анализ: GraphCaster и референсные проекты
 
-**Дата:** 2026-03-28 · **итерация 64** (**§32.2**: в «сделано» перенесены факт **`$json`** / предикат; «открыто» дополнен явным пунктом про полный **n8n Expression**)  
+**Дата:** 2026-03-29 · **итерация 65** (**§32.2**: узкий **`$node`** в шаблонах и **`var`**; «открыто» — полный **n8n Expression** / JS sandbox)  
 **Глубина:** инженерный уровень B (подсистемы, пакеты, потоки данных без разбора каждого файла).  
 **Источники:** README репозиториев, видимая структура каталогов и ключевые entry points; при расхождении с продом помечать как «по документации».
 
@@ -607,7 +607,7 @@
 | Langflow | да | Условная логика в компонентах и роутинге flow. |
 | n8n | да | IF, Switch, фильтры, merge; выражения в условиях. |
 | Vibe Workflow | частично | Зависит от набора нод в workflow-builder; не уровень n8n. |
-| **GraphCaster** | **частично** | **D+B**, **§32**: рантайм ветвления и контекст условий — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); UI — **`branchWarnings`**. **MVP-шаблоны** **`{{ dotted.path }}`** плюс зарезервированный корень **`$json`** (конверт **`last_result`**, без JS VM) — там же; **без** полноценного **n8n Expression** / произвольного **`$node[…]`**. In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — там же (**F19**). Нет паритета с полным expression runtime **n8n**, отдельным **error-workflow** как у **n8n**, полным **F11** — `DEVELOPMENT_PLAN.md` / **§23**. |
+| **GraphCaster** | **частично** | **D+B**, **§32**: рантайм ветвления, DSL условий (**`$json`**, **`$node`**, шаблоны, JSON Logic) — реестр и пути в коде в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F4**); UI — **`branchWarnings`**. **Без** полноценного **n8n Expression** (JS sandbox). In-graph **`out_error`** — там же (**F19**). Нет паритета с полным expression runtime **n8n**, отдельным **error-workflow** как у **n8n**, полным **F11** — `DEVELOPMENT_PLAN.md` / **§23**. |
 
 ### F5 — Вложенные графы / сабфлоу / вызов другого workflow
 
@@ -1627,17 +1627,17 @@
 | **Langflow** | Поля и классы компонентов | Роутинг в **LFX** между компонентами | Контекст исполнителя |
 | **n8n** | Ноды **IF**, **Switch**, фильтры, выражения в параметрах | Явные типы нод + **merge** веток (**F3**) | **`{{$json…}}`**, **items** |
 | **Vibe Workflow** | Набор нод **workflow-builder** | Упрощённо относительно **n8n** | Клиент / ответ API |
-| **GraphCaster** | Поле **`condition`** на **`Edge`** в **A** | **`_evaluate_next_edge`** + **`eval_edge_condition`** (`runner.py`, `edge_conditions.py`): первое ребро без условия **или** первое с истинным условием; иначе **`run_end`** **`no_outgoing_or_no_matching_condition`** | Legacy + JSON Logic-подмножество + **шаблоны** **`{{path}}`** (корень может быть **`$json`** — конверт **`last_result`**, как узкий аналог **`{{$json…}}`** у n8n, без VM) + **`node_outputs.*.processResult`**; детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F4**), не дублировать здесь |
+| **GraphCaster** | Поле **`condition`** на **`Edge`** в **A** | **`_evaluate_next_edge`** + **`eval_edge_condition`** (`runner.py`, `edge_conditions.py`): первое ребро без условия **или** первое с истинным условием; иначе **`run_end`** **`no_outgoing_or_no_matching_condition`** | Legacy + JSON Logic-подмножество + **шаблоны** **`{{path}}`** (корни **`$json`**, **`$node`**, **`node_outputs`**) — см. **F4**; детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md), не дублировать здесь |
 
 **UI:** **`findBranchAmbiguities`** (**`branchWarnings.ts`**) ловит **два безусловных** исхода с одной ноды и **дубликаты** строки условия — это **статические** подсказки; они **не** заменяют согласование с **`runner.py`**.
 
 ### 32.2. Состояние реализации и открытые темы
 
-**Сделано в репозитории (факты и пути — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) **F4**, не дублировать объём здесь):** инвариант «первое подходящее», безопасный DSL условий (**JSON Logic**-подмножество) и **ограниченные текстовые шаблоны** **`{{ dotted.path }}`** (truthiness и сравнение с литералом; паритет рантайма Python и статического разбора UI), зарезервированный корень **`$json`** (данные предиката: снимок **`last_result`**, dict как есть иначе **`{"value":…}`**; тот же корень в **`var`** JSON Logic; ключ **`$json`** во внешнем контексте при оценке перезаписывается), **`node_outputs` / `processResult`**, лимит длины строки условия, связка UI **`branchWarnings`**, подсказка условия ребра в инспекторе (**`app.inspector.edgeConditionHint`**, en/ru), явные события ветвления в NDJSON (**`branch_skipped`** / **`branch_taken`**) вместе с **`edge_traverse`** — **`runner.py`**, **`schemas/run-event.schema.json`**, **§3.7**; **`python/README.md`**, **`edge_conditions.py`**, **`edgeConditionTemplates.ts`**, **`process_exec.py`**; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**), предупреждения **`structure_warning`** (**`merge_few_inputs`**, **`fork_few_outputs`**, **`barrier_merge_*`**) — подраздел **Merge** в **F4** там же.
+**Закрыто в репозитории (факты, пути к коду, грамматика **`$json`** / **`$node`** / шаблонов):** только в разделе **«Условные рёбра / F4»** [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) — здесь не дублировать.
 
 **Открыто / позже:**
 
-1. **Полный n8n Expression runtime** (произвольные функции, **`$node[…]`**, sandbox **JS**) — **вне** текущей грамматики (**JSON Logic** + mustache + узкий **`$json`**); см. строку **GraphCaster** в таблице **F4** выше и **F4** в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
+1. **Полный n8n Expression runtime** (произвольные функции, произвольный JS, sandbox) — **вне** текущей грамматики (**JSON Logic** + mustache + **`$json`** + ограниченный **`$node`** — только чтение **`node_outputs`**, без Expression); см. строку **GraphCaster** в таблице **F4** выше и **F4** в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 2. **Ошибки (расширения):** отдельный **error-workflow** (**§16**), стратегии уровня **Dify** (**DEFAULT_VALUE** и т.д.) — вне текущего **`out_error`**; не смешивать условный успех **`edge.condition`** (**§32**) с выбором **`out_error`** (**[`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)** **F19**).
 3. **Истинный параллелизм веток (**полный **n8n** / worker pool):** одновременное исполнение нескольких живых веток после fan-out — **§13** / **F6**; текущий **`fork`** + **`merge`** **`barrier`** — только последовательная очередь в одном процессе — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 4. **Фаза 6 (AI):** ветвление по выходу LLM — нода с результатом в контекст для **§32** или внутренний цикл **§23**; не дублировать агента полем «промпт в `condition`».

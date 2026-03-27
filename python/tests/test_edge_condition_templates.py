@@ -176,3 +176,39 @@ def test_extract_template_paths_respects_max_length() -> None:
     long_s = f"{{{{a}}}}" + pad
     assert len(long_s.strip()) > MAX_EDGE_CONDITION_CHARS
     assert extract_template_paths(long_s) == []
+
+
+def test_template_dollar_node_bracket_truthy_and_cmp() -> None:
+    uid = "550e8400-e29b-41d4-a716-446655440000"
+    ctx = {
+        "last_result": None,
+        "node_outputs": {
+            uid: {"processResult": {"success": True, "exitCode": 0}},
+            "t1": {"processResult": {"exitCode": 2}},
+        },
+    }
+    assert (
+        eval_edge_condition(
+            f'{{{{ $node["{uid}"].processResult.success }}}}',
+            ctx,
+        )
+        is True
+    )
+    assert (
+        eval_edge_condition(
+            f'{{{{ $node[\'{uid}\'].processResult.exitCode }}}} == 0',
+            ctx,
+        )
+        is True
+    )
+    assert eval_edge_condition("{{ $node.t1.processResult.exitCode }} == 2", ctx) is True
+
+
+def test_template_dollar_node_missing_id_false() -> None:
+    ctx = {"last_result": True, "node_outputs": {}}
+    assert eval_edge_condition('{{ $node["missing"].x }}', ctx) is False
+
+
+def test_extract_template_paths_dollar_node() -> None:
+    assert extract_template_paths('{{ $node["a-b"].x }} == 1') == ['$node["a-b"].x']
+    assert extract_template_paths("{{ $node.t1.y }}") == ["$node.t1.y"]

@@ -6,7 +6,8 @@ export const MAX_TEMPLATE_PLACEHOLDERS = 32;
 export const MAX_EDGE_CONDITION_CHARS = 65536;
 
 const PATH_SEGMENT = "[a-zA-Z_][a-zA-Z0-9_]*";
-const DOTTED_PATH = `(?:\\$json|${PATH_SEGMENT})(?:\\.${PATH_SEGMENT})*`;
+const NODE_BRACKET = `(?:\\$node\\[\\s*"[^"]*"\\s*\\]|\\$node\\[\\s*'[^']*'\\s*\\])(?:\\.${PATH_SEGMENT})*`;
+const DOTTED_PATH = `(?:\\$json(?:\\.${PATH_SEGMENT})*|${NODE_BRACKET}|\\$node\\.${PATH_SEGMENT}(?:\\.${PATH_SEGMENT})*|\\$node(?![.\\[])|${PATH_SEGMENT}(?:\\.${PATH_SEGMENT})*)`;
 
 const RE_TEMPLATE_TRUTHY = new RegExp(`^\\s*\\{\\{\\s*(${DOTTED_PATH})\\s*\\}\\}\\s*$`);
 const RE_TEMPLATE_CMP = new RegExp(

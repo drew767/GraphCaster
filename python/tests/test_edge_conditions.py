@@ -113,6 +113,35 @@ def test_var_default() -> None:
     assert eval_edge_condition(rule, {}) is True
 
 
+def test_json_logic_var_dollar_node_bracket_uuid() -> None:
+    uid = "550e8400-e29b-41d4-a716-446655440000"
+    rule = f'{{"==": [{{"var": "$node[\\"{uid}\\"].ok"}}, true]}}'
+    ctx = {"last_result": True, "node_outputs": {uid: {"ok": True}}}
+    assert eval_edge_condition(rule, ctx) is True
+    assert (
+        eval_edge_condition(
+            '{"==": [{"var": "$node[\\"550e8400-e29b-41d4-a716-446655440000\\"].ok"}, false]}',
+            ctx,
+        )
+        is False
+    )
+
+
+def test_json_logic_var_dollar_node_short() -> None:
+    rule = '{"==": [{"var": "$node.t1.processResult.exitCode"}, 0]}'
+    ctx = {
+        "last_result": True,
+        "node_outputs": {"t1": {"processResult": {"exitCode": 0}}},
+    }
+    assert eval_edge_condition(rule, ctx) is True
+
+
+def test_json_logic_var_dollar_node_root_dict() -> None:
+    rule = '{"!!": [{"var": "$node.t1"}]}'
+    assert eval_edge_condition(rule, {"last_result": True, "node_outputs": {"t1": {"a": 1}}}) is True
+    assert eval_edge_condition(rule, {"last_result": True, "node_outputs": {"t1": {}}}) is False
+
+
 def test_condition_string_exceeds_max_length_returns_false() -> None:
     long_legacy = "x" * (MAX_EDGE_CONDITION_CHARS + 1)
     assert eval_edge_condition(long_legacy, {"last_result": True}) is False

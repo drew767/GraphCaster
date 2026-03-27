@@ -17,6 +17,8 @@ describe("extractTemplatePaths", () => {
     expect(extractTemplatePaths("{{ $json.processResult.success }}")).toEqual([
       "$json.processResult.success",
     ]);
+    expect(extractTemplatePaths('{{ $node["x"].y }}')).toEqual(['$node["x"].y']);
+    expect(extractTemplatePaths("{{ $node.t1.z }}")).toEqual(["$node.t1.z"]);
     expect(extractTemplatePaths("true")).toEqual([]);
   });
 });
@@ -28,6 +30,9 @@ describe("analyzeTemplateCondition", () => {
     expect(analyzeTemplateCondition("{{ $json.processResult.success }}")).toBe("ok");
     expect(analyzeTemplateCondition("{{ $json }}")).toBe("ok");
     expect(analyzeTemplateCondition("{{$json}}")).toBe("ok");
+    expect(analyzeTemplateCondition('{{ $node["ab-cd"].processResult.success }}')).toBe("ok");
+    expect(analyzeTemplateCondition("{{ $node.t1.x }} == 1")).toBe("ok");
+    expect(analyzeTemplateCondition("{{ $node }}")).toBe("ok");
   });
 
   it("none without mustache", () => {
