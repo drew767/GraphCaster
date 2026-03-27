@@ -388,6 +388,31 @@ export function AppShell({ onLangChange }: Props) {
     [workspaceGraphRows],
   );
 
+  const onConsoleNavigateToNode = useCallback(
+    (nodeId: string) => {
+      const id = nodeId.trim();
+      if (id === "") {
+        return;
+      }
+      const node = graphDocument.nodes?.find((n) => n.id === id);
+      if (!node) {
+        return;
+      }
+      const raw = node.data ?? {};
+      setSelection({
+        kind: "node",
+        id: node.id,
+        graphNodeType: node.type,
+        label: nodeLabel(raw, node.id),
+        raw,
+      });
+      requestAnimationFrame(() => {
+        canvasRef.current?.focusNode(id);
+      });
+    },
+    [graphDocument],
+  );
+
   const saveDocumentToWorkspace = useCallback(
     async (doc: GraphDocumentJson, targetFileName: string): Promise<boolean> => {
       if (!workspaceGraphsDir) {
@@ -816,7 +841,7 @@ export function AppShell({ onLangChange }: Props) {
           runLocked={isRunActive}
         />
       </div>
-      <ConsolePanel heightPx={height} onResizeStart={startDrag} />
+      <ConsolePanel heightPx={height} onResizeStart={startDrag} onNavigateToNode={onConsoleNavigateToNode} />
       <GraphSaveModal
         open={saveModalOpen}
         suggestedFileName={saveModalSuggestedName}

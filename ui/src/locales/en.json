@@ -84,8 +84,20 @@
       "heading": "Console",
       "stub": "Run log / NDJSON stream from the Python runner will appear here.",
       "empty": "No run output yet. Start a run from the desktop app (native window).",
+      "noMatchingLines": "No lines match the current filter or search.",
       "clear": "Clear",
-      "export": "Export log"
+      "export": "Export",
+      "exportVisibleHint": "Download visible lines (current filter and search).",
+      "exportFull": "Export all",
+      "exportFullHint": "Download the full console buffer (ignores filter and search).",
+      "scrollToLatest": "Latest",
+      "filterAll": "All",
+      "filterStderr": "Stderr",
+      "filterErrors": "Errors",
+      "filterGroupAria": "Console line filter",
+      "searchPlaceholder": "Search…",
+      "searchAria": "Search console output",
+      "navigateToNode": "Go to node {{nodeId}} on canvas"
     },
     "run": {
       "heading": "Run",

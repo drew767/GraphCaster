@@ -77,6 +77,7 @@ function conditionFromEdgeLabel(label: Edge["label"]): string | null {
 
 export type GraphCanvasHandle = {
   exportDocument: () => GraphDocumentJson;
+  focusNode: (nodeId: string) => void;
 };
 
 type Props = {
@@ -111,9 +112,9 @@ type BridgeProps = {
   baseDocument: GraphDocumentJson;
 };
 
-const FlowExportBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
-  function FlowExportBridge({ baseDocument }, ref) {
-    const { getNodes, getEdges } = useReactFlow();
+const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
+  function FlowCanvasHandleBridge({ baseDocument }, ref) {
+    const { getNodes, getEdges, getNode, fitView } = useReactFlow();
     useImperativeHandle(
       ref,
       () => ({
@@ -121,8 +122,25 @@ const FlowExportBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
           const doc = flowToDocument(getNodes() as Node<GcNodeData>[], getEdges(), baseDocument);
           return sanitizeGraphConnectivity(doc);
         },
+        focusNode(nodeId: string) {
+          const id = nodeId.trim();
+          if (id === "") {
+            return;
+          }
+          const n = getNode(id);
+          if (!n) {
+            return;
+          }
+          void fitView({
+            nodes: [{ id }],
+            padding: 0.28,
+            duration: 220,
+            minZoom: 0.12,
+            maxZoom: 1.85,
+          });
+        },
       }),
-      [getNodes, getEdges, baseDocument],
+      [getNodes, getEdges, getNode, fitView, baseDocument],
     );
     return null;
   },
@@ -497,7 +515,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         >
           <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
           <RefitOnLayoutEpoch epoch={layoutEpoch} />
-          <FlowExportBridge ref={ref} baseDocument={graphDocument} />
+          <FlowCanvasHandleBridge ref={ref} baseDocument={graphDocument} />
           <Background gap={16} size={1} />
           <Controls />
           <MiniMap pannable zoomable />

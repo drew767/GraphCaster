@@ -84,8 +84,20 @@
       "heading": "Консоль",
       "stub": "Здесь будет лог выполнения / поток NDJSON из Python-раннера.",
       "empty": "Пока нет вывода. Запуск из нативного окна GraphCaster (Tauri).",
+      "noMatchingLines": "Нет строк по текущему фильтру или поиску.",
       "clear": "Очистить",
-      "export": "Экспорт лога"
+      "export": "Экспорт",
+      "exportVisibleHint": "Скачать видимые строки (текущий фильтр и поиск).",
+      "exportFull": "Весь лог",
+      "exportFullHint": "Скачать полный буфер консоли (без фильтра и поиска).",
+      "scrollToLatest": "В конец",
+      "filterAll": "Все",
+      "filterStderr": "Stderr",
+      "filterErrors": "Ошибки",
+      "filterGroupAria": "Фильтр строк консоли",
+      "searchPlaceholder": "Поиск…",
+      "searchAria": "Поиск по выводу консоли",
+      "navigateToNode": "Перейти к ноде {{nodeId}} на полотне"
     },
     "run": {
       "heading": "Запуск",
