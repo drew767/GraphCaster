@@ -17,6 +17,8 @@
         "node_execute",
         "node_exit",
         "edge_traverse",
+        "branch_taken",
+        "branch_skipped",
         "run_success",
         "run_end",
         "error",
@@ -146,6 +148,41 @@
           "edgeId": { "type": "string", "minLength": 1 },
           "fromNode": { "type": "string", "minLength": 1 },
           "toNode": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "branch_taken" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["edgeId", "fromNode", "toNode", "graphId"],
+        "properties": {
+          "edgeId": { "type": "string", "minLength": 1 },
+          "fromNode": { "type": "string", "minLength": 1 },
+          "toNode": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "branch_skipped" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["edgeId", "fromNode", "toNode", "graphId", "reason"],
+        "properties": {
+          "edgeId": { "type": "string", "minLength": 1 },
+          "fromNode": { "type": "string", "minLength": 1 },
+          "toNode": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": ["condition_false"],
+            "description": "MVP: edge had a non-empty condition that evaluated to false (n8n/Dify-style explicit skipped branch)."
+          }
         }
       }
     },

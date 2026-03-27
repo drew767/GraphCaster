@@ -18,14 +18,16 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
+Статус в competitive: закрытые пункты **§32.2** по **`branch_*`** и **`edge_traverse`** сведены в таблицу ниже; в **`COMPETITIVE_ANALYSIS.md`** остаётся только **«Открыто / позже»** по F4 (fail-branch, fork/join, AI, продуктовая документация, расширение контекста).
+
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
-| Несколько исходов из ноды, предсказуемый выбор ветки | **Инвариант «первое подходящее»:** порядок массива **`edges`** в документе; **`_pick_next_edge`** берёт первое ребро с пустым **`condition`** или первое, для которого **`eval_edge_condition`** истинно; иначе **`run_end`** с **`reason`** **`no_outgoing_or_no_matching_condition`** (`runner.py`) |
+| Несколько исходов из ноды, предсказуемый выбор ветки | **Инвариант «первое подходящее»:** порядок массива **`edges`** в документе; **`_evaluate_next_edge`** выбирает первое ребро с пустым **`condition`** или первое, для которого **`eval_edge_condition`** истинно; иначе **`run_end`** с **`reason`** **`no_outgoing_or_no_matching_condition`** (`runner.py`) |
 | Выражения к данным шага без небезопасного eval | Подмножество **JSON Logic** в строке **`edge.condition`** (JSON-объект с одной корневой операцией); иначе legacy-литеры **`true`**/**`false`**/…; иначе не-JSON-строка → **`bool(context["last_result"])`**. Реализация: **`graph_caster/edge_conditions.py`** (`MAX_EDGE_CONDITION_CHARS`, truthiness GC — см. `python/README.md`) |
 | Контекст предиката | **`last_result`**, **`node_outputs`**, пути **`var`** через **`.`** (напр. **`node_outputs.t1.processResult.exitCode`**). Скрыты только **корневые** ключи **`context`** с префиксом **`_`**; вложенные поля под **`node_outputs`** не маскируются |
 | Связь с **task** | **`node_outputs[id].processResult`**: `exitCode`, `success`, `timedOut`, `cancelled`, объёмы stdout/stderr — после каждого **`process_complete`** и при **`spawn_error`** (`exitCode` **`-1`**, `python/graph_caster/process_exec.py`) |
 | Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc) |
-| Событие выбранной ветки | **`edge_traverse`** в потоке NDJSON; отдельных **`branch_taken`**/**`branch_skipped`** пока нет (**§32.2** в competitive — открытый пункт) |
+| Событие выбранной ветки | **`edge_traverse`** (совместимость); перед ним при ветвлении — **`branch_skipped`** (`reason`: **`condition_false`**) для оценённых ложных условий, **`branch_taken`** (с **`graphId`**) если исходящих больше одного или были skip (**`runner.py`**, **`schemas/run-event.schema.json`**) |
 
 **Вне текущей реализации F4 у GC (остаётся в `COMPETITIVE_ANALYSIS.md`):** выражения уровня **n8n** (`{{$json…}}`), явные **fail-/on_error-ветки** (**§16**, **F19**), **fork/join** как у **n8n merge**, ИИ-ветвление без отдельной ноды (**фаза 6**).
 
@@ -112,7 +114,7 @@
 | n8n / Dify: фильтрация и фокус на проблемных строках в ленте execution | Режимы **все / stderr / ошибки**; эвристика **`isErrorLike`**: stderr-префикс, события **`error`**, **`run_finished`** с **`status`** **`failed`**, **`process_complete`** с **`success: false`** или **`reason`** **`spawn_error`**, **`run_end`** с **`reason`** **`no_outgoing_or_no_matching_condition`**, подстроки **`"status":"failed"`** / **`"status": "failed"`** в **сырой** строке (в т.ч. в тексте хоста — намеренно грубо для dev-консоли) |
 | Langflow: поиск по буферу | Поле поиска (substring, без учёта регистра) по полному буферу, пересечение с активным фильтром |
 | Чтение середины лога без «срыва» вниз при новых событиях | **Sticky tail:** автопрокрутка в конец, если пользователь у низа (**в т.ч. после смены фильтра или поиска**); кнопка **Latest** / **В конец** снова приклеивает хвост |
-| Переход к ноде из события | Клик (или Enter/Space) по строке с **`nodeId`**; **`aria-label`** и **`aria-pressed`** у фильтров; к выбору в инспекторе и **`fitView`** на ноду (`GraphCanvasHandle.focusNode`) |
+| Переход к ноде из события | Клик (или Enter/Space) по строке с **`nodeId`**; для **`branch_taken`** / **`branch_skipped`** берётся **`fromNode`** как источник фокуса; **`aria-label`** и **`aria-pressed`** у фильтров; к выбору в инспекторе и **`fitView`** на ноду (`GraphCanvasHandle.focusNode`) |
 | Экспорт | **Export** сохраняет **видимые** строки (после фильтра и поиска); **Export all** / **Весь лог** — полный буфер, когда включён фильтр или непустой поиск |
 | Тесты | `ui/src/run/consoleLineMeta.test.ts` (Vitest) |
 

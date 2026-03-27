@@ -30,6 +30,15 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
   });
 
+  it("parses nodeId from branch_taken via fromNode", () => {
+    const m = buildConsoleLineMeta(
+      `{"type":"branch_taken","edgeId":"e1","fromNode":"src","toNode":"dst","graphId":"g"}`,
+    );
+    expect(m.nodeId).toBe("src");
+    expect(m.parsedType).toBe("branch_taken");
+    expect(m.isErrorLike).toBe(false);
+  });
+
   it("marks stderr as error-like", () => {
     const m = buildConsoleLineMeta(`${STDERR_PREFIX}oops`);
     expect(m.isStderr).toBe(true);

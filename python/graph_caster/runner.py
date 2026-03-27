@@ -17,20 +17,24 @@ from graph_caster.run_sessions import RunSession, RunSessionRegistry
 RunEvent = dict[str, Any]
 EventSink = Callable[[RunEvent], None]
 
+BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
+
 
 def _edges_from(node_id: str, doc: GraphDocument) -> list[Edge]:
     return [e for e in doc.edges if e.source == node_id]
 
 
-def _pick_next_edge(edges: list[Edge], context: dict[str, Any]) -> Edge | None:
+def _evaluate_next_edge(edges: list[Edge], context: dict[str, Any]) -> tuple[Edge | None, list[Edge]]:
+    skipped: list[Edge] = []
     if not edges:
-        return None
+        return None, skipped
     for e in edges:
         if e.condition is None or e.condition.strip() == "":
-            return e
+            return e, skipped
         if eval_edge_condition(e.condition, context):
-            return e
-    return None
+            return e, skipped
+        skipped.append(e)
+    return None, skipped
 
 
 def _task_has_process_command(node: Node) -> bool:
@@ -217,10 +221,29 @@ class GraphRunner:
                     break
 
                 outs = _edges_from(node.id, self._doc)
-                chosen = _pick_next_edge(outs, ctx)
+                chosen, skipped_edges = _evaluate_next_edge(outs, ctx)
+                gid = self._doc.graph_id
+                for e in skipped_edges:
+                    self.emit(
+                        "branch_skipped",
+                        edgeId=e.id,
+                        fromNode=e.source,
+                        toNode=e.target,
+                        graphId=gid,
+                        reason=BRANCH_SKIP_REASON_CONDITION_FALSE,
+                    )
                 if chosen is None:
                     self.emit("run_end", reason="no_outgoing_or_no_matching_condition")
                     break
+                emit_branch_taken = len(outs) > 1 or bool(skipped_edges)
+                if emit_branch_taken:
+                    self.emit(
+                        "branch_taken",
+                        edgeId=chosen.id,
+                        fromNode=chosen.source,
+                        toNode=chosen.target,
+                        graphId=gid,
+                    )
                 self.emit(
                     "edge_traverse",
                     edgeId=chosen.id,

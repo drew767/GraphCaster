@@ -88,6 +88,11 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
     const nid = o.nodeId;
     if (typeof nid === "string" && nid.trim() !== "") {
       nodeId = nid.trim();
+    } else if (parsedType === "branch_taken" || parsedType === "branch_skipped") {
+      const from = o.fromNode;
+      if (typeof from === "string" && from.trim() !== "") {
+        nodeId = from.trim();
+      }
     }
   }
   const isErrorLike = isErrorLikeFromParsed(ev, isStderr, rawLine);

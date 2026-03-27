@@ -84,6 +84,21 @@ def test_process_like_events_validate() -> None:
         validator.validate(ev)
     for ev in (
         {
+            "type": "branch_taken",
+            "edgeId": "e1",
+            "fromNode": "a",
+            "toNode": "b",
+            "graphId": "g1",
+        },
+        {
+            "type": "branch_skipped",
+            "edgeId": "e0",
+            "fromNode": "a",
+            "toNode": "c",
+            "graphId": "g1",
+            "reason": "condition_false",
+        },
+        {
             "type": "run_started",
             "runId": "550e8400-e29b-41d4-a716-446655440000",
             "rootGraphId": "g1",
