@@ -18,6 +18,33 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
     return False
 
 
+def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> list[str]:
+    """
+    Node ids (excluding comment frames) with no directed path from start_id when
+    every edge is treated as traversable (static over-approximation; ignores
+    edge.condition and runtime branch choice).
+    """
+    adj: dict[str, set[str]] = {}
+    for e in doc.edges:
+        adj.setdefault(e.source, set()).add(e.target)
+    visited: set[str] = set()
+    stack = [start_id]
+    visited.add(start_id)
+    while stack:
+        u = stack.pop()
+        for v in adj.get(u, ()):
+            if v not in visited:
+                visited.add(v)
+                stack.append(v)
+    out: list[str] = []
+    for n in doc.nodes:
+        if n.type == "comment":
+            continue
+        if n.id not in visited:
+            out.append(n.id)
+    return sorted(out)
+
+
 def find_unreachable_out_error_sources(doc: GraphDocument) -> list[str]:
     """
     Source node ids that have at least one out_error edge but whose type cannot

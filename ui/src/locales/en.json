@@ -42,7 +42,8 @@
     "structure": {
       "noStart": "No start node (runner expects a single start).",
       "multipleStarts": "More than one start node: {{ids}}.",
-      "startHasIncoming": "Start node {{id}} has incoming edges (should have none)."
+      "startHasIncoming": "Start node {{id}} has incoming edges (should have none).",
+      "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}."
     },
     "inspector": {
       "heading": "Inspector",
@@ -111,7 +112,7 @@
       "artifactsPlaceholder": "workspace root (runs/)",
       "desktopOnlyHint": "Run is available in the native GraphCaster window (Tauri), not in dev:web only.",
       "pythonMissing": "Python module graph_caster is not available (interpreter: {{path}}). Set GC_PYTHON and install the package, or set GC_GRAPH_CASTER_PACKAGE_ROOT for PYTHONPATH.",
-      "fixStructureFirst": "Fix graph structure warnings (e.g. a single start node) before running.",
+      "fixStructureFirst": "Fix critical graph structure (valid start, no incoming edges to start) before running. Unreachable-node warnings alone do not block run.",
       "cannotSaveDuringRun": "Save is disabled while a run is active."
     },
     "lang": {

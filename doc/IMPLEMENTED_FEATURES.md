@@ -35,6 +35,19 @@
 
 ---
 
+## Статическая достижимость из **start** (F3, как n8n/Dify структурные проверки)
+
+Пункт **§31.2** п.1 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) перенесён сюда как **закрытый** срез; в competitive остаётся только ссылка и «открытые» темы (циклы, fork/join, связность с учётом **F4**).
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Предупреждение о нодах вне обхода от входа | UI: **`findUnreachableWorkflowNodeIds`** (`ui/src/graph/reachability.ts`), **`findStructureIssues`** → **`unreachable_nodes`**; жёлтая строка рядом с прочими предупреждениями (`AppShell`). **`comment`** не попадает в список |
+| Все исходящие рёбра считаем возможными (без симуляции **`condition`**) | Over-approximation: directed BFS по **`edges`** |
+| Run / Save | Run **не** блокируется только из‑за **`unreachable_nodes`** (**`structureIssuesBlockRun`**); критичные проблемы **`start`** по-прежнему блокируют запуск |
+| Паритет с хостом / CLI | **`find_unreachable_non_comment_nodes`** в **`python/graph_caster/validate.py`**, тесты в **`tests/test_validate_structure.py`** |
+
+---
+
 ## Ветка после ошибки **F19** (`out_error`, конспект **§16** / **§37**)
 
 | Идея конкурента | Реализация GC |

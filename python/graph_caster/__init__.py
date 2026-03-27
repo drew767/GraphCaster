@@ -21,6 +21,7 @@ from graph_caster.run_sessions import (
 )
 from graph_caster.validate import (
     GraphStructureError,
+    find_unreachable_non_comment_nodes,
     find_unreachable_out_error_sources,
     validate_graph_structure,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "resolve_graph_path",
     "scan_graphs_directory",
     "validate_graph_structure",
+    "find_unreachable_non_comment_nodes",
     "find_unreachable_out_error_sources",
     "__version__",
 ]

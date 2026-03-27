@@ -37,7 +37,7 @@ import {
   presentationForReadFailure,
 } from "../graph/openGraphErrorPresentation";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
-import { findStructureIssues } from "../graph/structureWarnings";
+import { findStructureIssues, structureIssuesBlockRun } from "../graph/structureWarnings";
 import { nodeLabel } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
@@ -461,7 +461,7 @@ export function AppShell({ onLangChange }: Props) {
     if (!isTauriRuntime()) {
       return;
     }
-    if (structureIssues.length > 0) {
+    if (structureIssuesBlockRun(structureIssues)) {
       window.alert(t("app.run.fixStructureFirst"));
       return;
     }
@@ -791,7 +791,14 @@ export function AppShell({ onLangChange }: Props) {
                 ? t("app.structure.noStart")
                 : issue.kind === "multiple_starts"
                   ? t("app.structure.multipleStarts", { ids: issue.ids.join(", ") })
-                  : t("app.structure.startHasIncoming", { id: issue.startId })}
+                  : issue.kind === "unreachable_nodes"
+                    ? t("app.structure.unreachableNodes", {
+                        ids:
+                          issue.ids.length <= 12
+                            ? issue.ids.join(", ")
+                            : `${issue.ids.slice(0, 12).join(", ")} (+${issue.ids.length - 12})`,
+                      })
+                    : t("app.structure.startHasIncoming", { id: issue.startId })}
             </div>
           ))}
           {branchIssues.map((issue, idx) => (

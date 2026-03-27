@@ -42,7 +42,8 @@
     "structure": {
       "noStart": "Нет ноды start (раннеру нужен один start).",
       "multipleStarts": "Больше одной ноды start: {{ids}}.",
-      "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть)."
+      "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть).",
+      "unreachableNodes": "Ноды недостижимы из start (статика; все рёбра считаются возможными): {{ids}}."
     },
     "inspector": {
       "heading": "Инспектор",
@@ -111,7 +112,7 @@
       "artifactsPlaceholder": "Корень воркспейса (runs/)",
       "desktopOnlyHint": "Запуск доступен в нативном окне GraphCaster (Tauri), не в режиме только dev:web.",
       "pythonMissing": "Модуль graph_caster недоступен (интерпретатор: {{path}}). Укажите GC_PYTHON, установите пакет или GC_GRAPH_CASTER_PACKAGE_ROOT для PYTHONPATH.",
-      "fixStructureFirst": "Исправьте предупреждения структуры графа (например один start) перед запуском.",
+      "fixStructureFirst": "Исправьте критичную структуру (валидный start, без входящих в start) перед запуском. Предупреждения о недостижимых нодах сами по себе запуск не блокируют.",
       "cannotSaveDuringRun": "Сохранение недоступно во время активного Run."
     },
     "lang": {

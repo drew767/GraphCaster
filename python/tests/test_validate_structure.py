@@ -10,6 +10,7 @@ import pytest
 from graph_caster.models import Edge, GraphDocument, Node
 from graph_caster.validate import (
     GraphStructureError,
+    find_unreachable_non_comment_nodes,
     find_unreachable_out_error_sources,
     validate_graph_structure,
 )
@@ -56,6 +57,50 @@ def test_validate_rejects_missing_graph_id() -> None:
     doc = GraphDocument.from_dict(raw)
     with pytest.raises(GraphStructureError, match="graphId"):
         validate_graph_structure(doc)
+
+
+def test_find_unreachable_non_comment_nodes_finds_orphan() -> None:
+    gid = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "t"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "t1", "type": "task", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "orphan", "type": "task", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "source": "s1",
+                    "sourceHandle": "out_default",
+                    "target": "t1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+            ],
+        }
+    )
+    assert find_unreachable_non_comment_nodes(doc, "s1") == ["orphan"]
+
+
+def test_find_unreachable_non_comment_nodes_ignores_comment_frames() -> None:
+    gid = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "t"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "c1", "type": "comment", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [],
+        }
+    )
+    assert find_unreachable_non_comment_nodes(doc, "s1") == []
 
 
 def test_find_unreachable_out_error_sources_flags_start_and_task_without_command() -> None:
