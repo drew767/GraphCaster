@@ -16,6 +16,13 @@ authors = [{ name = "Aura" }]
 [project.scripts]
 graph-caster = "graph_caster.__main__:main"
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "jsonschema>=4.0"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["graph_caster*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
