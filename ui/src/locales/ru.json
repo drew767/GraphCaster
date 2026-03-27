@@ -158,6 +158,7 @@
       "graphsDirPlaceholder": "Путь к graphs/ (graph_ref)",
       "artifactsPlaceholder": "Корень воркспейса (runs/)",
       "desktopOnlyHint": "Запуск доступен в нативном окне GraphCaster (Tauri), не в режиме только dev:web.",
+      "brokerMissing": "Брокер запуска недоступен ({{path}}). Во втором терминале: cd python && python -m graph_caster serve — затем оставьте npm run dev:web. При другом хосте/порту: VITE_GC_RUN_BROKER_TARGET.",
       "pythonMissing": "Модуль graph_caster недоступен (интерпретатор: {{path}}). Укажите GC_PYTHON, установите пакет или GC_GRAPH_CASTER_PACKAGE_ROOT для PYTHONPATH.",
       "fixStructureFirst": "Исправьте критичную структуру (валидный start, без входящих в start) перед запуском. Предупреждения о недостижимых нодах сами по себе запуск не блокируют.",
       "cannotSaveDuringRun": "Сохранение недоступно во время активного Run.",

@@ -16,7 +16,7 @@ from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
-_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear"})
+_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "serve"})
 
 
 def _spawn_stdin_cancel_loop(registry: RunSessionRegistry) -> None:
@@ -127,6 +127,13 @@ def _build_parser() -> argparse.ArgumentParser:
     g = cl.add_mutually_exclusive_group(required=True)
     g.add_argument("--graph-id", default=None, help="Remove runs/<graphId>/ only")
     g.add_argument("--all", action="store_true", help="Remove entire runs/ directory")
+
+    srv = sub.add_parser(
+        "serve",
+        help="HTTP+SSE dev broker for web UI (wraps graph_caster run in a subprocess)",
+    )
+    srv.add_argument("--host", default="127.0.0.1", help="Bind address")
+    srv.add_argument("--port", type=int, default=9847, help="Listen port")
 
     return parser
 
@@ -283,6 +290,22 @@ def _cmd_artifacts_clear(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "graph-caster serve: install broker extras: pip install -e '.[broker]'",
+            file=sys.stderr,
+        )
+        return 2
+    from graph_caster.run_broker.app import create_app
+
+    app = create_app()
+    uvicorn.run(app, host=str(args.host), port=int(args.port), log_level="warning")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = list(sys.argv[1:])
@@ -298,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_artifacts_size(args)
     if args.command == "artifacts-clear":
         return _cmd_artifacts_clear(args)
+    if args.command == "serve":
+        return _cmd_serve(args)
     return 2
 
 

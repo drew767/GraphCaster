@@ -2,6 +2,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+import { isTauriRuntime } from "./tauriEnv";
+import { probeRunBrokerHealth, startWebBrokerRun, cancelWebBrokerRun } from "./webRunBroker";
+
 export type RunEnvInfo = {
   pythonPath: string;
   moduleAvailable: boolean;
@@ -17,7 +20,15 @@ export async function getRunEnvironmentInfo(forceRefresh = false): Promise<RunEn
   if (!forceRefresh && runEnvCache !== null) {
     return runEnvCache;
   }
-  runEnvCache = await invoke<RunEnvInfo>("get_run_environment_info");
+  if (isTauriRuntime()) {
+    runEnvCache = await invoke<RunEnvInfo>("get_run_environment_info");
+    return runEnvCache;
+  }
+  const ok = await probeRunBrokerHealth();
+  runEnvCache = {
+    pythonPath: "python -m graph_caster serve",
+    moduleAvailable: ok,
+  };
   return runEnvCache;
 }
 
@@ -31,6 +42,10 @@ export async function gcStartRun(args: {
   stepCache?: boolean;
   stepCacheDirty?: string;
 }): Promise<void> {
+  if (!isTauriRuntime()) {
+    await startWebBrokerRun(args);
+    return;
+  }
   const dirty =
     args.stepCacheDirty == null || args.stepCacheDirty === "" ? null : args.stepCacheDirty;
   await invoke("gc_start_run", {
@@ -50,5 +65,9 @@ export async function gcStartRun(args: {
 }
 
 export async function gcCancelRun(runId: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    await cancelWebBrokerRun(runId);
+    return;
+  }
   await invoke("gc_cancel_run", { req: { runId } });
 }

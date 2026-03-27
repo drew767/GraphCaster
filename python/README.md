@@ -7,6 +7,7 @@
 ```bash
 pip install -e .
 pip install -e ".[dev]"
+pip install -e ".[broker]"   # опционально: HTTP+SSE брокер для web-режима UI
 pytest -q
 ```
 
@@ -23,7 +24,10 @@ python -m graph_caster artifacts-size --base .
 python -m graph_caster artifacts-size --base . --graph-id '<uuid>'
 python -m graph_caster artifacts-clear --base . --all
 python -m graph_caster artifacts-clear --base . --graph-id '<uuid>'
+python -m graph_caster serve --host 127.0.0.1 --port 9847
 ```
+
+**`serve`** — локальный HTTP-брокер (Starlette + uvicorn): **`GET /health`**, **`POST /runs`** (тело как в Tauri **`StartRunRequest`**, NDJSON-документ + `runId` и опции), **`GET /runs/{runId}/stream`** (SSE: строки stdout как `data:` с событием по умолчанию, stderr как `event: err`, код выхода как `event: exit`), **`POST /runs/{runId}/cancel`** (stdin дочернего процесса — как CLI **`--control-stdin`**). Только для разработки (loopback). Опционально **`GC_RUN_BROKER_TOKEN`**: допускается тот же секрет в заголовке **`X-GC-Dev-Token`** или в query **`token=`** (для **`EventSource`** в браузере, который не шлёт кастомные заголовки).
 
 Старый вызов **`python -m graph_caster -d …`** по-прежнему работает (автоматически трактуется как подкоманда **`run`**).
 

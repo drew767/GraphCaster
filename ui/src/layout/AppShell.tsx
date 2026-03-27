@@ -339,8 +339,12 @@ export function AppShell({ onLangChange }: Props) {
 
   useEffect(() => {
     if (!isTauriRuntime()) {
-      runSessionSetPythonBanner(null);
-      setPyProbe(null);
+      void getRunEnvironmentInfo().then((info) => {
+        setPyProbe({ ok: info.moduleAvailable, path: info.pythonPath });
+        runSessionSetPythonBanner(
+          info.moduleAvailable ? null : t("app.run.brokerMissing", { path: info.pythonPath }),
+        );
+      });
       return;
     }
     void getRunEnvironmentInfo().then((info) => {
@@ -598,15 +602,16 @@ export function AppShell({ onLangChange }: Props) {
 
   const startDesktopRun = useCallback(
     async (untilNodeId?: string) => {
-      if (!isTauriRuntime()) {
-        return;
-      }
       if (structureIssuesBlockRun(structureIssues)) {
         window.alert(t("app.run.fixStructureFirst"));
         return;
       }
       if (pyProbe != null && !pyProbe.ok) {
-        window.alert(t("app.run.pythonMissing", { path: pyProbe.path }));
+        window.alert(
+          isTauriRuntime()
+            ? t("app.run.pythonMissing", { path: pyProbe.path })
+            : t("app.run.brokerMissing", { path: pyProbe.path }),
+        );
         return;
       }
       const api = canvasRef.current;
@@ -668,7 +673,10 @@ export function AppShell({ onLangChange }: Props) {
   }, [startDesktopRun]);
 
   const runUntilSelectionEnabled = useMemo(() => {
-    if (!isTauriRuntime() || isRunActive) {
+    if (isRunActive) {
+      return false;
+    }
+    if (pyProbe != null && !pyProbe.ok) {
       return false;
     }
     if (selection?.kind === "node") {
@@ -678,11 +686,11 @@ export function AppShell({ onLangChange }: Props) {
       return selection.nodes[0]?.graphNodeType !== "start";
     }
     return false;
-  }, [isRunActive, selection]);
+  }, [isRunActive, pyProbe, selection]);
 
   const onStopRunGraph = useCallback(async () => {
     const id = getRunSessionSnapshot().activeRunId;
-    if (!id || !isTauriRuntime()) {
+    if (!id) {
       return;
     }
     try {
@@ -1159,7 +1167,7 @@ export function AppShell({ onLangChange }: Props) {
         }}
         runActive={isRunActive}
         runStartDisabled={runStartDisabled}
-        runDesktopOnlyHint={!isTauriRuntime()}
+        runDesktopOnlyHint={false}
       />
       {branchIssues.length > 0 ||
       structureIssues.length > 0 ||

@@ -26,9 +26,18 @@ npm test
 - **@xyflow/react** (React Flow 12) + **i18next** — **en** / **ru**
 - **graphs/:** File System Access API (привязка корня → каталог **`graphs/`**, скан, автосохранение с debounce)
 
-## Run (Python) в нативном окне
+## Run (Python)
 
-Кнопки **Run** / **Stop** в шапке работают только в **Tauri** (`npm run dev` / установщик). Запускается дочерний процесс `python -m graph_caster run` с NDJSON в stdout и отменой через stdin (см. `python/README.md`). В **`npm run dev:web`** кнопка Run отключена.
+**Tauri** (`npm run dev` / установщик): дочерний процесс `python -m graph_caster run`, NDJSON в stdout, отмена через stdin — см. `python/README.md`.
+
+**Только веб** (`npm run dev:web`): Vite проксирует **`/gc-run-broker/*`** на **`http://127.0.0.1:9847`** (или **`VITE_GC_RUN_BROKER_TARGET`** в `.env`). Во втором терминале из каталога **`python/`**:
+
+```bash
+pip install -e ".[broker]"
+python -m graph_caster serve
+```
+
+Тот же контракт событий, что у CLI (SSE вместо сырого stdout). При остановленном брокере в консоли показывается подсказка (i18n **`app.run.brokerMissing`**). Если заданы **`GC_RUN_BROKER_TOKEN`** и **`VITE_GC_RUN_BROKER_TOKEN`**, `fetch` идёт с заголовком **`X-GC-Dev-Token`**, а **`EventSource`** (без кастомных заголовков) получает тот же секрет в query **`?token=...`** на **`/health`** и **`/runs/.../stream`**.
 
 Переменные окружения при разработке (опционально):
 

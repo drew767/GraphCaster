@@ -2,14 +2,17 @@
 
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
-import { parseRunEventLine } from "./parseRunEventLine";
+import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
 import { isTauriRuntime } from "./tauriEnv";
+import { closeWebRunBrokerStream } from "./webRunBroker";
 
 export function useRunBridge(): void {
   useEffect(() => {
     if (!isTauriRuntime()) {
-      return;
+      return () => {
+        closeWebRunBrokerStream();
+      };
     }
     let unlistenEv: (() => void) | undefined;
     let unlistenEx: (() => void) | undefined;
@@ -29,32 +32,8 @@ export function useRunBridge(): void {
         }
         const prefix = p.stream === "stderr" ? "[stderr] " : "";
         store.runSessionAppendLine(`${prefix}${p.line}`);
-        const ev = parseRunEventLine(p.line);
-        if (!ev || typeof ev !== "object" || ev === null) {
-          return;
-        }
-        const o = ev as Record<string, unknown>;
-        const t = o.type;
-        if (t === "node_enter" || t === "node_execute") {
-          const nid = o.nodeId;
-          if (typeof nid === "string") {
-            store.runSessionSetActiveNodeId(nid);
-          }
-        }
-        if (t === "node_outputs_snapshot") {
-          const nid = o.nodeId;
-          const sn = o.snapshot;
-          if (
-            typeof nid === "string" &&
-            sn != null &&
-            typeof sn === "object" &&
-            !Array.isArray(sn)
-          ) {
-            store.runSessionSetNodeOutputSnapshot(nid, sn as Record<string, unknown>);
-          }
-        }
-        if (t === "run_finished" || t === "run_end") {
-          store.runSessionSetActiveNodeId(null);
+        if (p.stream !== "stderr") {
+          applyRunnerNdjsonSideEffects(p.line);
         }
       });
       unlistenEx = await listen<{ runId?: string; code?: number }>("gc-run-exit", (e) => {

@@ -1,0 +1,174 @@
+# Copyright GraphCaster. All Rights Reserved.
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import uuid
+from pathlib import Path
+
+from graph_caster.cli_run_args import run_start_body_to_argv_paths
+from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster
+
+
+def _merge_pythonpath_from_env(env: dict[str, str], package_root: str | None) -> None:
+    if not package_root or not str(package_root).strip():
+        return
+    sep = ";" if os.name == "nt" else ":"
+    prev = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = package_root if not prev else f"{package_root}{sep}{prev}"
+
+
+class RegisteredRun:
+    def __init__(
+        self,
+        run_id: str,
+        proc: subprocess.Popen[str],
+        broadcaster: RunBroadcaster,
+        temp_paths: list[Path],
+    ) -> None:
+        self.run_id = run_id
+        self.proc = proc
+        self.broadcaster = broadcaster
+        self.temp_paths = temp_paths
+
+
+class RunBrokerRegistry:
+    def __init__(self) -> None:
+        self._runs: dict[str, RegisteredRun] = {}
+        self._lock = threading.Lock()
+
+    def get(self, run_id: str) -> RegisteredRun | None:
+        with self._lock:
+            return self._runs.get(run_id)
+
+    def _cleanup_temp(self, paths: list[Path]) -> None:
+        for p in paths:
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def spawn_from_body(self, body: dict) -> str:
+        doc_json = body.get("documentJson")
+        if not isinstance(doc_json, str) or not doc_json.strip():
+            raise ValueError("documentJson required")
+
+        run_id = str(body.get("runId") or "").strip() or str(uuid.uuid4())
+        merged = {**body, "runId": run_id}
+
+        tmp_doc = (
+            Path(tempfile.gettempdir())
+            / f"gc-broker-doc-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+        )
+        tmp_doc.write_text(doc_json, encoding="utf-8")
+        temp_paths: list[Path] = [tmp_doc]
+
+        ctx_path: Path | None = None
+        ctx_disk = merged.get("contextJsonPath")
+        if ctx_disk is not None and str(ctx_disk).strip():
+            ctx_path = Path(str(ctx_disk).strip())
+        else:
+            ctx_raw = merged.get("contextJson")
+            if ctx_raw is not None and str(ctx_raw).strip():
+                tmp_ctx = (
+                    Path(tempfile.gettempdir())
+                    / f"gc-broker-ctx-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+                )
+                if isinstance(ctx_raw, (dict, list)):
+                    tmp_ctx.write_text(json.dumps(ctx_raw), encoding="utf-8")
+                else:
+                    tmp_ctx.write_text(str(ctx_raw), encoding="utf-8")
+                ctx_path = tmp_ctx
+                temp_paths.append(tmp_ctx)
+
+        argv = run_start_body_to_argv_paths(merged, document_path=tmp_doc, context_json_path=ctx_path)
+
+        env = os.environ.copy()
+        _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
+
+        broadcaster = RunBroadcaster()
+        cmd = [sys.executable, "-m", "graph_caster", *argv]
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        with self._lock:
+            if run_id in self._runs:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                self._cleanup_temp(temp_paths)
+                raise ValueError("runId already active")
+            self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths)
+
+        def pump_out() -> None:
+            assert proc.stdout is not None
+            for line in iter(proc.stdout.readline, ""):
+                if not line:
+                    break
+                broadcaster.broadcast(FanOutMsg("out", line.rstrip("\r\n")))
+            try:
+                proc.stdout.close()
+            except OSError:
+                pass
+
+        def pump_err() -> None:
+            assert proc.stderr is not None
+            for line in iter(proc.stderr.readline, ""):
+                if not line:
+                    break
+                text = line.rstrip("\r\n")
+                broadcaster.broadcast(FanOutMsg("err", json.dumps({"line": text})))
+            try:
+                proc.stderr.close()
+            except OSError:
+                pass
+
+        def waiter() -> None:
+            th_out = threading.Thread(target=pump_out, daemon=True)
+            th_err = threading.Thread(target=pump_err, daemon=True)
+            th_out.start()
+            th_err.start()
+            try:
+                code = proc.wait()
+            finally:
+                th_out.join(timeout=60.0)
+                th_err.join(timeout=60.0)
+                exit_c = int(code) if code is not None else -1
+                broadcaster.broadcast(FanOutMsg("exit", exit_c))
+                with self._lock:
+                    self._runs.pop(run_id, None)
+                self._cleanup_temp(temp_paths)
+
+        threading.Thread(target=waiter, daemon=True).start()
+        return run_id
+
+    def cancel(self, run_id: str) -> bool:
+        reg = self.get(run_id)
+        if reg is None:
+            return False
+        proc = reg.proc
+        if proc.stdin is None:
+            return False
+        try:
+            line = json.dumps({"type": "cancel_run", "runId": run_id}) + "\n"
+            proc.stdin.write(line)
+            proc.stdin.flush()
+        except OSError:
+            return False
+        return True

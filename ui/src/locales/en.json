@@ -158,6 +158,7 @@
       "graphsDirPlaceholder": "graphs/ path (graph_ref)",
       "artifactsPlaceholder": "workspace root (runs/)",
       "desktopOnlyHint": "Run is available in the native GraphCaster window (Tauri), not in dev:web only.",
+      "brokerMissing": "Run broker is not reachable at {{path}}. In a second terminal run: cd python && python -m graph_caster serve — then keep npm run dev:web. Optional: VITE_GC_RUN_BROKER_TARGET if the broker is not on 127.0.0.1:9847.",
       "pythonMissing": "Python module graph_caster is not available (interpreter: {{path}}). Set GC_PYTHON and install the package, or set GC_GRAPH_CASTER_PACKAGE_ROOT for PYTHONPATH.",
       "fixStructureFirst": "Fix critical graph structure (valid start, no incoming edges to start) before running. Unreachable-node warnings alone do not block run.",
       "cannotSaveDuringRun": "Save is disabled while a run is active.",

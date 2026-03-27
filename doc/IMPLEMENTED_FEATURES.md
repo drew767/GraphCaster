@@ -185,7 +185,7 @@
 
 Код: `python/graph_caster/run_sessions.py`, `graph_caster.__main__` (**`--track-session`**, **`--control-stdin`**, **`--run-id`**), `process_exec._communicate_with_cancel`, опция `GraphRunner(..., session_registry=…)`, порядок: регистрация сессии **до** `run_started`, чтобы колбэки sink могли вызывать `request_cancel`. Вложенный **`GraphRunner`** получает тот же **`session_registry`** для общей сессии отмены.
 
-**Сопоставление с §3.2 competitive doc (Dify / n8n):** срез **«команда abort / адресация исполнения по id»** сведён сюда (`CommandChannel` у Dify — полноценный pause/redis; у GC пока in-process + stdin). **`IRunExecutionData` / `executionId`** у n8n — частичный параллель: реестр **`RunSessionRegistry`** и стабильный **`runId`** на событиях; **без** очереди ready-nodes и **без** WebSocket **`pushRef`** в браузере (опционально **§39** в `COMPETITIVE_ANALYSIS.md`). **Десктоп:** мост без WS — см. раздел ниже.
+**Сопоставление с §3.2 competitive doc (Dify / n8n):** срез **«команда abort / адресация исполнения по id»** сведён сюда (`CommandChannel` у Dify — полноценный pause/redis; у GC пока in-process + stdin). **`IRunExecutionData` / `executionId`** у n8n — частичный параллель: реестр **`RunSessionRegistry`** и стабильный **`runId`** на событиях; **без** очереди ready-nodes. В **веб-режиме (dev)** поток событий идёт через локальный SSE-брокер (**«Веб без Tauri»** ниже), не через единый n8n-канал **`/push`** + сессионный **`pushRef`**, redaction и relay — это остаётся в **§39** `COMPETITIVE_ANALYSIS.md`. **Десктоп:** мост без WS — см. раздел ниже.
 
 ---
 
@@ -199,7 +199,7 @@
 | Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте фильтр по **`activeRunId`** |
 | Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне), подсветка ноды по `node_enter` / `node_execute` |
 | Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
-| Веб без Tauri | Run недоступен (без отдельного сервера); см. `ui/README.md`, `python/README.md` |
+| Веб без Tauri | **`python -m graph_caster serve`** (опц. **`[broker]`**): **Flowise/n8n-стиль** — **SSE** `text/event-stream`, один канал на **`runId`**; Vite **`/gc-run-broker`** → брокер; UI: `webRunBroker.ts`, `runCommands.ts`, прокси в `vite.config.ts`; опц. **`GC_RUN_BROKER_TOKEN`** / **`VITE_GC_RUN_BROKER_TOKEN`** (заголовок и **`?token=`** для **`EventSource`**); Python: `graph_caster/run_broker/`; см. `ui/README.md`, `python/README.md`; тесты: `python/tests/test_run_broker.py`, `test_run_broker_registry.py` |
 
 ### Частичный прогон (Dify debugger / n8n pinned data — срез)
 
