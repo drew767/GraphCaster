@@ -1,14 +1,17 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 import { findUnreachableWorkflowNodeIds } from "./reachability";
 import type { GraphDocumentJson } from "./types";
+import { findWorkspaceGraphRefCycle } from "./workspaceGraphRefCycles";
 
 export type StructureIssue =
   | { kind: "no_start" }
   | { kind: "multiple_starts"; ids: string[] }
   | { kind: "start_has_incoming"; startId: string }
   | { kind: "unreachable_nodes"; ids: string[] }
-  | { kind: "merge_few_inputs"; nodeId: string; incomingEdges: number };
+  | { kind: "merge_few_inputs"; nodeId: string; incomingEdges: number }
+  | { kind: "graph_ref_workspace_cycle"; cycle: string[] };
 
 function isBlockingStructureIssue(issue: StructureIssue): boolean {
   switch (issue.kind) {
@@ -18,8 +21,22 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "no_start":
     case "multiple_starts":
     case "start_has_incoming":
+    case "graph_ref_workspace_cycle":
       return true;
   }
+}
+
+export function workspaceGraphRefCycleIssues(entries: readonly WorkspaceGraphEntry[]): StructureIssue[] {
+  if (entries.length === 0) {
+    return [];
+  }
+  const cyc = findWorkspaceGraphRefCycle(
+    entries.map((e) => ({ graphId: e.graphId, refTargets: e.refTargets })),
+  );
+  if (cyc == null) {
+    return [];
+  }
+  return [{ kind: "graph_ref_workspace_cycle", cycle: [...cyc] }];
 }
 
 export function structureIssuesBlockRun(issues: StructureIssue[]): boolean {

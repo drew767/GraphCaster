@@ -115,10 +115,31 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(str(e), file=sys.stderr)
         return 2
 
+    graphs_root = Path(args.graphs_dir) if args.graphs_dir is not None else None
+    if graphs_root is not None:
+        from graph_caster.graph_ref_workspace import (
+            build_workspace_graph_ref_adjacency,
+            find_workspace_graph_ref_cycle,
+        )
+        from graph_caster.workspace import WorkspaceIndexError
+
+        try:
+            adj = build_workspace_graph_ref_adjacency(graphs_root)
+        except WorkspaceIndexError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        cyc = find_workspace_graph_ref_cycle(adj)
+        if cyc:
+            if len(cyc) == 1:
+                chain = f"{cyc[0]} -> {cyc[0]}"
+            else:
+                chain = " -> ".join(cyc + [cyc[0]])
+            print(f"graph-caster: graph_ref dependency cycle in workspace: {chain}", file=sys.stderr)
+            return 3
+
     def sink(ev: dict) -> None:
         print(json.dumps(ev, ensure_ascii=False), flush=True)
 
-    graphs_root = Path(args.graphs_dir) if args.graphs_dir is not None else None
     artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
     host = RunHostContext(graphs_root=graphs_root, artifacts_base=artifacts_base)
     reg = get_default_run_registry() if args.track_session else None

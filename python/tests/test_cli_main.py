@@ -96,3 +96,52 @@ def test_main_run_invalid_document_shape(capsys, tmp_path: Path) -> None:
     assert main(["run", "-d", str(p)]) == 2
     err = capsys.readouterr().err
     assert "nodes[0]" in err or "id" in err.lower()
+
+
+def _doc_with_graph_ref(gid: str, target: str) -> dict:
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": gid},
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {
+                "id": "r",
+                "type": "graph_ref",
+                "position": {"x": 0, "y": 0},
+                "data": {"targetGraphId": target},
+            },
+            {"id": "x", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+        ],
+        "edges": [
+            {
+                "id": "e0",
+                "source": "s",
+                "sourceHandle": "out_default",
+                "target": "r",
+                "targetHandle": "in_default",
+            },
+            {
+                "id": "e1",
+                "source": "r",
+                "sourceHandle": "out_default",
+                "target": "x",
+                "targetHandle": "in_default",
+            },
+        ],
+    }
+
+
+def test_main_run_graphs_dir_cycle_exits_3_before_run(capsys, tmp_path: Path) -> None:
+    ga = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    gb = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    graphs = tmp_path / "graphs"
+    graphs.mkdir()
+    (graphs / "a.json").write_text(json.dumps(_doc_with_graph_ref(ga, gb)), encoding="utf-8")
+    (graphs / "b.json").write_text(json.dumps(_doc_with_graph_ref(gb, ga)), encoding="utf-8")
+    root = tmp_path / "root.json"
+    root.write_text(json.dumps(_minimal_valid_doc(ga)), encoding="utf-8")
+    code = main(["run", "-d", str(root), "-g", str(graphs)])
+    captured = capsys.readouterr()
+    assert code == 3
+    assert "cycle" in captured.err.lower()
+    assert "run_started" not in captured.out

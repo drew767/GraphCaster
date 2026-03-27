@@ -2,9 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 import {
   findStructureIssues,
   structureIssuesBlockRun,
+  workspaceGraphRefCycleIssues,
   type StructureIssue,
 } from "./structureWarnings";
 import type { GraphDocumentJson } from "./types";
@@ -47,6 +49,39 @@ describe("structureIssuesBlockRun", () => {
     expect(
       structureIssuesBlockRun([{ kind: "merge_few_inputs", nodeId: "m1", incomingEdges: 1 }]),
     ).toBe(false);
+  });
+
+  it("is true for graph_ref_workspace_cycle", () => {
+    expect(
+      structureIssuesBlockRun([
+        { kind: "graph_ref_workspace_cycle", cycle: ["a", "b"] },
+      ]),
+    ).toBe(true);
+  });
+});
+
+describe("workspaceGraphRefCycleIssues", () => {
+  it("returns blocking issue when workspace entries form a cycle", () => {
+    const ga = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const gb = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const entries: WorkspaceGraphEntry[] = [
+      { fileName: "a.json", graphId: ga, duplicateGraphId: false, refTargets: [gb] },
+      { fileName: "b.json", graphId: gb, duplicateGraphId: false, refTargets: [ga] },
+    ];
+    const issues = workspaceGraphRefCycleIssues(entries);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].kind).toBe("graph_ref_workspace_cycle");
+    expect(structureIssuesBlockRun(issues)).toBe(true);
+  });
+
+  it("returns empty when no cycle", () => {
+    const ga = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const gb = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const entries: WorkspaceGraphEntry[] = [
+      { fileName: "a.json", graphId: ga, duplicateGraphId: false, refTargets: [gb] },
+      { fileName: "b.json", graphId: gb, duplicateGraphId: false, refTargets: [] },
+    ];
+    expect(workspaceGraphRefCycleIssues(entries)).toHaveLength(0);
   });
 });
 

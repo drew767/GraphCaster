@@ -20,6 +20,10 @@ from graph_caster.run_sessions import (
     get_default_run_registry,
     reset_default_run_registry,
 )
+from graph_caster.graph_ref_workspace import (
+    build_workspace_graph_ref_adjacency,
+    find_workspace_graph_ref_cycle,
+)
 from graph_caster.validate import (
     GraphStructureError,
     find_merge_incoming_warnings,
@@ -30,11 +34,14 @@ from graph_caster.validate import (
 from graph_caster.workspace import (
     WorkspaceIndexError,
     clear_graph_index_cache,
+    load_graph_documents_index,
     resolve_graph_path,
     scan_graphs_directory,
 )
 
 __all__ = [
+    "build_workspace_graph_ref_adjacency",
+    "find_workspace_graph_ref_cycle",
     "find_handle_compatibility_violations",
     "GraphDocument",
     "GraphRunner",
@@ -53,6 +60,7 @@ __all__ = [
     "clear_graph_index_cache",
     "tree_bytes",
     "resolve_graph_path",
+    "load_graph_documents_index",
     "scan_graphs_directory",
     "validate_graph_structure",
     "find_merge_incoming_warnings",

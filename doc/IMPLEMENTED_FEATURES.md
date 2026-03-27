@@ -72,6 +72,18 @@
 
 ---
 
+## Статический цикл **`graph_ref`** по workspace (**F5**, §**29.2**)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** — ограничение рекурсии **Execute Workflow** / циклические зависимости workflow | Ориентированный граф **`graphId` → targetGraphId** по всем `*.json` в **`graphs/`**; DFS с окраской; первый найденный цикл канонизируется лексикографически минимальной ротацией (покомпонентное сравнение строк, как **`tuple`** в Python) |
+| **Dify** — отсутствие бесконечной вложенности child graph без валидного разрешения | **Python:** `build_workspace_graph_ref_adjacency`, `find_workspace_graph_ref_cycle`; **`run -g`**: при цикле — stderr + exit **3** до **`run_started`**. **UI:** поле **`refTargets`** в записи индекса (`scanWorkspaceGraphs`), **`workspaceGraphRefCycleIssues`** → **`graph_ref_workspace_cycle`** в **`structureIssuesBlockRun`** (как критичные проблемы **`start`**) |
+| Один проход по диску без повторного чтения JSON | Индекс документов: **`load_graph_documents_index`** (`workspace.py`); **`scan_graphs_directory`** возвращает только **`graphId` → Path** из того же прохода; смежность для цикла строится из уже распарсенных **`GraphDocument`** |
+| Дубликат **`graphId`** в двух файлах | **Python:** **`WorkspaceIndexError`** при скане индекса. **UI:** дубликат помечается в индексе; при поиске цикла учитывается **первая** запись по порядку списка (согласовано с сортировкой по **`fileName`** в **`scanWorkspaceGraphs`**) |
+| Паритет TS/Python | Тесты: **`python/tests/test_graph_ref_workspace_cycles.py`**, **`python/tests/test_cli_main.py`** (цикл); **`ui/src/graph/workspaceGraphRefCycles.test.ts`**, **`ui/src/graph/structureWarnings.test.ts`** |
+
+---
+
 ## Статическая совместимость ручек **F18** (n8n connection types / Langflow `validate_edge`)
 
 Сравнение с **ComfyUI / Dify / Flowise / Langflow / n8n** по моделям портов и таблицы конкурентов — **§15** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); здесь только **факт реализации** GraphCaster.

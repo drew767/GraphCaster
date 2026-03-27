@@ -53,7 +53,8 @@
       "multipleStarts": "More than one start node: {{ids}}.",
       "startHasIncoming": "Start node {{id}} has incoming edges (should have none).",
       "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}.",
-      "mergeFewInputs": "Merge node {{id}} has {{count}} incoming branch edge(s) from non-comment nodes (usually 2+ after a split)."
+      "mergeFewInputs": "Merge node {{id}} has {{count}} incoming branch edge(s) from non-comment nodes (usually 2+ after a split).",
+      "graphRefWorkspaceCycle": "Project graphs contain a graph_ref cycle (nested workflows would recurse): {{cycle}}. Remove or retarget graph_ref links."
     },
     "inspector": {
       "heading": "Inspector",

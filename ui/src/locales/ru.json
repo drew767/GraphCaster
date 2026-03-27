@@ -53,7 +53,8 @@
       "multipleStarts": "Больше одной ноды start: {{ids}}.",
       "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть).",
       "unreachableNodes": "Ноды недостижимы из start (статика; все рёбра считаются возможными): {{ids}}.",
-      "mergeFewInputs": "У merge {{id}} только {{count}} входящее(их) ребро(а) от не-comment нод (обычно 2+ после разветвления)."
+      "mergeFewInputs": "У merge {{id}} только {{count}} входящее(их) ребро(а) от не-comment нод (обычно 2+ после разветвления).",
+      "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки."
     },
     "inspector": {
       "heading": "Инспектор",

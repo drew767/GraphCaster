@@ -12,10 +12,10 @@ class WorkspaceIndexError(ValueError):
     pass
 
 
-def scan_graphs_directory(directory: Path) -> dict[str, Path]:
+def load_graph_documents_index(directory: Path) -> dict[str, tuple[Path, GraphDocument]]:
     if not directory.is_dir():
         raise WorkspaceIndexError(f"graphs directory does not exist or is not a directory: {directory}")
-    index: dict[str, Path] = {}
+    index: dict[str, tuple[Path, GraphDocument]] = {}
     for path in sorted(directory.glob("*.json")):
         if not path.is_file():
             continue
@@ -32,10 +32,14 @@ def scan_graphs_directory(directory: Path) -> dict[str, Path]:
             continue
         if gid in index:
             raise WorkspaceIndexError(
-                f"duplicate graphId {gid!r}: {index[gid].name} and {path.name} in {directory}"
+                f"duplicate graphId {gid!r}: {index[gid][0].name} and {path.name} in {directory}"
             )
-        index[gid] = path
+        index[gid] = (path, doc)
     return index
+
+
+def scan_graphs_directory(directory: Path) -> dict[str, Path]:
+    return {gid: path for gid, (path, _) in load_graph_documents_index(directory).items()}
 
 
 def _graphs_index_stamp(directory: Path) -> tuple[int, int, int]:

@@ -45,7 +45,11 @@ import {
 } from "../graph/clipboard";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
-import { findStructureIssues, structureIssuesBlockRun } from "../graph/structureWarnings";
+import {
+  findStructureIssues,
+  structureIssuesBlockRun,
+  workspaceGraphRefCycleIssues,
+} from "../graph/structureWarnings";
 import { nodeLabel } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
@@ -75,6 +79,16 @@ const LS_RUN_GRAPHS = "gc.run.graphsDir";
 const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
 
 const DOCUMENT_HISTORY_CAP = 80;
+
+function formatGraphRefCycleForUi(cycle: string[]): string {
+  if (cycle.length === 0) {
+    return "";
+  }
+  if (cycle.length === 1) {
+    return `${cycle[0]} → ${cycle[0]}`;
+  }
+  return `${cycle.join(" → ")} → ${cycle[0]}`;
+}
 
 function isTextEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -107,13 +121,19 @@ export function AppShell({ onLangChange }: Props) {
   });
   const nodeSearchRows = useMemo(() => buildCanvasNodeSearchRows(graphDocument), [graphDocument]);
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
-  const structureIssues = useMemo(() => findStructureIssues(graphDocument), [graphDocument]);
   const handleIssues = useMemo(() => findHandleCompatibilityIssues(graphDocument), [graphDocument]);
   const [danglingEdgesExportIds, setDanglingEdgesExportIds] = useState<string[] | null>(null);
 
   const [layoutEpoch, setLayoutEpoch] = useState(0);
   const [workspaceGraphsDir, setWorkspaceGraphsDir] = useState<FileSystemDirectoryHandle | null>(null);
   const [workspaceIndex, setWorkspaceIndex] = useState<WorkspaceGraphEntry[]>([]);
+  const structureIssues = useMemo(() => {
+    const base = findStructureIssues(graphDocument);
+    if (workspaceGraphsDir == null || workspaceIndex.length === 0) {
+      return base;
+    }
+    return [...base, ...workspaceGraphRefCycleIssues(workspaceIndex)];
+  }, [graphDocument, workspaceGraphsDir, workspaceIndex]);
   const [activeWorkspaceFile, setActiveWorkspaceFile] = useState<string | null>(null);
   const [layoutDirtyEpoch, setLayoutDirtyEpoch] = useState(0);
   const canvasRef = useRef<GraphCanvasHandle>(null);
@@ -1025,12 +1045,16 @@ export function AppShell({ onLangChange }: Props) {
                             ? issue.ids.join(", ")
                             : `${issue.ids.slice(0, 12).join(", ")} (+${issue.ids.length - 12})`,
                       })
-                    : issue.kind === "merge_few_inputs"
-                      ? t("app.structure.mergeFewInputs", {
-                          id: issue.nodeId,
-                          count: issue.incomingEdges,
+                    : issue.kind === "graph_ref_workspace_cycle"
+                      ? t("app.structure.graphRefWorkspaceCycle", {
+                          cycle: formatGraphRefCycleForUi(issue.cycle),
                         })
-                      : t("app.structure.startHasIncoming", { id: issue.startId })}
+                      : issue.kind === "merge_few_inputs"
+                        ? t("app.structure.mergeFewInputs", {
+                            id: issue.nodeId,
+                            count: issue.incomingEdges,
+                          })
+                        : t("app.structure.startHasIncoming", { id: issue.startId })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (

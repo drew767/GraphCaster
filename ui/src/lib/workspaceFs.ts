@@ -2,6 +2,7 @@
 
 import type { GraphDocumentJson } from "../graph/types";
 import { graphIdFromDocument, parseGraphDocumentJson } from "../graph/parseDocument";
+import { collectRefTargetsFromGraphDocument } from "../graph/workspaceGraphRefCycles";
 import { safeGraphDownloadBasename } from "./downloadJson";
 
 const GRAPHS_DIR_NAME = "graphs";
@@ -11,6 +12,7 @@ export type WorkspaceGraphEntry = {
   graphId: string;
   title?: string;
   duplicateGraphId: boolean;
+  refTargets: string[];
 };
 
 export function supportsFileSystemAccess(): boolean {
@@ -84,6 +86,7 @@ export async function scanWorkspaceGraphs(
       fileName: name,
       graphId,
       title: typeof doc.meta?.title === "string" ? doc.meta.title : undefined,
+      refTargets: collectRefTargetsFromGraphDocument(doc),
     });
   }
   const idCounts = new Map<string, number>();
