@@ -8,7 +8,7 @@ import {
   sanitizeNodeParents,
   sortNodesParentsFirst,
 } from "./flowHierarchy";
-import { GRAPH_NODE_TYPE_COMMENT } from "./nodeKinds";
+import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_START } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 
@@ -86,6 +86,7 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
       parentId,
       extent: parentId ? ("parent" as const) : undefined,
       zIndex: 1,
+      deletable: graphNodeType !== GRAPH_NODE_TYPE_START,
       data: {
         graphNodeType,
         label: nodeLabel(data, n.id),

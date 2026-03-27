@@ -157,6 +157,16 @@ body {
   background: var(--gc-accent-hover);
 }
 
+.gc-btn-danger {
+  background: color-mix(in srgb, #c62828 88%, var(--gc-surface-1));
+  color: #fff;
+  border-color: transparent;
+}
+
+.gc-btn-danger:hover:not(:disabled) {
+  background: #b71c1c;
+}
+
 .gc-main-row {
   flex: 1;
   display: flex;
@@ -718,6 +728,26 @@ body {
 .gc-inspector-mono {
   font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
   font-size: 0.75rem;
+}
+
+.gc-inspector-multilist {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: 0.78rem;
+}
+
+.gc-inspector-multilist-item {
+  margin: 0.35rem 0;
+  list-style: disc;
+}
+
+.gc-inspector-multilist-meta {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--gc-text-secondary);
+  font-size: 0.72rem;
 }
 
 .gc-inspector p {

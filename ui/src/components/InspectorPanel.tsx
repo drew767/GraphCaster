@@ -13,6 +13,7 @@ type Props = {
   onApplyGraphDocumentSettings: (patch: GraphDocumentSettingsPatch) => void;
   onApplyNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   onApplyEdgeCondition: (edgeId: string, condition: string | null) => void;
+  onRemoveNodes?: (ids: readonly string[]) => void;
   workspaceLinked: boolean;
   onOpenNestedGraph?: (targetGraphId: string) => void;
   runLocked?: boolean;
@@ -57,6 +58,7 @@ export function InspectorPanel({
   onApplyGraphDocumentSettings,
   onApplyNodeData,
   onApplyEdgeCondition,
+  onRemoveNodes,
   workspaceLinked,
   onOpenNestedGraph,
   runLocked = false,
@@ -274,6 +276,34 @@ export function InspectorPanel({
               {t("app.inspector.applyData")}
             </button>
           </form>
+        </div>
+      ) : selection?.kind === "multiNode" ? (
+        <div className="gc-inspector-detail">
+          <p className="gc-inspector-hint-line">{t("app.inspector.multiHint")}</p>
+          <div className="gc-inspector-row">
+            <span className="gc-inspector-k">{t("app.inspector.multiCount")}</span>
+            <span className="gc-inspector-v">{selection.ids.length}</span>
+          </div>
+          <ul className="gc-inspector-multilist">
+            {selection.nodes.map((row) => (
+              <li key={row.id} className="gc-inspector-multilist-item">
+                <span className="gc-inspector-mono">{row.id}</span>
+                <span className="gc-inspector-multilist-meta">
+                  {row.graphNodeType} — {row.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="gc-btn gc-btn-danger gc-inspector-apply"
+            disabled={runLocked || onRemoveNodes == null}
+            onClick={() => {
+              onRemoveNodes?.(selection.ids);
+            }}
+          >
+            {t("app.inspector.deleteSelected")}
+          </button>
         </div>
       ) : selection?.kind === "edge" ? (
         <div className="gc-inspector-detail">

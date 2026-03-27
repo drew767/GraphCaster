@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { flowToDocument } from "./fromReactFlow";
 import type { GraphDocumentJson } from "./types";
+import { graphDocumentToFlow } from "./toReactFlow";
 
 describe("flowToDocument", () => {
   it("writes one schemaVersion from meta first then root (Python parity)", () => {
@@ -41,5 +42,24 @@ describe("flowToDocument", () => {
     const doc = flowToDocument([], [], base);
     expect(doc.inputs).toEqual([{ name: "a" }]);
     expect(doc.outputs).toEqual({ result: "string" });
+  });
+});
+
+describe("graphDocumentToFlow", () => {
+  it("marks start node as not deletable", () => {
+    const { nodes } = graphDocumentToFlow({
+      nodes: [{ id: "s", type: "start", position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    });
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.deletable).toBe(false);
+  });
+
+  it("marks task node as deletable", () => {
+    const { nodes } = graphDocumentToFlow({
+      nodes: [{ id: "t", type: "task", position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    });
+    expect(nodes[0]?.deletable).toBe(true);
   });
 });

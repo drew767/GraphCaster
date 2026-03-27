@@ -57,7 +57,12 @@
     },
     "inspector": {
       "heading": "Inspector",
-      "hint": "Click a node or edge. With nothing selected: edit graph title, id, I/O contract. Drag between handles to connect. Delete/Backspace removes the selection. Right-click canvas adds a node.",
+      "hint": "Click a node or edge; Shift+click or drag a selection rectangle for multiple nodes. With nothing selected: edit graph title, id, I/O contract. Drag between handles to connect. Delete/Backspace removes the selection. Ctrl+C / Ctrl+V copy and paste selected nodes (JSON clipboard). Right-click canvas adds a node.",
+      "multiHint": "Multiple nodes selected. Edit JSON per node is not available in this mode.",
+      "multiCount": "Selected nodes",
+      "deleteSelected": "Delete selected",
+      "clipboardCopyFailed": "Could not write to the clipboard (browser permissions).",
+      "clipboardInvalid": "Clipboard does not contain GraphCaster graph nodes (expected our JSON format).",
       "commentFrameHint": "Editor-only area title. Drag nodes into the frame (or create them inside) so they move with the frame. Resize with the handles. Use JSON data \"title\", \"width\", \"height\".",
       "nodeId": "Id",
       "nodeType": "Type",

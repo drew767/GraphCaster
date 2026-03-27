@@ -29,7 +29,7 @@ import type {
 } from "../graph/types";
 import { findBranchAmbiguities } from "../graph/branchWarnings";
 import { pickCommentParentId } from "../graph/flowHierarchy";
-import { defaultDataForNodeType, newGraphNodeId } from "../graph/nodePalette";
+import { defaultDataForNodeType, newGraphEdgeId, newGraphNodeId } from "../graph/nodePalette";
 import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
 import type { OpenGraphErrorPresentation } from "../graph/openGraphErrorPresentation";
 import {
@@ -38,6 +38,11 @@ import {
   presentationForReadFailure,
 } from "../graph/openGraphErrorPresentation";
 import { buildCanvasNodeSearchRows } from "../graph/canvasNodeSearch";
+import {
+  buildClipboardPayload,
+  mergePastedSubgraph,
+  parseClipboardPayload,
+} from "../graph/clipboard";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
 import { findStructureIssues, structureIssuesBlockRun } from "../graph/structureWarnings";
@@ -126,6 +131,10 @@ export function AppShell({ onLangChange }: Props) {
   const preDragDocumentRef = useRef<GraphDocumentJson | null>(null);
   const graphDocumentRef = useRef(graphDocument);
   graphDocumentRef.current = graphDocument;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const nodeSearchOpenRef = useRef(nodeSearchOpen);
+  nodeSearchOpenRef.current = nodeSearchOpen;
   const [historyTick, setHistoryTick] = useState(0);
 
   const bumpHistoryUi = useCallback(() => {
@@ -752,6 +761,13 @@ export function AppShell({ onLangChange }: Props) {
   const runStartDisabled =
     pyProbe != null && !pyProbe.ok;
 
+  const onRemoveCanvasNodes = useCallback((ids: readonly string[]) => {
+    if (isRunActive) {
+      return;
+    }
+    canvasRef.current?.removeNodesById(ids);
+  }, [isRunActive]);
+
   const onOpenNestedGraph = useCallback(
     (targetGraphId: string) => {
       const tid = targetGraphId.trim();
@@ -777,18 +793,162 @@ export function AppShell({ onLangChange }: Props) {
       if (!sel) {
         return sel;
       }
+      const nodes = graphDocument.nodes ?? [];
+      const edges = graphDocument.edges ?? [];
       if (sel.kind === "node") {
-        if (!(graphDocument.nodes ?? []).some((n) => n.id === sel.id)) {
+        if (!nodes.some((n) => n.id === sel.id)) {
           return null;
         }
         return sel;
       }
-      if (!(graphDocument.edges ?? []).some((e) => e.id === sel.id)) {
-        return null;
+      if (sel.kind === "multiNode") {
+        const alive = sel.ids.filter((id) => nodes.some((n) => n.id === id));
+        if (alive.length === 0) {
+          return null;
+        }
+        if (alive.length === 1) {
+          const n = nodes.find((x) => x.id === alive[0]);
+          if (!n) {
+            return null;
+          }
+          const raw = n.data ?? {};
+          return {
+            kind: "node",
+            id: n.id,
+            graphNodeType: n.type,
+            label: nodeLabel(raw, n.id),
+            raw,
+          };
+        }
+        const rows = alive.map((id) => {
+          const n = nodes.find((x) => x.id === id);
+          if (!n) {
+            return { id, graphNodeType: "unknown", label: id };
+          }
+          const raw = n.data ?? {};
+          return {
+            id,
+            graphNodeType: n.type,
+            label: nodeLabel(raw, id),
+          };
+        });
+        return { kind: "multiNode", ids: alive, nodes: rows };
+      }
+      if (sel.kind === "edge") {
+        if (!edges.some((e) => e.id === sel.id)) {
+          return null;
+        }
+        return sel;
       }
       return sel;
     });
   }, [graphDocument]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key !== "c" && key !== "v") {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      if (nodeSearchOpenRef.current) {
+        return;
+      }
+      const sel = selectionRef.current;
+      const doc =
+        canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
+        graphDocumentRef.current;
+      if (key === "c") {
+        let ids: Set<string> | null = null;
+        if (sel?.kind === "node") {
+          ids = new Set([sel.id]);
+        } else if (sel?.kind === "multiNode") {
+          ids = new Set(sel.ids);
+        }
+        if (!ids || ids.size === 0) {
+          return;
+        }
+        const payload = buildClipboardPayload(doc, ids);
+        if (!payload) {
+          return;
+        }
+        e.preventDefault();
+        void navigator.clipboard.writeText(JSON.stringify(payload)).catch(() => {
+          window.alert(t("app.inspector.clipboardCopyFailed"));
+        });
+        return;
+      }
+      if (isRunActive) {
+        return;
+      }
+      e.preventDefault();
+      void (async () => {
+        let raw: string;
+        try {
+          raw = await navigator.clipboard.readText();
+        } catch {
+          return;
+        }
+        const payload = parseClipboardPayload(raw);
+        if (!payload) {
+          window.alert(t("app.inspector.clipboardInvalid"));
+          return;
+        }
+        const base =
+          canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
+          graphDocumentRef.current;
+        const merged = mergePastedSubgraph(base, payload, {
+          newNodeId: newGraphNodeId,
+          newEdgeId: newGraphEdgeId,
+          positionOffset: { x: 32, y: 32 },
+        });
+        const beforeIds = new Set((base.nodes ?? []).map((n) => n.id));
+        const newIds = (merged.nodes ?? []).map((n) => n.id).filter((id) => !beforeIds.has(id));
+        if (newIds.length === 0) {
+          return;
+        }
+        commitHistorySnapshot();
+        setGraphDocument(merged);
+        setLayoutDirtyEpoch((n) => n + 1);
+        const mergedNodes = merged.nodes ?? [];
+        const rows = newIds.map((id) => {
+          const n = mergedNodes.find((x) => x.id === id);
+          if (!n) {
+            return { id, graphNodeType: "unknown", label: id };
+          }
+          const rawData = n.data ?? {};
+          return {
+            id,
+            graphNodeType: n.type,
+            label: nodeLabel(rawData, id),
+          };
+        });
+        const first = rows[0];
+        if (newIds.length === 1 && first) {
+          const sole = mergedNodes.find((x) => x.id === first.id);
+          const rawData = sole?.data ?? {};
+          setSelection({
+            kind: "node",
+            id: first.id,
+            graphNodeType: first.graphNodeType,
+            label: first.label,
+            raw: rawData as Record<string, unknown>,
+          });
+        } else {
+          setSelection({ kind: "multiNode", ids: newIds, nodes: rows });
+        }
+      })();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [commitHistorySnapshot, isRunActive, t]);
 
   return (
     <div className="app-root" data-gc-history-revision={historyTick}>
@@ -946,6 +1106,7 @@ export function AppShell({ onLangChange }: Props) {
           onApplyGraphDocumentSettings={onApplyGraphDocumentSettings}
           onApplyNodeData={onApplyNodeData}
           onApplyEdgeCondition={onApplyEdgeCondition}
+          onRemoveNodes={onRemoveCanvasNodes}
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
           runLocked={isRunActive}

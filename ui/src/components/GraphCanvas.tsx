@@ -38,6 +38,7 @@ import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
+import { GRAPH_NODE_TYPE_START } from "../graph/nodeKinds";
 import { newGraphEdgeId } from "../graph/nodePalette";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
@@ -52,6 +53,11 @@ export type GraphCanvasSelection =
       graphNodeType: string;
       label: string;
       raw: Record<string, unknown>;
+    }
+  | {
+      kind: "multiNode";
+      ids: string[];
+      nodes: { id: string; graphNodeType: string; label: string }[];
     }
   | {
       kind: "edge";
@@ -83,6 +89,7 @@ export type ExportDocumentOptions = {
 export type GraphCanvasHandle = {
   exportDocument: (options?: ExportDocumentOptions) => GraphDocumentJson;
   focusNode: (nodeId: string) => void;
+  removeNodesById: (ids: readonly string[]) => void;
 };
 
 type Props = {
@@ -115,13 +122,43 @@ const nodeTypes = {
   gcComment: GcCommentNode,
 } as const satisfies NodeTypes;
 
+function flowStateAfterRemovingNodeIds(
+  nds: Node<GcNodeData>[],
+  eds: Edge[],
+  removeIds: Set<string>,
+): { nodes: Node<GcNodeData>[]; edges: Edge[] } {
+  const oldById = new Map(nds.map((n) => [n.id, n]));
+  let next = nds.filter((n) => !removeIds.has(n.id));
+  next = next.map((n) => {
+    if (n.parentId && removeIds.has(n.parentId)) {
+      const p = oldById.get(n.parentId);
+      if (p?.type === "gcComment") {
+        const abs = getWorldTopLeft(n as Node<GcNodeData>, oldById);
+        const { parentId: _p, extent: _e, ...rest } = n as Node<GcNodeData> & {
+          parentId?: string;
+          extent?: unknown;
+        };
+        return { ...rest, position: abs } as Node<GcNodeData>;
+      }
+    }
+    return n;
+  });
+  next = next.filter((n) => !removeIds.has(n.id));
+  const nextEdges = eds.filter((e) => !removeIds.has(e.source) && !removeIds.has(e.target));
+  return { nodes: next, edges: nextEdges };
+}
+
 type BridgeProps = {
   baseDocument: GraphDocumentJson;
   onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
+  removeNodesByIdRef: MutableRefObject<(ids: readonly string[]) => void>;
 };
 
 const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
-  function FlowCanvasHandleBridge({ baseDocument, onExportRemovedDanglingEdges }, ref) {
+  function FlowCanvasHandleBridge(
+    { baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef },
+    ref,
+  ) {
     const { getNodes, getEdges, getNode, fitView } = useReactFlow();
     useImperativeHandle(
       ref,
@@ -152,8 +189,11 @@ const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
             maxZoom: 1.85,
           });
         },
+        removeNodesById(ids: readonly string[]) {
+          removeNodesByIdRef.current(ids);
+        },
       }),
-      [getNodes, getEdges, getNode, fitView, baseDocument, onExportRemovedDanglingEdges],
+      [getNodes, getEdges, getNode, fitView, baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef],
     );
     return null;
   },
@@ -242,6 +282,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
     const nodesRef = useRef(nodes);
     nodesRef.current = nodes;
+    const edgesRef = useRef(edges);
+    edgesRef.current = edges;
+    const removeNodesByIdRef = useRef<(ids: readonly string[]) => void>(() => {});
 
     const onNodesChangeWrapped = useCallback(
       (changes: NodeChange<Node>[]) => {
@@ -324,6 +367,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         const all = nodesRef.current;
         const removeIds = new Set(pending.map((n) => n.id));
         const filtered = pending.filter((n) => {
+          const d = n.data as GcNodeData | undefined;
+          if (d?.graphNodeType === GRAPH_NODE_TYPE_START) {
+            return false;
+          }
           if (n.parentId && removeIds.has(n.parentId)) {
             const parent = all.find((p) => p.id === n.parentId);
             if (parent?.type === "gcComment") {
@@ -401,35 +448,90 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       setEdges(base.edges);
     }, [graphDocument, runHighlightNodeId, setNodes, setEdges]);
 
-    const onNodeClick = useCallback(
-      (_event: MouseEvent, node: Node) => {
-        const d = node.data as GcNodeData | undefined;
-        if (!d) {
+    const onSelectionChange = useCallback(
+      ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
+        if (selNodes.length >= 2) {
+          const rows = selNodes.map((node) => {
+            const d = node.data as GcNodeData | undefined;
+            return {
+              id: node.id,
+              graphNodeType: d?.graphNodeType ?? "unknown",
+              label: d?.label ?? node.id,
+            };
+          });
+          onSelect({ kind: "multiNode", ids: rows.map((r) => r.id), nodes: rows });
           return;
         }
-        onSelect({
-          kind: "node",
-          id: node.id,
-          graphNodeType: d.graphNodeType,
-          label: d.label,
-          raw: d.raw,
-        });
+        if (selNodes.length === 1) {
+          const node = selNodes[0];
+          const d = node.data as GcNodeData | undefined;
+          if (!d) {
+            onSelect(null);
+            return;
+          }
+          onSelect({
+            kind: "node",
+            id: node.id,
+            graphNodeType: d.graphNodeType,
+            label: d.label,
+            raw: d.raw,
+          });
+          return;
+        }
+        if (selEdges.length >= 1) {
+          const edge = selEdges[0];
+          onSelect({
+            kind: "edge",
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            condition: conditionFromEdgeLabel(edge.label),
+          });
+          return;
+        }
+        onSelect(null);
       },
       [onSelect],
     );
 
-    const onEdgeClick = useCallback(
-      (_event: MouseEvent, edge: Edge) => {
-        onSelect({
-          kind: "edge",
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          condition: conditionFromEdgeLabel(edge.label),
+    const applyRemoveNodeIds = useCallback(
+      (rawIds: readonly string[]) => {
+        if (structureLocked) {
+          return;
+        }
+        const removeIds = new Set<string>();
+        for (const id of rawIds) {
+          const t = String(id).trim();
+          if (t === "") {
+            continue;
+          }
+          const node = nodesRef.current.find((n) => n.id === t);
+          const d = node?.data as GcNodeData | undefined;
+          if (d?.graphNodeType === GRAPH_NODE_TYPE_START) {
+            continue;
+          }
+          removeIds.add(t);
+        }
+        if (removeIds.size === 0) {
+          return;
+        }
+        onBeforeStructureRemove?.();
+        const { nodes: nn, edges: ne } = flowStateAfterRemovingNodeIds(
+          nodesRef.current as Node<GcNodeData>[],
+          edgesRef.current,
+          removeIds,
+        );
+        setNodes(nn);
+        setEdges(ne);
+        onSelect(null);
+        window.requestAnimationFrame(() => {
+          onFlowStructureChange();
         });
       },
-      [onSelect],
+      [structureLocked, onBeforeStructureRemove, onFlowStructureChange, onSelect, setNodes, setEdges],
     );
+
+    removeNodesByIdRef.current = applyRemoveNodeIds;
 
     const onPaneClick = useCallback(() => {
       setAddMenu(null);
@@ -468,36 +570,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     const onDeleteNodeFromMenu = useCallback(
       (nodeId: string) => {
-        if (structureLocked) {
-          return;
-        }
-        onBeforeStructureRemove?.();
-        setNodes((nds) => {
-          const target = nds.find((n) => n.id === nodeId);
-          const byId = new Map(nds.map((n) => [n.id, n]));
-          const rest = nds.filter((n) => n.id !== nodeId);
-          if (target?.type === "gcComment") {
-            return rest.map((n) => {
-              if (n.parentId !== nodeId) {
-                return n;
-              }
-              const abs = getWorldTopLeft(n, byId);
-              const { parentId: _p, extent: _e, ...stripped } = n as Node<GcNodeData> & {
-                parentId?: string;
-                extent?: unknown;
-              };
-              return { ...stripped, position: abs } as Node<GcNodeData>;
-            });
-          }
-          return rest;
-        });
-        setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-        onSelect(null);
-        window.requestAnimationFrame(() => {
-          onFlowStructureChange();
-        });
+        applyRemoveNodeIds([nodeId]);
       },
-      [structureLocked, onBeforeStructureRemove, onFlowStructureChange, onSelect, setEdges, setNodes],
+      [applyRemoveNodeIds],
     );
 
     return (
@@ -513,8 +588,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.15 }}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
+          selectionOnDrag
+          panOnDrag={[1, 2]}
+          multiSelectionKeyCode="Shift"
+          onSelectionChange={onSelectionChange}
           onPaneClick={onPaneClick}
           onPaneContextMenu={onPaneContextMenu}
           onNodeContextMenu={onNodeContextMenu}
@@ -533,6 +610,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             ref={ref}
             baseDocument={graphDocument}
             onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
+            removeNodesByIdRef={removeNodesByIdRef}
           />
           <Background gap={16} size={1} />
           <Controls />

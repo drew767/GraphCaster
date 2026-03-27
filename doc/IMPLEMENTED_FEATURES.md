@@ -208,6 +208,26 @@
 
 ---
 
+## Мультивыбор, буфер обмена и групповое удаление (Langflow / Flowise / n8n-style canvas)
+
+Выбор эталона: жесты **React Flow** (рамка, **Shift** для добавления к выбору), как у **Langflow** / **Flowise**; обмен фрагментом графа — **явный JSON** в системном буфере (не HTML), чтобы вставка не зависела от сторонних форматов.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Рамка и **Shift** на полотне | **`GraphCanvas`**: **`selectionOnDrag`**, **`multiSelectionKeyCode="Shift"`**, **`panOnDrag={[1, 2]}`**; **`onSelectionChange`** → выбор **`node`**, **`multiNode`** (≥2 нод) или **`edge`** |
+| Копирование подграфа | **`buildClipboardPayload`** (`ui/src/graph/clipboard.ts`): ноды из множества **`id`**, рёбра только с обоими концами в множестве; тип **`start`** из копируемого набора **исключается** |
+| Вставка с новыми идентификаторами | **`mergePastedSubgraph`**: **`newGraphNodeId`** / **`newGraphEdgeId`**, сдвиг **`position`**, **`parentId`** только если родитель вставлен; второй **`start`** **не** добавляется, если в базовом документе уже есть **`start`** |
+| Горячие клавиши | **`AppShell`**: **Ctrl+C** / **Ctrl+V** (и **Cmd** на macOS); не срабатывают в полях ввода (**`isTextEditingTarget`**) и при открытой палитре «Найти ноду»; **Ctrl+V** при активном **Run** отключена |
+| Групповое удаление | **Delete/Backspace** в **React Flow** для выбранных нод. В инспекторе для **`multiNode`** — **«Удалить выбранные»** → **`GraphCanvasHandle.removeNodesById`**: **`start`** в переданных **id** **пропускается** |
+| Нода **`start`** не удаляется с полотна | **`graphDocumentToFlow`**: **`deletable: false`** для типа **`start`**; **`onBeforeDelete`** в **`GraphCanvas`** дополнительно снимает **`start`** из удаляемого набора |
+| История при вставке | **`AppShell`**: **`commitHistorySnapshot`** **только если** после **`mergePastedSubgraph`** появились новые **`node id`** (пустая вставка не добавляет шаг **undo**) |
+| Устойчивость буфера при вставке | **`mergePastedSubgraph`**: дубликаты **`id`** среди вставляемых нод → вставка отменяется (возврат исходного документа); ребро без ремапа концов в новые **id** **не** добавляется |
+| Тесты | **`ui/src/graph/clipboard.test.ts`**, в **`fromReactFlow.test.ts`** — **`deletable`** для **`start`** / **`task`** |
+
+Код: `ui/src/graph/clipboard.ts`, `ui/src/graph/toReactFlow.ts`, `ui/src/components/GraphCanvas.tsx`, `ui/src/layout/AppShell.tsx`, `ui/src/components/InspectorPanel.tsx`, i18n **`app.inspector.*`** (**multiHint**, **clipboardCopyFailed**, **clipboardInvalid**).
+
+---
+
 ## CI в монорепозитории Aura (PR-гейт для субмодуля)
 
 Рабочий код GraphCaster живёт в **`third_party/graph-caster/`** внутри корня **Aura**; автоматический прогон тестов и сборки UI настроен **в родительском репо**, не в изолированном клоне только graph-caster.
