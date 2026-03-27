@@ -1,0 +1,14 @@
+{
+  "name": "graph-caster-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GraphCaster editor shell (canvas, nodes, chrome) — to be wired with Vite/React and a graph library",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"TODO: add Vite dev server\" && exit 0",
+    "build": "echo \"TODO: production build\" && exit 0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

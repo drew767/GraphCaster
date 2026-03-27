@@ -1,0 +1,21 @@
+# Copyright Aura. All Rights Reserved.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-caster"
+version = "0.1.0"
+description = "Graph document loader and scenario runner for GraphCaster"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Aura" }]
+
+[project.scripts]
+graph-caster = "graph_caster.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["graph_caster*"]
