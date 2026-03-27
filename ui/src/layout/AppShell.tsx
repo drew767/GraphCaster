@@ -1079,23 +1079,46 @@ export function AppShell({ onLangChange }: Props) {
             </div>
           ))}
           {branchIssues.map((issue, idx) => (
-            <div key={`${issue.sourceId}-${issue.handleFanout}-${issue.kind}-${idx}`} className="gc-branch-warnings__line">
+            <div
+              key={`${issue.edgeId ?? issue.sourceId}-${issue.handleFanout}-${issue.kind}-${idx}`}
+              className="gc-branch-warnings__line"
+            >
               <span aria-hidden="true">⚠</span>{" "}
               {issue.kind === "out_error_unreachable"
                 ? t("app.warnings.outErrorUnreachable", { sourceId: issue.sourceId })
-                : issue.kind === "multiple_unconditional"
-                  ? issue.handleFanout === "error"
-                    ? t("app.warnings.multipleUnconditionalErrorOut", { sourceId: issue.sourceId })
-                    : t("app.warnings.multipleUnconditional", { sourceId: issue.sourceId })
-                  : issue.handleFanout === "error"
-                    ? t("app.warnings.duplicateConditionErrorOut", {
+                : issue.kind === "template_condition_invalid"
+                  ? issue.detail === "unclosed"
+                    ? t("app.warnings.templateConditionUnclosed", {
                         sourceId: issue.sourceId,
-                        detail: issue.detail ?? "",
+                        edgeId: issue.edgeId ?? "",
                       })
-                    : t("app.warnings.duplicateCondition", {
-                        sourceId: issue.sourceId,
-                        detail: issue.detail ?? "",
-                      })}
+                    : issue.detail === "too_many"
+                      ? t("app.warnings.templateConditionTooMany", {
+                          sourceId: issue.sourceId,
+                          edgeId: issue.edgeId ?? "",
+                        })
+                      : issue.detail === "too_long"
+                        ? t("app.warnings.templateConditionTooLong", {
+                            sourceId: issue.sourceId,
+                            edgeId: issue.edgeId ?? "",
+                          })
+                        : t("app.warnings.templateConditionInvalid", {
+                            sourceId: issue.sourceId,
+                            edgeId: issue.edgeId ?? "",
+                          })
+                  : issue.kind === "multiple_unconditional"
+                    ? issue.handleFanout === "error"
+                      ? t("app.warnings.multipleUnconditionalErrorOut", { sourceId: issue.sourceId })
+                      : t("app.warnings.multipleUnconditional", { sourceId: issue.sourceId })
+                    : issue.handleFanout === "error"
+                      ? t("app.warnings.duplicateConditionErrorOut", {
+                          sourceId: issue.sourceId,
+                          detail: issue.detail ?? "",
+                        })
+                      : t("app.warnings.duplicateCondition", {
+                          sourceId: issue.sourceId,
+                          detail: issue.detail ?? "",
+                        })}
             </div>
           ))}
         </div>

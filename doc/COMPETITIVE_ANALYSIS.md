@@ -607,7 +607,7 @@
 | Langflow | да | Условная логика в компонентах и роутинге flow. |
 | n8n | да | IF, Switch, фильтры, merge; выражения в условиях. |
 | Vibe Workflow | частично | Зависит от набора нод в workflow-builder; не уровень n8n. |
-| **GraphCaster** | **частично** | **D+B**, **§32**: рантайм ветвления и контекст условий — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); UI — **`branchWarnings`**. In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — там же (**F19**). Нет паритета с выражениями **n8n**, отдельным **error-workflow** как у **n8n**, полным **F11** — `DEVELOPMENT_PLAN.md` / **§23**. |
+| **GraphCaster** | **частично** | **D+B**, **§32**: рантайм ветвления и контекст условий — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); UI — **`branchWarnings`**. **MVP-шаблоны** **`{{ dotted.path }}`** (truthiness и сравнение с литералом) — там же, без полноценного **n8n Expression** / **`$json`** / VM. In-graph **`out_error`** после сбоя **`task`** / **`graph_ref`** — там же (**F19**). Нет паритета с полным expression runtime **n8n**, отдельным **error-workflow** как у **n8n**, полным **F11** — `DEVELOPMENT_PLAN.md` / **§23**. |
 
 ### F5 — Вложенные графы / сабфлоу / вызов другого workflow
 
@@ -1623,13 +1623,13 @@
 | **Langflow** | Поля и классы компонентов | Роутинг в **LFX** между компонентами | Контекст исполнителя |
 | **n8n** | Ноды **IF**, **Switch**, фильтры, выражения в параметрах | Явные типы нод + **merge** веток (**F3**) | **`{{$json…}}`**, **items** |
 | **Vibe Workflow** | Набор нод **workflow-builder** | Упрощённо относительно **n8n** | Клиент / ответ API |
-| **GraphCaster** | Поле **`condition`** на **`Edge`** в **A** | **`_evaluate_next_edge`** + **`eval_edge_condition`** (`runner.py`, `edge_conditions.py`): первое ребро без условия **или** первое с истинным условием; иначе **`run_end`** **`no_outgoing_or_no_matching_condition`** | Legacy + JSON Logic-подмножество + **`node_outputs.*.processResult`**; детали и ограничения — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F4**), не дублировать здесь |
+| **GraphCaster** | Поле **`condition`** на **`Edge`** в **A** | **`_evaluate_next_edge`** + **`eval_edge_condition`** (`runner.py`, `edge_conditions.py`): первое ребро без условия **или** первое с истинным условием; иначе **`run_end`** **`no_outgoing_or_no_matching_condition`** | Legacy + JSON Logic-подмножество + **шаблоны** **`{{path}}`** + **`node_outputs.*.processResult`**; детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F4**), не дублировать здесь |
 
 **UI:** **`findBranchAmbiguities`** (**`branchWarnings.ts`**) ловит **два безусловных** исхода с одной ноды и **дубликаты** строки условия — это **статические** подсказки; они **не** заменяют согласование с **`runner.py`**.
 
 ### 32.2. Состояние реализации и открытые темы
 
-**Сделано в репозитории (факты и пути — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) **F4**, не дублировать объём здесь):** инвариант «первое подходящее», безопасный DSL условий (**JSON Logic**-подмножество), **`node_outputs` / `processResult`**, лимит длины строки условия, связка UI **`branchWarnings`**, явные события ветвления в NDJSON (**`branch_skipped`** / **`branch_taken`**) вместе с **`edge_traverse`** — **`runner.py`**, **`schemas/run-event.schema.json`**, **§3.7**; **`python/README.md`**, **`edge_conditions.py`**, **`process_exec.py`**; нода **`merge`** (**passthrough**) и **`structure_warning`** / **`merge_few_inputs`** — подраздел **Merge** в **F4** там же.
+**Сделано в репозитории (факты и пути — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) **F4**, не дублировать объём здесь):** инвариант «первое подходящее», безопасный DSL условий (**JSON Logic**-подмножество) и **ограниченные текстовые шаблоны** **`{{ dotted.path }}`** (truthiness и сравнение с литералом; паритет рантайма Python и статического разбора UI), **`node_outputs` / `processResult`**, лимит длины строки условия, связка UI **`branchWarnings`**, явные события ветвления в NDJSON (**`branch_skipped`** / **`branch_taken`**) вместе с **`edge_traverse`** — **`runner.py`**, **`schemas/run-event.schema.json`**, **§3.7**; **`python/README.md`**, **`edge_conditions.py`**, **`edgeConditionTemplates.ts`**, **`process_exec.py`**; нода **`merge`** (**passthrough**) и **`structure_warning`** / **`merge_few_inputs`** — подраздел **Merge** в **F4** там же.
 
 **Открыто / позже:**
 

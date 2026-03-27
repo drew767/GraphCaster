@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { MAX_EDGE_CONDITION_CHARS } from "./edgeConditionTemplates";
 import { findBranchAmbiguities } from "./branchWarnings";
 import type { GraphDocumentJson } from "./types";
 
@@ -67,6 +68,76 @@ describe("findBranchAmbiguities", () => {
       ],
     };
     const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flags unclosed template condition on edge", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "echo" } },
+      ],
+      edges: [
+        {
+          id: "e_bad",
+          source: "s1",
+          target: "t1",
+          condition: "{{node_outputs.t1",
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "template_condition_invalid");
+    expect(issues).toHaveLength(1);
+    expect(issues[0].detail).toBe("unclosed");
+    expect(issues[0].edgeId).toBe("e_bad");
+  });
+
+  it("flags too_long template condition", () => {
+    const pad = "x".repeat(MAX_EDGE_CONDITION_CHARS);
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "echo" } },
+      ],
+      edges: [
+        {
+          id: "e_long",
+          source: "s1",
+          target: "t1",
+          condition: `{{a}}${pad}`,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "template_condition_invalid");
+    expect(issues).toHaveLength(1);
+    expect(issues[0].detail).toBe("too_long");
+  });
+
+  it("does not flag valid template condition", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "echo" } },
+      ],
+      edges: [
+        {
+          id: "e_ok",
+          source: "s1",
+          target: "t1",
+          condition: "{{node_outputs.t1.processResult.exitCode}} == 0",
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "template_condition_invalid");
     expect(issues).toHaveLength(0);
   });
 });

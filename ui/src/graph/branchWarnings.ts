@@ -1,5 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import { analyzeTemplateCondition } from "./edgeConditionTemplates";
 import {
   EDGE_SOURCE_OUT_ERROR,
   normalizeEdgeHandleValue,
@@ -9,7 +10,12 @@ import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 
 export type BranchAmbiguity = {
   sourceId: string;
-  kind: "multiple_unconditional" | "duplicate_condition" | "out_error_unreachable";
+  edgeId?: string;
+  kind:
+    | "multiple_unconditional"
+    | "duplicate_condition"
+    | "out_error_unreachable"
+    | "template_condition_invalid";
   detail?: string;
   handleFanout: "success" | "error";
 };
@@ -70,6 +76,28 @@ function nodeCanEmitFailFanout(doc: GraphDocumentJson, nodeId: string): boolean 
 
 export function findBranchAmbiguities(doc: GraphDocumentJson): BranchAmbiguity[] {
   const edges = doc.edges ?? [];
+  const templateIssues: BranchAmbiguity[] = [];
+  for (const e of edges) {
+    const raw = e.condition;
+    if (raw == null) {
+      continue;
+    }
+    const cond = String(raw).trim();
+    if (cond === "" || !cond.includes("{{")) {
+      continue;
+    }
+    const a = analyzeTemplateCondition(cond);
+    if (a === "none" || a === "ok") {
+      continue;
+    }
+    templateIssues.push({
+      sourceId: e.source,
+      edgeId: e.id,
+      kind: "template_condition_invalid",
+      detail: a,
+      handleFanout: isErrorFanoutEdge(e) ? "error" : "success",
+    });
+  }
   const bySource = new Map<string, GraphEdgeJson[]>();
   for (const e of edges) {
     const list = bySource.get(e.source) ?? [];
@@ -101,5 +129,5 @@ export function findBranchAmbiguities(doc: GraphDocumentJson): BranchAmbiguity[]
     unreachableErr.push({ sourceId: sid, kind: "out_error_unreachable", handleFanout: "error" });
   }
   result.push(...unreachableErr);
-  return result;
+  return [...templateIssues, ...result];
 }

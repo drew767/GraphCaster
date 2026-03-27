@@ -1,11 +1,33 @@
 # Copyright GraphCaster. All Rights Reserved.
 
+"""Edge conditions: JSON Logic subset, mustache templates, legacy last_result truthiness.
+
+Template (n8n-style ergonomics, no VM): ``{{ dotted.path }}`` for truthiness, or
+``{{ dotted.path }} <op> <literal>`` with op in ==, !=, <, <=, >, >=. Path segments
+match ``[a-zA-Z_][a-zA-Z0-9_]*`` joined by dots; at most MAX_TEMPLATE_PLACEHOLDERS
+per string. See python/README.md.
+"""
+
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 MAX_EDGE_CONDITION_CHARS = 65536
+
+# Template mode (n8n-style {{ path }}): dotted paths resolved against the same public
+# predicate context as JSON Logic (last_result, node_outputs, …). Optional tail:
+# {{ path }} <op> <literal> with op in ==, !=, <, <=, >, >=. No eval(); max placeholders below.
+MAX_TEMPLATE_PLACEHOLDERS = 32
+
+_PATH_SEGMENT = r"[a-zA-Z_][a-zA-Z0-9_]*"
+_DOTTED_PATH = rf"{_PATH_SEGMENT}(?:\.{_PATH_SEGMENT})*"
+_RE_TEMPLATE_TRUTHY = re.compile(rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*$")
+_RE_TEMPLATE_CMP = re.compile(
+    rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*(==|!=|<=|>=|<|>)\s*(.+?)\s*$",
+)
+_RE_ALL_PLACEHOLDERS = re.compile(rf"\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}")
 
 _SUPPORTED_OPS = frozenset(
     {
@@ -197,6 +219,82 @@ def _eval_rule(rule: dict[str, Any], data: dict[str, Any]) -> Any:
     raise ValueError(f"unhandled op {op!r}")
 
 
+def _parse_template_literal(raw: str) -> Any:
+    t = raw.strip()
+    if not t:
+        return None
+    low = t.lower()
+    if low == "true":
+        return True
+    if low == "false":
+        return False
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+        return t[1:-1]
+    try:
+        if "." in t:
+            return float(t)
+        return int(t)
+    except ValueError:
+        return t
+
+
+def _compare_template(left: Any, op: str, right: Any) -> bool:
+    if op in {"==", "!=", ">", ">=", "<", "<="}:
+        left, right = _coerce_num(left, right)
+    try:
+        if op == "==":
+            return left == right
+        if op == "!=":
+            return left != right
+        if op == ">":
+            return bool(left > right)
+        if op == ">=":
+            return bool(left >= right)
+        if op == "<":
+            return bool(left < right)
+        if op == "<=":
+            return bool(left <= right)
+    except TypeError:
+        return False
+    return False
+
+
+def extract_template_paths(condition: str) -> list[str]:
+    if len(condition.strip()) > MAX_EDGE_CONDITION_CHARS:
+        return []
+    if "{{" not in condition:
+        return []
+    return [m.group(1) for m in _RE_ALL_PLACEHOLDERS.finditer(condition)]
+
+
+def _eval_template_condition(s: str, context: dict[str, Any]) -> bool:
+    if len(s) > MAX_EDGE_CONDITION_CHARS:
+        return False
+    data = _public_context(context)
+    matches = list(_RE_ALL_PLACEHOLDERS.finditer(s))
+    if len(matches) > MAX_TEMPLATE_PLACEHOLDERS:
+        return False
+    if "{{" in s and not matches:
+        return False
+
+    m_truthy = _RE_TEMPLATE_TRUTHY.match(s)
+    if m_truthy and len(matches) == 1:
+        path = m_truthy.group(1)
+        val = _get_path(data, path)
+        return _truthy(val)
+
+    m_cmp = _RE_TEMPLATE_CMP.match(s)
+    if m_cmp and len(matches) == 1:
+        path = m_cmp.group(1)
+        op = m_cmp.group(2)
+        literal_raw = m_cmp.group(3)
+        left = _get_path(data, path)
+        right = _parse_template_literal(literal_raw)
+        return _compare_template(left, op, right)
+
+    return False
+
+
 def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
     s = condition.strip()
     if len(s) > MAX_EDGE_CONDITION_CHARS:
@@ -206,6 +304,9 @@ def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
         return True
     if low in {"false", "0", "no"}:
         return False
+
+    if s.startswith("{{"):
+        return _eval_template_condition(s, context)
 
     if s.startswith("{"):
         try:
@@ -223,5 +324,8 @@ def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
         except (KeyError, TypeError, ValueError):
             return False
         return _truthy(result)
+
+    if "{{" in s:
+        return _eval_template_condition(s, context)
 
     return bool(context.get("last_result"))

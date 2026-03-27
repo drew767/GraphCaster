@@ -104,7 +104,11 @@
       "duplicateConditionErrorOut": "Node {{sourceId}} (on-error out): duplicate condition \"{{detail}}\".",
       "outErrorUnreachable": "Node {{sourceId}}: out_error is never used (runner only fails over from task with command/argv or graph_ref).",
       "invalidSourceHandle": "Edge {{edgeId}}: invalid source handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph.",
-      "invalidTargetHandle": "Edge {{edgeId}}: invalid target handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph."
+      "invalidTargetHandle": "Edge {{edgeId}}: invalid target handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph.",
+      "templateConditionUnclosed": "Edge {{edgeId}} (from node {{sourceId}}): template is incomplete (unclosed delimiter or invalid dotted path).",
+      "templateConditionTooMany": "Edge {{edgeId}} (from node {{sourceId}}): more than 32 path placeholders in one condition.",
+      "templateConditionTooLong": "Edge {{edgeId}} (from node {{sourceId}}): condition exceeds maximum length (65536 characters after trim).",
+      "templateConditionInvalid": "Edge {{edgeId}} (from node {{sourceId}}): expected a single path in mustaches, or path plus comparison (==, !=, &lt;, &lt;=, &gt;, &gt;=) and a literal."
     },
     "console": {
       "heading": "Console",

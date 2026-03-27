@@ -104,7 +104,11 @@
       "duplicateConditionErrorOut": "Нода {{sourceId}} (выход при ошибке): повтор условия \"{{detail}}\".",
       "outErrorUnreachable": "Нода {{sourceId}}: out_error не используется раннером (переход только после сбоя task с command/argv или graph_ref).",
       "invalidSourceHandle": "Ребро {{edgeId}}: недопустимая исходящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф.",
-      "invalidTargetHandle": "Ребро {{edgeId}}: недопустимая входящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф."
+      "invalidTargetHandle": "Ребро {{edgeId}}: недопустимая входящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф.",
+      "templateConditionUnclosed": "Ребро {{edgeId}} (от ноды {{sourceId}}): шаблон условия неполный (нет закрытия или неверный путь).",
+      "templateConditionTooMany": "Ребро {{edgeId}} (от ноды {{sourceId}}): больше 32 подстановок пути в одном условии.",
+      "templateConditionTooLong": "Ребро {{edgeId}} (от ноды {{sourceId}}): условие длиннее допустимого (65536 символов после trim).",
+      "templateConditionInvalid": "Ребро {{edgeId}} (от ноды {{sourceId}}): ожидается один путь в фигурных скобках или путь и сравнение (==, !=, &lt;, &lt;=, &gt;, &gt;=) с литералом."
     },
     "console": {
       "heading": "Консоль",
