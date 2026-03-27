@@ -7,7 +7,8 @@ import type { GraphCanvasSelection } from "./GraphCanvas";
 import type { GraphDocumentJson, GraphDocumentSettingsPatch } from "../graph/types";
 import { graphIdFromDocument } from "../graph/parseDocument";
 import { GRAPH_NODE_TYPE_MERGE, GRAPH_NODE_TYPE_TASK } from "../graph/nodeKinds";
-import { useRunSession } from "../run/runSessionStore";
+import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
+import { addStepCacheDirtyId } from "../run/stepCacheDirtyStore";
 import { mergeModeFromNodeData } from "../graph/structureWarnings";
 
 type Props = {
@@ -275,6 +276,7 @@ export function InspectorPanel({
             </div>
           ) : null}
           {selection.graphNodeType === GRAPH_NODE_TYPE_TASK ? (
+            <>
             <div className="gc-inspector-pin">
               <div className="gc-inspector-row gc-inspector-row--field">
                 <span className="gc-inspector-k">{t("app.inspector.pinHeading")}</span>
@@ -353,6 +355,45 @@ export function InspectorPanel({
               })()}
               <p className="gc-inspector-edge-hint">{t("app.inspector.pinHint")}</p>
             </div>
+            <div className="gc-inspector-pin">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <span className="gc-inspector-k">{t("app.inspector.stepCacheHeading")}</span>
+                <label className="gc-inspector-pin-toggle">
+                  <input
+                    type="checkbox"
+                    disabled={runLocked}
+                    checked={
+                      isPlainObject(selection.raw) && selection.raw.stepCache === true
+                    }
+                    onChange={(ev) => {
+                      const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+                      if (ev.target.checked) {
+                        base.stepCache = true;
+                      } else {
+                        delete base.stepCache;
+                      }
+                      onApplyNodeData(selection.id, base);
+                    }}
+                  />
+                  <span>{t("app.inspector.stepCacheEnabled")}</span>
+                </label>
+              </div>
+              <div className="gc-inspector-pin-actions">
+                <button
+                  type="button"
+                  className="gc-btn gc-inspector-apply"
+                  disabled={runLocked}
+                  onClick={() => {
+                    addStepCacheDirtyId(selection.id);
+                    runSessionAppendLine(`[host] step-cache dirty queued: ${selection.id}`);
+                  }}
+                >
+                  {t("app.inspector.stepCacheMarkDirty")}
+                </button>
+              </div>
+              <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
+            </div>
+            </>
           ) : null}
           {selection.graphNodeType === "comment" ? (
             <p className="gc-inspector-edge-hint">{t("app.inspector.commentFrameHint")}</p>

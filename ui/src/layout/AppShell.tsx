@@ -73,11 +73,17 @@ import {
   runSessionSetPythonBanner,
   useRunSession,
 } from "../run/runSessionStore";
+import {
+  clearStepCacheDirtyIds,
+  getStepCacheDirtySnapshot,
+  useStepCacheDirtyCount,
+} from "../run/stepCacheDirtyStore";
 import { isTauriRuntime } from "../run/tauriEnv";
 import { useRunBridge } from "../run/useRunBridge";
 
 const LS_RUN_GRAPHS = "gc.run.graphsDir";
 const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
+const LS_RUN_STEP_CACHE = "gc.run.stepCacheEnabled";
 
 const DOCUMENT_HISTORY_CAP = 80;
 
@@ -147,6 +153,10 @@ export function AppShell({ onLangChange }: Props) {
   const [runArtifactsBase, setRunArtifactsBase] = useState(
     () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
   );
+  const [stepCacheRunEnabled, setStepCacheRunEnabled] = useState(
+    () => localStorage.getItem(LS_RUN_STEP_CACHE) === "1",
+  );
+  const stepCacheDirtyCount = useStepCacheDirtyCount();
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
   const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
   const preDragDocumentRef = useRef<GraphDocumentJson | null>(null);
@@ -311,6 +321,14 @@ export function AppShell({ onLangChange }: Props) {
   useEffect(() => {
     localStorage.setItem(LS_RUN_ARTIFACTS, runArtifactsBase);
   }, [runArtifactsBase]);
+  useEffect(() => {
+    if (runArtifactsBase.trim() === "") {
+      setStepCacheRunEnabled(false);
+    }
+  }, [runArtifactsBase]);
+  useEffect(() => {
+    localStorage.setItem(LS_RUN_STEP_CACHE, stepCacheRunEnabled ? "1" : "0");
+  }, [stepCacheRunEnabled]);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -553,20 +571,31 @@ export function AppShell({ onLangChange }: Props) {
       runSessionAppendLine(`[host] starting run ${runId}`);
       runSessionClearOutputSnapshots();
       runSessionSetActiveRunId(runId);
+      const art = runArtifactsBase.trim();
+      const dirtyCsv = getStepCacheDirtySnapshot().ids.join(",");
+      if (dirtyCsv !== "") {
+        runSessionAppendLine(`[host] step-cache dirty: ${dirtyCsv}`);
+      }
+      const useStepCache = stepCacheRunEnabled && art !== "";
       try {
         await gcStartRun({
           documentJson: JSON.stringify(doc),
           runId,
           graphsDir: runGraphsDir.trim() || undefined,
-          artifactsBase: runArtifactsBase.trim() || undefined,
+          artifactsBase: art === "" ? undefined : art,
           untilNodeId: untilNodeId?.trim() || undefined,
+          stepCache: useStepCache ? true : undefined,
+          stepCacheDirty: useStepCache && dirtyCsv !== "" ? dirtyCsv : undefined,
         });
+        if (useStepCache && dirtyCsv !== "") {
+          clearStepCacheDirtyIds();
+        }
       } catch (e) {
         runSessionSetActiveRunId(null);
         runSessionAppendLine(`[host] ${String(e)}`);
       }
     },
-    [pyProbe, runArtifactsBase, runGraphsDir, structureIssues, t],
+    [pyProbe, runArtifactsBase, runGraphsDir, stepCacheRunEnabled, structureIssues, t],
   );
 
   const onRunGraph = useCallback(() => {
@@ -1039,6 +1068,10 @@ export function AppShell({ onLangChange }: Props) {
         runArtifactsBase={runArtifactsBase}
         onRunGraphsDirChange={setRunGraphsDir}
         onRunArtifactsBaseChange={setRunArtifactsBase}
+        stepCacheRunEnabled={stepCacheRunEnabled}
+        onStepCacheRunEnabledChange={setStepCacheRunEnabled}
+        hasArtifactsBase={runArtifactsBase.trim() !== ""}
+        stepCacheDirtyCount={stepCacheDirtyCount}
         onRun={() => {
           void onRunGraph();
         }}

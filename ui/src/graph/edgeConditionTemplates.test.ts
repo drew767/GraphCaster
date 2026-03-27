@@ -14,6 +14,9 @@ describe("extractTemplatePaths", () => {
     expect(extractTemplatePaths("{{node_outputs.t1.processResult.exitCode}} == 0")).toEqual([
       "node_outputs.t1.processResult.exitCode",
     ]);
+    expect(extractTemplatePaths("{{ $json.processResult.success }}")).toEqual([
+      "$json.processResult.success",
+    ]);
     expect(extractTemplatePaths("true")).toEqual([]);
   });
 });
@@ -22,6 +25,7 @@ describe("analyzeTemplateCondition", () => {
   it("ok for truthy and comparison", () => {
     expect(analyzeTemplateCondition("{{node_outputs.a.x}}")).toBe("ok");
     expect(analyzeTemplateCondition("{{node_outputs.t1.processResult.exitCode}} == 0")).toBe("ok");
+    expect(analyzeTemplateCondition("{{ $json.processResult.success }}")).toBe("ok");
   });
 
   it("none without mustache", () => {

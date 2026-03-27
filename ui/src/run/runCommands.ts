@@ -28,7 +28,11 @@ export async function gcStartRun(args: {
   artifactsBase?: string;
   untilNodeId?: string;
   contextJsonPath?: string;
+  stepCache?: boolean;
+  stepCacheDirty?: string;
 }): Promise<void> {
+  const dirty =
+    args.stepCacheDirty == null || args.stepCacheDirty === "" ? null : args.stepCacheDirty;
   await invoke("gc_start_run", {
     request: {
       documentJson: args.documentJson,
@@ -39,6 +43,8 @@ export async function gcStartRun(args: {
       untilNodeId: args.untilNodeId == null || args.untilNodeId === "" ? null : args.untilNodeId,
       contextJsonPath:
         args.contextJsonPath == null || args.contextJsonPath === "" ? null : args.contextJsonPath,
+      stepCache: args.stepCache === true ? true : null,
+      stepCacheDirty: dirty,
     },
   });
 }

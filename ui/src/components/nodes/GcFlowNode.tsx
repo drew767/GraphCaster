@@ -23,6 +23,12 @@ function GcFlowNodeInner(props: NodeProps) {
     typeof (raw as { gcPin?: unknown }).gcPin === "object" &&
     (raw as { gcPin?: { enabled?: unknown } }).gcPin !== null &&
     (raw as { gcPin?: { enabled?: unknown } }).gcPin?.enabled === true;
+  const stepCacheOn =
+    kind === "task" &&
+    raw != null &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    (raw as { stepCache?: unknown }).stepCache === true;
 
   return (
     <div className={cls}>
@@ -33,6 +39,11 @@ function GcFlowNodeInner(props: NodeProps) {
           {pinOn ? (
             <span className="gc-flow-node__pin" title={t("app.canvas.pinBadge")}>
               ●
+            </span>
+          ) : null}
+          {stepCacheOn ? (
+            <span className="gc-flow-node__stepcache" title={t("app.canvas.stepCacheBadge")}>
+              C
             </span>
           ) : null}
         </span>

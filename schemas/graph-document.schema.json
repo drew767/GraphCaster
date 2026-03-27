@@ -75,7 +75,7 @@
         "data": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json."
+          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json. Task nodes may set stepCache: true to opt into cross-run disk step cache (F17) when the host passes --step-cache and --artifacts-base."
         },
         "parentId": {
           "type": "string",
@@ -100,7 +100,7 @@
         "source_handle": { "type": "string" },
         "target_handle": { "type": "string" },
         "condition": {
-          "description": "Empty/null: unconditional. Max 65536 chars after trim. Literals true/false/1/0/yes/no. Mustache templates: {{dotted.path}} or {{dotted.path}} op literal (==, !=, <, <=, >, >=); n8n-style paths without eval. JSON object starting with { but not {{: JSON Logic subset. Other strings: truthiness of last_result. See python/README.md.",
+          "description": "Empty/null: unconditional. Max 65536 chars after trim. Literals true/false/1/0/yes/no. Mustache templates: {{dotted.path}} or {{dotted.path}} op literal (==, !=, <, <=, >, >=); first segment may be reserved $json (last_result snapshot, n8n-style). JSON object starting with { but not {{: JSON Logic subset (same predicate root). Other strings: truthiness of last_result. See python/README.md.",
           "oneOf": [{ "type": "null" }, { "type": "string" }]
         }
       }

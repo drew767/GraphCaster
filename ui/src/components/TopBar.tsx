@@ -31,6 +31,10 @@ type Props = {
   runActive?: boolean;
   runStartDisabled?: boolean;
   runDesktopOnlyHint?: boolean;
+  stepCacheRunEnabled?: boolean;
+  onStepCacheRunEnabledChange?: (enabled: boolean) => void;
+  hasArtifactsBase?: boolean;
+  stepCacheDirtyCount?: number;
 };
 
 export function TopBar({
@@ -57,6 +61,10 @@ export function TopBar({
   runActive = false,
   runStartDisabled = false,
   runDesktopOnlyHint = false,
+  stepCacheRunEnabled = false,
+  onStepCacheRunEnabledChange = () => {},
+  hasArtifactsBase = false,
+  stepCacheDirtyCount = 0,
 }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -159,6 +167,30 @@ export function TopBar({
               autoComplete="off"
               aria-label={t("app.run.artifactsPlaceholder")}
             />
+            <label
+              className="gc-top-run-stepcache"
+              title={
+                hasArtifactsBase
+                  ? t("app.run.stepCacheHint")
+                  : t("app.run.stepCacheNeedArtifactsHint")
+              }
+            >
+              <input
+                type="checkbox"
+                checked={stepCacheRunEnabled && hasArtifactsBase}
+                disabled={runActive || runDesktopOnlyHint || !hasArtifactsBase}
+                aria-label={t("app.run.stepCache")}
+                onChange={(ev) => {
+                  onStepCacheRunEnabledChange(ev.target.checked);
+                }}
+              />
+              <span>
+                {t("app.run.stepCache")}
+                {stepCacheDirtyCount > 0 ? (
+                  <span className="gc-top-run-stepcache__badge">{stepCacheDirtyCount}</span>
+                ) : null}
+              </span>
+            </label>
             <button
               type="button"
               className="gc-btn gc-btn-primary"

@@ -48,6 +48,10 @@ pub struct StartRunRequest {
     pub until_node_id: Option<String>,
     /// When set: `--context-json <path>` (pinned upstream `node_outputs`).
     pub context_json_path: Option<String>,
+    /// When `Some(true)` and `artifacts_base` is non-empty after trim, host adds `--step-cache` (F17).
+    pub step_cache: Option<bool>,
+    /// Optional comma-separated node ids for `--step-cache-dirty` (n8n-style forced cache miss).
+    pub step_cache_dirty: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -178,10 +182,24 @@ pub fn gc_start_run(
             cmd.arg("-g").arg(s);
         }
     }
-    if let Some(ref a) = request.artifacts_base {
-        let s = a.trim();
-        if !s.is_empty() {
-            cmd.arg("--artifacts-base").arg(s);
+    let artifacts_arg: Option<String> = request.artifacts_base.as_ref().and_then(|a| {
+        let t = a.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
+    if let Some(ref path) = artifacts_arg {
+        cmd.arg("--artifacts-base").arg(path);
+    }
+    if request.step_cache == Some(true) && artifacts_arg.is_some() {
+        cmd.arg("--step-cache");
+        if let Some(ref d) = request.step_cache_dirty {
+            let s = d.trim();
+            if !s.is_empty() {
+                cmd.arg("--step-cache-dirty").arg(s);
+            }
         }
     }
     if let Some(ref u) = request.until_node_id {

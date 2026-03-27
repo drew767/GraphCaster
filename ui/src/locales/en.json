@@ -17,6 +17,7 @@
     },
     "canvas": {
       "pinBadge": "Pinned output (gcPin): runner may skip process and use saved processResult.",
+      "stepCacheBadge": "Step cache enabled (data.stepCache): this task may reuse disk cache across runs when Run bar step cache is on.",
       "errorOutHandle": "On error — run follows this path after task or graph_ref failure (retries exhausted).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
@@ -109,7 +110,11 @@
       "pinFromLastRun": "Pin from last run",
       "pinClear": "Clear pin",
       "pinHint": "Like n8n pinData: gcPin.payload is merged into node outputs; if enabled and processResult is present, the runner short-circuits. Values in --context-json for this node id override the document pin.",
-      "pinPayloadLarge": "Pinned payload is large (~{{kb}} KiB serialized). Consider trimming stdout/stderr before committing."
+      "pinPayloadLarge": "Pinned payload is large (~{{kb}} KiB serialized). Consider trimming stdout/stderr before committing.",
+      "stepCacheHeading": "Step cache (F17)",
+      "stepCacheEnabled": "Eligible for cross-run disk cache (requires Run bar + workspace root)",
+      "stepCacheMarkDirty": "Mark dirty for next run",
+      "stepCacheHint": "Like n8n dirty nodes: the next successful desktop run start sends this id in --step-cache-dirty so the runner skips reading the on-disk entry for that task. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate."
     },
     "editor": {
       "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}."
@@ -155,7 +160,10 @@
       "desktopOnlyHint": "Run is available in the native GraphCaster window (Tauri), not in dev:web only.",
       "pythonMissing": "Python module graph_caster is not available (interpreter: {{path}}). Set GC_PYTHON and install the package, or set GC_GRAPH_CASTER_PACKAGE_ROOT for PYTHONPATH.",
       "fixStructureFirst": "Fix critical graph structure (valid start, no incoming edges to start) before running. Unreachable-node warnings alone do not block run.",
-      "cannotSaveDuringRun": "Save is disabled while a run is active."
+      "cannotSaveDuringRun": "Save is disabled while a run is active.",
+      "stepCache": "Step cache",
+      "stepCacheHint": "Passes --step-cache to Python with the workspace root. Tasks opt in via data.stepCache. Badge shows queued dirty count.",
+      "stepCacheNeedArtifactsHint": "Set workspace root (runs/) first — step cache requires --artifacts-base."
     },
     "lang": {
       "selectLabel": "Language",

@@ -86,7 +86,24 @@ def test_extract_template_paths() -> None:
     assert extract_template_paths("{{node_outputs.t1.processResult.exitCode}} == 0") == [
         "node_outputs.t1.processResult.exitCode",
     ]
+    assert extract_template_paths("{{ $json.processResult.exitCode }} == 0") == [
+        "$json.processResult.exitCode",
+    ]
     assert extract_template_paths("true") == []
+
+
+def test_dollar_json_truthy_process_result() -> None:
+    ctx = {
+        "last_result": {"processResult": {"success": True, "exitCode": 0}},
+        "node_outputs": {},
+    }
+    assert eval_edge_condition("{{ $json.processResult.success }}", ctx) is True
+    assert eval_edge_condition("{{$json.processResult.exitCode}} == 0", ctx) is True
+
+
+def test_dollar_json_wraps_non_dict_last_result() -> None:
+    ctx = {"last_result": 42, "node_outputs": {}}
+    assert eval_edge_condition("{{ $json.value }} == 42", ctx) is True
 
 
 def test_json_logic_still_works_before_template() -> None:

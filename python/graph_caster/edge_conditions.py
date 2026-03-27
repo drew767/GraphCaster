@@ -3,9 +3,11 @@
 """Edge conditions: JSON Logic subset, mustache templates, legacy last_result truthiness.
 
 Template (n8n-style ergonomics, no VM): ``{{ dotted.path }}`` for truthiness, or
-``{{ dotted.path }} <op> <literal>`` with op in ==, !=, <, <=, >, >=. Path segments
-match ``[a-zA-Z_][a-zA-Z0-9_]*`` joined by dots; at most MAX_TEMPLATE_PLACEHOLDERS
-per string. See python/README.md.
+``{{ dotted.path }} <op> <literal>`` with op in ==, !=, <, <=, >, >=. The first path
+segment may be ``$json`` (reserved): same object as ``last_result`` when it is a
+dict, else ``{"value": last_result}`` (compare n8n ``$json`` on the current item).
+Otherwise segments match ``[a-zA-Z_][a-zA-Z0-9_]*`` joined by dots; at most
+MAX_TEMPLATE_PLACEHOLDERS per string. See python/README.md.
 """
 
 from __future__ import annotations
@@ -16,13 +18,13 @@ from typing import Any
 
 MAX_EDGE_CONDITION_CHARS = 65536
 
-# Template mode (n8n-style {{ path }}): dotted paths resolved against the same public
-# predicate context as JSON Logic (last_result, node_outputs, …). Optional tail:
+# Template mode (n8n-style {{ path }}): dotted paths resolve against predicate data
+# (_public_context plus reserved $json envelope for last_result). Optional tail:
 # {{ path }} <op> <literal> with op in ==, !=, <, <=, >, >=. No eval(); max placeholders below.
 MAX_TEMPLATE_PLACEHOLDERS = 32
 
 _PATH_SEGMENT = r"[a-zA-Z_][a-zA-Z0-9_]*"
-_DOTTED_PATH = rf"{_PATH_SEGMENT}(?:\.{_PATH_SEGMENT})*"
+_DOTTED_PATH = rf"(?:\$json|{_PATH_SEGMENT})(?:\.{_PATH_SEGMENT})*"
 _RE_TEMPLATE_TRUTHY = re.compile(rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*$")
 _RE_TEMPLATE_CMP = re.compile(
     rf"^\s*\{{\{{\s*({_DOTTED_PATH})\s*\}}\}}\s*(==|!=|<=|>=|<|>)\s*(.+?)\s*$",
@@ -54,6 +56,18 @@ _SUPPORTED_OPS = frozenset(
 
 def _public_context(context: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in context.items() if not str(k).startswith("_")}
+
+
+def _last_result_as_json_envelope(last: Any) -> Any:
+    if isinstance(last, dict):
+        return last
+    return {"value": last}
+
+
+def _predicate_data(context: dict[str, Any]) -> dict[str, Any]:
+    out = dict(_public_context(context))
+    out["$json"] = _last_result_as_json_envelope(context.get("last_result"))
+    return out
 
 
 def _truthy(value: Any) -> bool:
@@ -270,7 +284,7 @@ def extract_template_paths(condition: str) -> list[str]:
 def _eval_template_condition(s: str, context: dict[str, Any]) -> bool:
     if len(s) > MAX_EDGE_CONDITION_CHARS:
         return False
-    data = _public_context(context)
+    data = _predicate_data(context)
     matches = list(_RE_ALL_PLACEHOLDERS.finditer(s))
     if len(matches) > MAX_TEMPLATE_PLACEHOLDERS:
         return False
@@ -318,7 +332,7 @@ def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
         op_key = next(iter(parsed))
         if op_key not in _SUPPORTED_OPS:
             return False
-        data = _public_context(context)
+        data = _predicate_data(context)
         try:
             result = _eval_rule(parsed, data)
         except (KeyError, TypeError, ValueError):

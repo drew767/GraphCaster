@@ -17,6 +17,7 @@
     },
     "canvas": {
       "pinBadge": "Закреплённый вывод (gcPin): раннер может не запускать процесс и взять сохранённый processResult.",
+      "stepCacheBadge": "Включён step cache (data.stepCache): при включённом кэше в панели Run задача может использовать межпрогонный кэш на диске.",
       "errorOutHandle": "При ошибке — после сбоя task или graph_ref (после ретраев) выполнение идёт по этой ветке.",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
@@ -109,7 +110,11 @@
       "pinFromLastRun": "Закрепить из последнего запуска",
       "pinClear": "Снять pin",
       "pinHint": "Как n8n pinData: gcPin.payload мержится в выход ноды; при enabled и наличии processResult раннер делает short-circuit. Значения в --context-json для этого id ноды перекрывают pin в документе.",
-      "pinPayloadLarge": "Закреплённый payload большой (~{{kb}} KiB в JSON). Имеет смысл укоротить stdout/stderr перед сохранением."
+      "pinPayloadLarge": "Закреплённый payload большой (~{{kb}} KiB в JSON). Имеет смысл укоротить stdout/stderr перед сохранением.",
+      "stepCacheHeading": "Кэш шагов (F17)",
+      "stepCacheEnabled": "Участвует в межпрогонном кэше на диске (нужны панель Run и корень воркспейса)",
+      "stepCacheMarkDirty": "Пометить dirty на следующий запуск",
+      "stepCacheHint": "Как n8n dirty: при следующем успешном старте run из десктопа id уйдёт в --step-cache-dirty — раннер не прочитает дисковую запись для этой task. Id ноды не должен содержать запятую (CSV). Включите «Step cache» в панели Run и укажите корень воркспейса (runs/). Ноды участвуют только с data.stepCache."
     },
     "editor": {
       "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}."
@@ -155,7 +160,10 @@
       "desktopOnlyHint": "Запуск доступен в нативном окне GraphCaster (Tauri), не в режиме только dev:web.",
       "pythonMissing": "Модуль graph_caster недоступен (интерпретатор: {{path}}). Укажите GC_PYTHON, установите пакет или GC_GRAPH_CASTER_PACKAGE_ROOT для PYTHONPATH.",
       "fixStructureFirst": "Исправьте критичную структуру (валидный start, без входящих в start) перед запуском. Предупреждения о недостижимых нодах сами по себе запуск не блокируют.",
-      "cannotSaveDuringRun": "Сохранение недоступно во время активного Run."
+      "cannotSaveDuringRun": "Сохранение недоступно во время активного Run.",
+      "stepCache": "Кэш шагов",
+      "stepCacheHint": "Передаёт в Python --step-cache вместе с корнем воркспейса. Ноды подключаются через data.stepCache. Бейдж — число id в очереди dirty.",
+      "stepCacheNeedArtifactsHint": "Сначала укажите корень воркспейса (runs/) — кэш шагов требует --artifacts-base."
     },
     "lang": {
       "selectLabel": "Язык",

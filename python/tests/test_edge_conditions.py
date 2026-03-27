@@ -26,6 +26,25 @@ def test_json_invalid_returns_false() -> None:
     assert eval_edge_condition("{}", {"last_result": True}) is False
 
 
+def test_json_logic_var_dollar_json() -> None:
+    rule = '{"==": [{"var": "$json.processResult.exitCode"}, 0]}'
+    ctx = {"last_result": {"processResult": {"exitCode": 0}}}
+    assert eval_edge_condition(rule, ctx) is True
+    assert (
+        eval_edge_condition(
+            '{"==": [{"var": "$json.processResult.exitCode"}, 1]}',
+            ctx,
+        )
+        is False
+    )
+
+
+def test_predicate_data_overrides_context_dollar_json_key() -> None:
+    rule = '{"==": [{"var": "$json.x"}, 1]}'
+    ctx = {"last_result": {"x": 1}, "$json": {"x": 999}}
+    assert eval_edge_condition(rule, ctx) is True
+
+
 def test_public_context_hides_underscore_keys_for_var() -> None:
     assert (
         eval_edge_condition(

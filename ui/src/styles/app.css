@@ -967,6 +967,40 @@ body {
   color: var(--gc-text-primary);
 }
 
+.gc-top-run-stepcache {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.68rem;
+  color: var(--gc-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.gc-top-run-stepcache input:disabled + span {
+  opacity: 0.55;
+}
+
+.gc-top-run-stepcache__badge {
+  display: inline-block;
+  min-width: 1rem;
+  margin-left: 0.2rem;
+  padding: 0.06rem 0.28rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--gc-accent) 22%, var(--gc-surface-1));
+  color: var(--gc-text-primary);
+}
+
+.gc-flow-node__stepcache {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: color-mix(in srgb, #5ac8fa 85%, var(--gc-text-secondary));
+  line-height: 1;
+}
+
 .react-flow__node.gc-node--run-active {
   outline: 2px solid var(--gc-accent);
   outline-offset: 2px;
