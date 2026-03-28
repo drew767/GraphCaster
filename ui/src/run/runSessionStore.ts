@@ -38,6 +38,11 @@ export type RunSessionSnapshot = {
   nodeOutputSnapshots: Record<string, Record<string, unknown>>;
   replaySourceLabel: string | null;
   nodeRunOverlayByNodeId: Readonly<Record<string, NodeRunOverlayEntry>>;
+  /**
+   * Incremented when the **visible** node-run overlay map or its source run/replay mode changes.
+   * Lets `GraphCanvas` skip O(n) structural compares of overlay maps on unrelated store emits.
+   */
+  nodeRunOverlayRevision: number;
 };
 
 type InternalState = {
@@ -52,6 +57,7 @@ type InternalState = {
   lastExitCode: number | null;
   outputSnapshotsByRunId: Record<string, Record<string, Record<string, unknown>>>;
   nodeRunOverlayByRunId: Record<string, Record<string, NodeRunOverlayEntry>>;
+  nodeRunOverlayRevision: number;
 };
 
 function trimBuffer(lines: string[]): string[] {
@@ -115,6 +121,7 @@ function buildPublicSnapshot(s: InternalState): RunSessionSnapshot {
     nodeOutputSnapshots: publicNodeOutputSnapshots(s),
     replaySourceLabel: s.replaySourceLabel,
     nodeRunOverlayByNodeId: publicNodeRunOverlay(s),
+    nodeRunOverlayRevision: s.nodeRunOverlayRevision,
   };
 }
 
@@ -130,6 +137,7 @@ let internal: InternalState = {
   lastExitCode: null,
   outputSnapshotsByRunId: {},
   nodeRunOverlayByRunId: {},
+  nodeRunOverlayRevision: 0,
 };
 
 let publicSnap: RunSessionSnapshot = buildPublicSnapshot(internal);
@@ -197,7 +205,11 @@ export function runSessionRegisterLiveRun(runId: string): void {
     return;
   }
   if (internal.liveRunOrder.includes(rid)) {
-    internal = { ...internal, focusedRunId: rid };
+    internal = {
+      ...internal,
+      focusedRunId: rid,
+      nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    };
     emit();
     return;
   }
@@ -210,13 +222,18 @@ export function runSessionRegisterLiveRun(runId: string): void {
     liveRunOrder: [...internal.liveRunOrder, rid],
     focusedRunId: rid,
     consoleByRunId,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
 }
 
 export function runSessionSetFocusedRunId(runId: string | null): void {
   if (runId == null) {
-    internal = { ...internal, focusedRunId: null };
+    internal = {
+      ...internal,
+      focusedRunId: null,
+      nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    };
     emit();
     return;
   }
@@ -224,7 +241,11 @@ export function runSessionSetFocusedRunId(runId: string | null): void {
   if (rid === "" || !internal.liveRunOrder.includes(rid)) {
     return;
   }
-  internal = { ...internal, focusedRunId: rid };
+  internal = {
+    ...internal,
+    focusedRunId: rid,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+  };
   emit();
 }
 
@@ -271,6 +292,7 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
     activeNodeIdByRunId: restActive,
     nodeRunOverlayByRunId: restOverlay,
     pendingStarts: pending,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
   return next;
@@ -304,6 +326,7 @@ export function runSessionOnRunProcessExited(
     nodeRunOverlayByRunId: restOverlay,
     pendingStarts: pending,
     lastExitCode: setExit ? code : internal.lastExitCode,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
   return next;
@@ -381,6 +404,7 @@ export function runSessionBeginReplay(sourceLabel: string): void {
     activeNodeIdByRunId,
     nodeRunOverlayByRunId,
     lastExitCode: null,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -402,6 +426,7 @@ export function runSessionClearReplay(): void {
     outputSnapshotsByRunId,
     activeNodeIdByRunId,
     nodeRunOverlayByRunId,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -481,6 +506,7 @@ export function runSessionResetForTest(): void {
     lastExitCode: null,
     outputSnapshotsByRunId: {},
     nodeRunOverlayByRunId: {},
+    nodeRunOverlayRevision: 0,
   };
   emit();
 }
@@ -505,6 +531,7 @@ export function runSessionApplyParsedRunEventToOverlay(runKey: string, o: Record
       ...internal.nodeRunOverlayByRunId,
       [key]: { ...next },
     },
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
   };
   emit();
 }

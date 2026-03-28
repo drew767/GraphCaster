@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "build:desktop": "tauri build",
     "preview:web": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
-    "test": "vitest run"
+    "test": "vitest run",
+    "fixture:large-graph": "node scripts/generate-large-graph-fixture.mjs"
   },
   "engines": {
     "node": ">=20.19"

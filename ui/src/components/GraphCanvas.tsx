@@ -40,12 +40,20 @@ import type { GcNodeData } from "../graph/toReactFlow";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
 import { GRAPH_NODE_TYPE_START } from "../graph/nodeKinds";
 import { newGraphEdgeId } from "../graph/nodePalette";
+import {
+  gcFlowEdgeDocumentPayloadEqual,
+  gcFlowEdgesSyncKeepSelection,
+} from "../graph/gcFlowEdgeSync";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
-import type { NodeRunOverlayEntry, NodeRunPhase } from "../run/nodeRunOverlay";
+import {
+  nodeRunOverlayMapsEqual,
+  type NodeRunOverlayEntry,
+  type NodeRunPhase,
+} from "../run/nodeRunOverlay";
 
 const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
 
@@ -161,6 +169,11 @@ type Props = {
   runHighlightNodeId?: string | null;
   /** Per-node execution overlay from run-event stream (live or replay). */
   nodeRunOverlayById?: Readonly<Record<string, NodeRunOverlayEntry>>;
+  /**
+   * Bump-driven counter from `runSessionStore` when the visible overlay slice changes.
+   * Avoids O(n) `nodeRunOverlayMapsEqual` on unrelated session emits when provided.
+   */
+  nodeRunOverlayRevision?: number;
   /** Called when export drops edges with missing endpoint nodes (sanitize). */
   onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
   /** Edge ids with branch/handle/structure warnings — yellow stroke on canvas. */
@@ -297,6 +310,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       structureLocked = false,
       runHighlightNodeId = null,
       nodeRunOverlayById = {},
+      nodeRunOverlayRevision,
       onExportRemovedDanglingEdges,
       warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
     },
@@ -337,6 +351,37 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const edgesRef = useRef(edges);
     edgesRef.current = edges;
     const removeNodesByIdRef = useRef<(ids: readonly string[]) => void>(() => {});
+
+    // Stabilize overlay map reference for effect deps when semantics are unchanged (see `useMemo` deps).
+    const overlayStabRef = useRef<{
+      rev: number;
+      map: Readonly<Record<string, NodeRunOverlayEntry>>;
+    } | null>(null);
+    const nodeRunOverlayForSync = useMemo(() => {
+      const overlayRev = nodeRunOverlayRevision ?? -1;
+      if (overlayStabRef.current === null) {
+        overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
+        return nodeRunOverlayById;
+      }
+      if (overlayRev === -1) {
+        if (!nodeRunOverlayMapsEqual(overlayStabRef.current.map, nodeRunOverlayById)) {
+          overlayStabRef.current = { rev: -1, map: nodeRunOverlayById };
+          return nodeRunOverlayById;
+        }
+        return overlayStabRef.current.map;
+      }
+      if (overlayRev !== overlayStabRef.current.rev) {
+        overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
+        return nodeRunOverlayById;
+      }
+      if (nodeRunOverlayById !== overlayStabRef.current.map) {
+        if (!nodeRunOverlayMapsEqual(overlayStabRef.current.map, nodeRunOverlayById)) {
+          overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
+          return nodeRunOverlayById;
+        }
+      }
+      return overlayStabRef.current.map;
+    }, [nodeRunOverlayRevision, nodeRunOverlayById]);
 
     const onNodesChangeWrapped = useCallback(
       (changes: NodeChange<Node>[]) => {
@@ -497,7 +542,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             const d = n.data as GcNodeData;
             const { className, effectivePhase } = runHighlightClassNameForNode(
               n as Node<GcNodeData>,
-              nodeRunOverlayById,
+              nodeRunOverlayForSync,
               hl,
             );
             return {
@@ -514,7 +559,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           const cur = prevById.get(n.id);
           const { className, effectivePhase } = runHighlightClassNameForNode(
             n as Node<GcNodeData>,
-            nodeRunOverlayById,
+            nodeRunOverlayForSync,
             hl,
           );
           if (
@@ -553,18 +598,29 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         if (prev.length !== next.length) {
           return next;
         }
+        const nextById = new Map(next.map((e) => [e.id, e]));
+        if (prev.some((e) => !nextById.has(e.id))) {
+          return next;
+        }
         let same = true;
-        for (let i = 0; i < prev.length; i++) {
-          const a = prev[i];
-          const b = next[i];
-          if (a.id !== b.id || a.className !== b.className) {
+        for (const a of prev) {
+          const b = nextById.get(a.id)!;
+          if (a.className !== b.className || !gcFlowEdgeDocumentPayloadEqual(a, b)) {
             same = false;
             break;
           }
         }
-        return same ? prev : next;
+        return same ? prev : gcFlowEdgesSyncKeepSelection(prev, next);
       });
-    }, [flowFromDocument, runHighlightNodeId, nodeRunOverlayById, warningEdgeIds, setNodes, setEdges]);
+    }, [
+      flowFromDocument,
+      runHighlightNodeId,
+      nodeRunOverlayForSync,
+      nodeRunOverlayRevision,
+      warningEdgeIds,
+      setNodes,
+      setEdges,
+    ]);
 
     const onSelectionChange = useCallback(
       ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {

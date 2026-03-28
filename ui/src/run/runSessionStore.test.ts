@@ -6,6 +6,7 @@ import {
   getMaxConcurrentRuns,
   getRunSessionSnapshot,
   runSessionAbortRegisteredRun,
+  runSessionApplyParsedRunEventToOverlay,
   runSessionCanStartAnotherLive,
   runSessionEnqueuePending,
   runSessionOnRunProcessExited,
@@ -67,5 +68,25 @@ describe("runSessionStore multi-run queue", () => {
     expect(next?.runId).toBe("z");
     expect(getRunSessionSnapshot().liveRunIds).toEqual(["y"]);
     expect(getRunSessionSnapshot().pendingRunCount).toBe(0);
+  });
+
+  it("bumps nodeRunOverlayRevision when registering focus and when overlay mutates", () => {
+    runSessionResetForTest();
+    expect(getRunSessionSnapshot().nodeRunOverlayRevision).toBe(0);
+    const stub = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal("localStorage", stub);
+    runSessionRegisterLiveRun("r1");
+    const afterReg = getRunSessionSnapshot().nodeRunOverlayRevision;
+    expect(afterReg).toBeGreaterThan(0);
+    runSessionApplyParsedRunEventToOverlay("r1", {
+      type: "node_enter",
+      nodeId: "n1",
+      graphId: "g",
+    });
+    expect(getRunSessionSnapshot().nodeRunOverlayRevision).toBeGreaterThan(afterReg);
   });
 });

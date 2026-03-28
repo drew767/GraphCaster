@@ -76,9 +76,9 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Не оплачивать полный DOM/React для невидимых нод (React Flow / паттерны n8n «не рисовать лишнее») | В **`GraphCanvas`**: **`onlyRenderVisibleElements`** на **`<ReactFlow>`** (**`@xyflow/react`**) |
-| Не делать **O(N)** пересборку массива нод на каждое событие прогона, если поменялась одна нода | Тот же файл: **`setNodes`** с сохранением ссылок на неизменённые ноды при стабильном порядке и совпадении структуры; рёбра — **`setEdges`** с ранним выходом, если классы предупреждений совпали |
+| Не делать **O(N)** пересборку массива нод на каждое событие прогона, если поменялась одна нода | Тот же файл: **`setNodes`** с сохранением ссылок на неизменённые ноды при стабильном порядке и совпадении структуры; рёбра — **`setEdges`**: **`gcFlowEdgeDocumentPayloadEqual`** (поля документа без `className` предупреждений; **`data`/`style`** — сравнение после нормализации порядка ключей JSON) + **`gcFlowEdgesSyncKeepSelection`** (перенос **`selected`/`selectable`** по **`id`**, не по индексу в массиве); оверлей — **`nodeRunOverlayRevision`** в **`runSessionStore`** + стабилизация карты в **`useMemo`** в **`GraphCanvas`** |
 
-Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/run/nodeRunOverlay.ts`** (**`nodeRunOverlayMapsEqual`** — сравнение карт оверлея), Vitest **`ui/src/run/nodeRunOverlayBatch.test.ts`**. **Не** закрыто в этой волне: lazy-подграфы по схеме **A** / группы «как в §28.2 п.7» до появления родителя в **`graph-document.schema.json`**.
+Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/graph/gcFlowEdgeSync.ts`**, Vitest **`gcFlowEdgeSync.test.ts`**; **`ui/src/run/runSessionStore.ts`** (**`nodeRunOverlayRevision`**), **`ui/src/run/nodeRunOverlay.ts`**, Vitest **`nodeRunOverlayBatch.test.ts`**. Локальный стресс-фикстур (stdout, не коммитить большие JSON): **`npm run fixture:large-graph`** в **`ui/`** (аргумент — число нод, по умолчанию **500**). **Baseline / Chrome Performance / целевые пороги** (процедура и таблица критериев): **`ui/README.md`** раздел **«Большой граф: фикстура и baseline»**. Сравнение с конкурентами и **остаток** F1 (**lazy**-подграфы в **A**, группы **§28.2** п.7) — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28**, таблица **F1** (строка GraphCaster).
 
 ---
 
@@ -527,7 +527,7 @@
 
 ## MiniMap и панель управления полотном (навигация, @xyflow)
 
-Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): факт реализации — здесь; в competitive остаётся только **открытая** тема виртуализации / lazy-подграфов на очень больших графах.
+Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): факт мини-карты — здесь; **производительность очень больших графов** (волна **onlyRenderVisible** + оверлей + рёбра) — раздел **«Canvas: большие графы»** выше; в competitive **F1** строка **GraphCaster** = **частично** только из‑за **остатка** (lazy-подграфы **A**, группы п.7).
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
