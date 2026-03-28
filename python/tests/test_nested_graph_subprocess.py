@@ -274,3 +274,19 @@ def test_graph_ref_subprocess_merges_outputs_for_edge_condition(
     )
     assert events[-1].get("status") == "success"
     assert any(e.get("type") == "run_success" and e.get("nodeId") == "pe" for e in events)
+
+
+def test_write_nested_context_json_propagates_nested_doc_revisions(tmp_path: Path) -> None:
+    from graph_caster.nested_run_subprocess import write_nested_context_json
+
+    gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    rev64 = "ab" * 32
+    ctx: dict = {
+        "node_outputs": {},
+        "nesting_depth": 1,
+        "_gc_nested_doc_revisions": {gid: rev64},
+    }
+    out = tmp_path / "nested_ctx.json"
+    write_nested_context_json(ctx, out)
+    raw = json.loads(out.read_text(encoding="utf-8"))
+    assert raw.get("_gc_nested_doc_revisions") == {gid: rev64}

@@ -23,6 +23,7 @@ from graph_caster.node_output_cache import (
     stable_json,
     step_cache_root,
     upstream_outputs_fingerprint,
+    upstream_step_cache_fingerprint,
 )
 from graph_caster.run_event_sink import NdjsonStdoutSink, RunEventDict, RunEventSink, normalize_run_event_sink
 from graph_caster.runner import GraphRunner
@@ -88,6 +89,7 @@ __all__ = [
     "clear_graph_index_cache",
     "tree_bytes",
     "upstream_outputs_fingerprint",
+    "upstream_step_cache_fingerprint",
     "resolve_graph_path",
     "load_graph_documents_index",
     "scan_graphs_directory",

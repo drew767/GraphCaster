@@ -164,6 +164,7 @@ def _prepare_context(ctx: dict[str, Any] | None) -> dict[str, Any]:
     c.setdefault("node_outputs", {})
     c.setdefault("max_nesting_depth", 16)
     c.setdefault("last_result", True)
+    c.setdefault("_gc_nested_doc_revisions", {})
     return c
 
 
@@ -260,6 +261,31 @@ class GraphRunner:
                 return {}, "upstream_incomplete"
             up[pid] = outs[pid]
         return up, None
+
+    def _graph_ref_upstream_revision_pairs(
+        self,
+        node_id: str,
+        ctx: dict[str, Any],
+    ) -> list[tuple[str, str]]:
+        """Pairs ``(graph_ref_predecessor_id, child_graph_document_revision_hex)`` for step-cache keys.
+
+        Revision values are keyed by ``targetGraphId`` in ``_gc_nested_doc_revisions`` (one file per id in workspace).
+        """
+        preds = self._incoming_success_sources(node_id)
+        rev_map: dict[str, str] = ctx.get("_gc_nested_doc_revisions") or {}
+        pairs: list[tuple[str, str]] = []
+        for pid in preds:
+            pred = self._node_by_id.get(pid)
+            if pred is None or pred.type != "graph_ref":
+                continue
+            raw_tgt = pred.data.get("targetGraphId") or pred.data.get("graphId")
+            if not raw_tgt:
+                continue
+            target_id = str(raw_tgt)
+            rev = rev_map.get(target_id)
+            if rev:
+                pairs.append((pid, rev))
+        return pairs
 
     def emit(self, event_type: str, **payload: Any) -> None:
         ev: RunEventDict = {"type": event_type, **payload}
@@ -862,6 +888,7 @@ class GraphRunner:
 
                     if not pin_short and cache_active:
                         up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+                        gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
                         if inc_reason:
                             upstream_incomplete = True
                             self.emit(
@@ -879,6 +906,7 @@ class GraphRunner:
                                 upstream_outputs=up,
                                 tenant_id=tenant_s,
                                 workspace_secrets_file_fp=cache_ws_fp,
+                                graph_ref_upstream_revisions=gr_pairs,
                             )
                             self.emit(
                                 "node_cache_miss",
@@ -896,6 +924,7 @@ class GraphRunner:
                                 upstream_outputs=up,
                                 tenant_id=tenant_s,
                                 workspace_secrets_file_fp=cache_ws_fp,
+                                graph_ref_upstream_revisions=gr_pairs,
                             )
                             cached = store.get(cache_key)
                             if cached is not None:
@@ -1101,6 +1130,11 @@ class GraphRunner:
             self.emit("error", nodeId=node.id, message="max_nesting_depth_exceeded")
             return False
 
+        nested_rev = graph_document_revision(nested)
+        # Keys are target graph ids (workspace: one file per graphId). Same id → same path.
+        rev_bucket = ctx.setdefault("_gc_nested_doc_revisions", {})
+        rev_bucket[target_id] = nested_rev
+
         depth_next = ndepth + 1
         nested_payload: dict[str, Any] = {
             "parentNodeId": node.id,
@@ -1116,6 +1150,7 @@ class GraphRunner:
         child_ctx = dict(ctx)
         child_ctx["nesting_depth"] = depth_next
         child_ctx["_parent_graph_ref_node_id"] = node.id
+        child_ctx["_gc_nested_doc_revisions"] = dict(rev_bucket)
 
         sess = child_ctx.get("_gc_run_session")
         sess_coop = sess if isinstance(sess, RunSession) else None

@@ -10,6 +10,7 @@ no internal runner-only handles):
 - ``max_nesting_depth``
 - ``root_run_artifact_dir``
 - ``_parent_graph_ref_node_id``
+- ``_gc_nested_doc_revisions`` (maps ``targetGraphId`` → revision hex for F17 step-cache parity)
 - ``last_result``
 - ``_gc_started_at_iso``
 - ``run_id``
@@ -51,6 +52,7 @@ NESTED_CONTEXT_INPUT_KEYS: frozenset[str] = frozenset(
         "max_nesting_depth",
         "root_run_artifact_dir",
         "_parent_graph_ref_node_id",
+        "_gc_nested_doc_revisions",
         "last_result",
         "_gc_started_at_iso",
         "run_id",

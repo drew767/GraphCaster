@@ -8,7 +8,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 __all__ = [
     "StepCachePolicy",
@@ -19,6 +19,7 @@ __all__ = [
     "stable_json",
     "step_cache_root",
     "upstream_outputs_fingerprint",
+    "upstream_step_cache_fingerprint",
 ]
 
 
@@ -41,9 +42,28 @@ def node_data_for_cache_key(data: Mapping[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(filtered, sort_keys=True, default=str))
 
 
-def upstream_outputs_fingerprint(outputs: Mapping[str, Any]) -> str:
+def upstream_step_cache_fingerprint(
+    outputs: Mapping[str, Any],
+    *,
+    graph_ref_revisions: Sequence[tuple[str, str]] = (),
+) -> str:
+    """SHA-256 of upstream node outputs for step-cache keys.
+
+    When ``graph_ref_revisions`` is non-empty, each pair is ``(graph_ref_node_id,
+    graph_document_revision_hex)`` for a direct predecessor of type ``graph_ref``,
+    sorted by node id. Empty sequence preserves the legacy fingerprint of outputs
+    alone (same as historical ``upstream_outputs_fingerprint``).
+    """
     norm = normalize_outputs_for_cache_key(outputs)
-    return hashlib.sha256(stable_json(norm).encode("utf-8")).hexdigest()
+    if not graph_ref_revisions:
+        return hashlib.sha256(stable_json(norm).encode("utf-8")).hexdigest()
+    pairs = sorted((str(a), str(r)) for a, r in graph_ref_revisions)
+    combined = {"g": pairs, "o": norm}
+    return hashlib.sha256(stable_json(combined).encode("utf-8")).hexdigest()
+
+
+def upstream_outputs_fingerprint(outputs: Mapping[str, Any]) -> str:
+    return upstream_step_cache_fingerprint(outputs, graph_ref_revisions=())
 
 
 def _coerce_step_cache_entry(raw: dict[str, Any]) -> dict[str, Any] | None:
@@ -66,13 +86,18 @@ def compute_step_cache_key(
     upstream_outputs: Mapping[str, Any],
     tenant_id: str | None = None,
     workspace_secrets_file_fp: str | None = None,
+    graph_ref_upstream_revisions: Sequence[tuple[str, str]] | None = None,
 ) -> str:
+    pairs: Sequence[tuple[str, str]] = (
+        () if graph_ref_upstream_revisions is None else graph_ref_upstream_revisions
+    )
+    up_fp = upstream_step_cache_fingerprint(upstream_outputs, graph_ref_revisions=pairs)
     payload: dict[str, Any] = {
         "data": node_data_for_cache_key(node_data),
         "gid": graph_id,
         "gr": graph_rev,
         "nid": node_id,
-        "up_fp": upstream_outputs_fingerprint(upstream_outputs),
+        "up_fp": up_fp,
     }
     if tenant_id is not None and str(tenant_id).strip():
         payload["tenant"] = str(tenant_id).strip()

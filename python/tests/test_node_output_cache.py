@@ -8,6 +8,7 @@ from graph_caster.node_output_cache import (
     node_data_for_cache_key,
     step_cache_root,
     upstream_outputs_fingerprint,
+    upstream_step_cache_fingerprint,
 )
 
 
@@ -96,6 +97,22 @@ def test_step_cache_get_rejects_malformed_entry(tmp_path) -> None:
 def test_upstream_fingerprint_stable_under_key_order() -> None:
     up = {"z": {"x": 1}, "a": {"y": 2}}
     assert upstream_outputs_fingerprint(up) == upstream_outputs_fingerprint(up)
+
+
+def test_upstream_step_cache_fingerprint_nested_graph_ref_pairs() -> None:
+    up = {"pref": {"nodeType": "graph_ref", "data": {"targetGraphId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}}}
+    legacy = upstream_outputs_fingerprint(up)
+    assert upstream_step_cache_fingerprint(up, graph_ref_revisions=()) == legacy
+    with_rev = upstream_step_cache_fingerprint(
+        up,
+        graph_ref_revisions=(("pref", "aa" * 32),),
+    )
+    assert with_rev != legacy
+    other_rev = upstream_step_cache_fingerprint(
+        up,
+        graph_ref_revisions=(("pref", "bb" * 32),),
+    )
+    assert other_rev != with_rev
 
 
 def test_compute_key_uses_upstream_fingerprint_not_full_blob() -> None:

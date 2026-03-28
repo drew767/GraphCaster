@@ -438,11 +438,22 @@
 
 **Открытые темы F17** (не вложенность): кэш не-**`task`**, TTL, отдельный тоггл step-cache на полотне — [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) §22.2.
 
+### Ревизия вложенного graph_ref в ключе step-cache (F17 × §36.2)
+
+Сводка в конкурентном документе: [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) **§36.1** (строка GraphCaster), **§36.2** п.2 (пункт закрыт в пользу этой реализации).
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Comfy / n8n: смена вложенного подграфа инвалидирует downstream-шаги родителя | При входе в **`graph_ref`** в **`context`** накапливается **`_gc_nested_doc_revisions`**: ключ **`targetGraphId`**, значение **`graph_document_revision`** загруженного **`GraphDocument`** (инвариант workspace — один файл на id). Для **`task`** с **`data.stepCache`**: в материал **`upstream_step_cache_fingerprint`** (и далее **`compute_step_cache_key`**) входят отсортированные пары **`(id предка graph_ref, revision_hex)`** для каждого прямого предка типа **`graph_ref`**. Пустой список пар сохраняет прежнюю семантику отпечатка только по выходам предков |
+| Паритет in-process и **`GC_GRAPH_REF_SUBPROCESS=1`** | Ключ **`_gc_nested_doc_revisions`** в **`NESTED_CONTEXT_INPUT_KEYS`**; запись в **`--context-json`** дочернего CLI и мерж в **`__main__._merge_context_json`** |
+
+Код: **`python/graph_caster/runner.py`** (**`_prepare_context`**, **`_graph_ref_upstream_revision_pairs`**, **`_execute_graph_ref`**), **`python/graph_caster/node_output_cache.py`** (**`upstream_step_cache_fingerprint`**, **`compute_step_cache_key`**), **`python/graph_caster/nested_run_subprocess.py`**, экспорт в **`graph_caster/__init__.py`**. Тесты: **`python/tests/test_runner_step_cache.py`** (**`test_step_cache_child_file_change_invalidates_parent_downstream_task`** и др.), **`test_nested_graph_subprocess.py`** (**`test_write_nested_context_json_propagates_nested_doc_revisions`**), **`test_node_output_cache.py`**. Документация: **`python/README.md`** (абзац F17 про пары graph_ref).
+
 ### Межпрогонный кэш выходов **`task`** (F17 — ключ в духе Comfy + **dirty** в духе n8n)
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
-| Comfy: стабильная сигнатура входов + состояние графа | **`graph_document_revision(doc)`** — SHA-256 канонического снимка документа (ноды, рёбра, **`data`**); участвует в **`compute_step_cache_key`** вместе с **`graphId`**, id ноды, **`node_data_for_cache_key`** (без флага **`stepCache`**) и **`upstream_outputs_fingerprint`** (SHA-256 от **`normalize_outputs_for_cache_key`** среза **`node_outputs`** предков по входам не из **`out_error`**) — без встраивания полного среза в JSON ключа |
+| Comfy: стабильная сигнатура входов + состояние графа | **`graph_document_revision(doc)`** — SHA-256 канонического снимка документа (ноды, рёбра, **`data`**); участвует в **`compute_step_cache_key`** вместе с **`graphId`**, id ноды, **`node_data_for_cache_key`** (без флага **`stepCache`**) и **`upstream_step_cache_fingerprint`** / **`upstream_outputs_fingerprint`** (SHA-256 от нормализованного среза **`node_outputs`** предков по входам не из **`out_error`**, плюс при необходимости пары ревизий для предков **`graph_ref`** — см. подраздел **«Ревизия вложенного graph_ref…»** выше) — без встраивания полного среза в JSON ключа |
 | n8n: принудительное перевыполнение выбранных нод | **`StepCachePolicy.dirty_nodes`**; CLI **`--step-cache-dirty`**; событие **`node_cache_miss`** с **`reason: dirty`** |
 | n8n: **`dirtyNodeNames`** / транзитивная инвалидация при partial | **Десктоп:** по успешным рёбрам (не **`out_error`**), как предки в ключе F17 в **`runner.py`**; в очередь попадают только **`task`** с **`data.stepCache`** truthy; кнопка «Mark dirty» берёт граф с канваса (**`exportDocument`**); **`onApplyNodeData`** вызывает замыкание только для исполняемых типов (не **`comment`**); смена **`condition`** ребра и новое ребро — seed **`source`**; лог консоли: дельта **`+N`** и полная очередь; открытие вложенного графа по **`graph_ref`** накапливает стек для **bubble** **dirty** на предков (файлы воркспейса с диска) |
 | Персистентность | **`StepCacheStore`** под **`artifacts_base`**: **`runs/<graphId>/step-cache/v1/<shard>/<key>.json`**; опция **`context["tenant_id"]`** — опциональный суффикс ключа |

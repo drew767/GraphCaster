@@ -203,6 +203,118 @@ def _parent_with_graph_ref(parent_id: str, child_id: str) -> dict:
     }
 
 
+def _minimal_child_graph(gid: str, *, bump: str = "a") -> dict:
+    # graph_document_revision ignores meta.title; bump must change node/edge payload.
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": gid, "title": "nested"},
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+        "nodes": [
+            {"id": "cs", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {"id": "ce", "type": "exit", "position": {"x": 0, "y": 0}, "data": {"bump": bump}},
+        ],
+        "edges": [
+            {
+                "id": "c1",
+                "source": "cs",
+                "sourceHandle": "out_default",
+                "target": "ce",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+        ],
+    }
+
+
+def _parent_graph_ref_then_task(parent_id: str, child_id: str, tmp: Path) -> dict:
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": parent_id, "title": "parent-graph-ref-task"},
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+        "nodes": [
+            {"id": "ps", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {
+                "id": "pref",
+                "type": "graph_ref",
+                "position": {"x": 0, "y": 0},
+                "data": {"targetGraphId": child_id},
+            },
+            {
+                "id": "pt",
+                "type": "task",
+                "position": {"x": 0, "y": 0},
+                "data": {
+                    "command": [sys.executable, "-c", "print(1)"],
+                    "cwd": str(tmp),
+                    "stepCache": True,
+                },
+            },
+            {"id": "pe", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+        ],
+        "edges": [
+            {
+                "id": "p1",
+                "source": "ps",
+                "sourceHandle": "out_default",
+                "target": "pref",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+            {
+                "id": "p2",
+                "source": "pref",
+                "sourceHandle": "out_default",
+                "target": "pt",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+            {
+                "id": "p3",
+                "source": "pt",
+                "sourceHandle": "out_default",
+                "target": "pe",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+        ],
+    }
+
+
+def test_step_cache_child_file_change_invalidates_parent_downstream_task(tmp_path: Path) -> None:
+    clear_graph_index_cache()
+    child_id = "c0c0c0c0-c0c0-40c0-80c0-c0c0c0c0c0c0"
+    parent_id = "d0d0d0d0-d0d0-40d0-80d0-d0d0d0d0d0d0"
+    child_path = tmp_path / "child.json"
+    child_path.write_text(json.dumps(_minimal_child_graph(child_id, bump="v1")), encoding="utf-8")
+    (tmp_path / "parent.json").write_text(
+        json.dumps(_parent_graph_ref_then_task(parent_id, child_id, tmp_path)),
+        encoding="utf-8",
+    )
+
+    root_doc = GraphDocument.from_dict(_parent_graph_ref_then_task(parent_id, child_id, tmp_path))
+    host = RunHostContext(graphs_root=tmp_path, artifacts_base=tmp_path)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+
+    ev1: list[dict] = []
+    GraphRunner(root_doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev1 if e.get("type") == "process_spawn" and e.get("nodeId") == "pt") == 1
+    assert any(e.get("type") == "node_cache_miss" and e.get("nodeId") == "pt" for e in ev1)
+    assert not any(e.get("type") == "node_cache_hit" and e.get("nodeId") == "pt" for e in ev1)
+
+    ev2: list[dict] = []
+    GraphRunner(root_doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev2 if e.get("type") == "process_spawn" and e.get("nodeId") == "pt") == 0
+    assert any(e.get("type") == "node_cache_hit" and e.get("nodeId") == "pt" for e in ev2)
+
+    child_path.write_text(json.dumps(_minimal_child_graph(child_id, bump="v2")), encoding="utf-8")
+
+    ev3: list[dict] = []
+    GraphRunner(root_doc, sink=lambda e: ev3.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev3 if e.get("type") == "process_spawn" and e.get("nodeId") == "pt") == 1
+    assert any(e.get("type") == "node_cache_miss" and e.get("nodeId") == "pt" for e in ev3)
+    assert not any(e.get("type") == "node_cache_hit" and e.get("nodeId") == "pt" for e in ev3)
+
+
 def test_step_cache_dirty_parent_graph_ref_forces_nested_miss(tmp_path: Path) -> None:
     clear_graph_index_cache()
     child_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
