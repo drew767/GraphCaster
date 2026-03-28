@@ -1,6 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
@@ -16,11 +16,20 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
   const { t } = useTranslation();
   const [copyDone, setCopyDone] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
+  const copyBusyRef = useRef(false);
+
+  const safeClose = useCallback(() => {
+    if (copyBusyRef.current) {
+      return;
+    }
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (open) {
       setCopyDone(false);
       setCopyBusy(false);
+      copyBusyRef.current = false;
     }
   }, [open, presentation?.copyText]);
 
@@ -30,33 +39,35 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
     }
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") {
-        onClose();
+        safeClose();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, safeClose]);
 
   const onBackdropClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) {
-        onClose();
+        safeClose();
       }
     },
-    [onClose],
+    [safeClose],
   );
 
   const onCopy = useCallback(async () => {
     if (!presentation) {
       return;
     }
+    copyBusyRef.current = true;
     setCopyBusy(true);
     try {
       const ok = await writeTextToClipboard(presentation.copyText);
       setCopyDone(ok);
     } finally {
+      copyBusyRef.current = false;
       setCopyBusy(false);
     }
   }, [presentation]);
@@ -91,7 +102,7 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
           </pre>
         ) : null}
         <div className="gc-modal-actions">
-          <button type="button" className="gc-btn" onClick={onClose}>
+          <button type="button" className="gc-btn" disabled={copyBusy} onClick={safeClose}>
             {t("app.errors.openModal.close")}
           </button>
           <button

@@ -47,10 +47,12 @@ export function GraphSaveModal({
   const [saveIssue, setSaveIssue] = useState<SaveFieldIssue | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
   const isSavingRef = useRef(false);
+  const copyBusyRef = useRef(false);
 
   const safeClose = useCallback(() => {
-    if (isSavingRef.current) {
+    if (isSavingRef.current || copyBusyRef.current) {
       return;
     }
     onClose();
@@ -60,6 +62,8 @@ export function GraphSaveModal({
     if (open) {
       setFileName(suggestedFileName);
       setSaveIssue(null);
+      setCopyBusy(false);
+      copyBusyRef.current = false;
     }
   }, [open, suggestedFileName]);
 
@@ -92,12 +96,19 @@ export function GraphSaveModal({
   );
 
   const handleCopyIssue = useCallback(async () => {
-    if (saveIssue == null) {
+    if (saveIssue == null || copyBusyRef.current) {
       return;
     }
-    const text = formatSaveIssueMessage(saveIssue, t);
-    const ok = await writeTextToClipboard(text);
-    setCopyDone(ok);
+    copyBusyRef.current = true;
+    setCopyBusy(true);
+    try {
+      const text = formatSaveIssueMessage(saveIssue, t);
+      const ok = await writeTextToClipboard(text);
+      setCopyDone(ok);
+    } finally {
+      copyBusyRef.current = false;
+      setCopyBusy(false);
+    }
   }, [saveIssue, t]);
 
   const handleSave = useCallback(async () => {
@@ -166,7 +177,7 @@ export function GraphSaveModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="gc-save-modal-title"
-        aria-busy={isSaving}
+        aria-busy={isSaving || copyBusy}
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -188,7 +199,7 @@ export function GraphSaveModal({
                       key={e.fileName}
                       type="button"
                       className={`gc-save-card${selected ? " gc-save-card--selected" : ""}${e.duplicateGraphId ? " gc-save-card--warn" : ""}`}
-                      disabled={isSaving}
+                      disabled={isSaving || copyBusy}
                       onClick={() => {
                         setFileName(e.fileName);
                         setSaveIssue(null);
@@ -217,7 +228,7 @@ export function GraphSaveModal({
           className="gc-modal-input"
           type="text"
           value={fileName}
-          disabled={isSaving}
+          disabled={isSaving || copyBusy}
           aria-invalid={saveIssue?.kind === "empty_name"}
           aria-describedby={saveIssue != null ? "gc-save-modal-error" : undefined}
           onChange={(ev) => {
@@ -239,7 +250,7 @@ export function GraphSaveModal({
             <button
               type="button"
               className="gc-btn gc-btn-small"
-              disabled={isSaving}
+              disabled={isSaving || copyBusy}
               onClick={() => void handleCopyIssue()}
             >
               {copyDone ? t("app.errors.openModal.copied") : t("app.errors.openModal.copy")}
@@ -247,13 +258,13 @@ export function GraphSaveModal({
           </div>
         ) : null}
         <div className="gc-modal-actions">
-          <button type="button" className="gc-btn" disabled={isSaving} onClick={safeClose}>
+          <button type="button" className="gc-btn" disabled={isSaving || copyBusy} onClick={safeClose}>
             {t("app.saveModal.cancel")}
           </button>
           <button
             type="button"
             className="gc-btn gc-btn-primary"
-            disabled={isSaving}
+            disabled={isSaving || copyBusy}
             onClick={() => void handleSave()}
           >
             {t("app.saveModal.save")}
