@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from graph_caster.cli_run_args import build_graph_caster_run_argv
+from graph_caster.cli_run_args import build_graph_caster_run_argv, run_start_body_to_argv_paths
 
 
 def test_build_run_argv_matches_tauri_order(tmp_path: Path) -> None:
@@ -36,3 +36,31 @@ def test_build_run_argv_matches_tauri_order(tmp_path: Path) -> None:
     assert "n1" in tail
     assert "--context-json" in tail
     assert str(ctx) in tail
+
+
+def test_build_run_argv_includes_workspace_root(tmp_path: Path) -> None:
+    doc = tmp_path / "g.json"
+    doc.write_text("{}", encoding="utf-8")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    argv = build_graph_caster_run_argv(
+        doc,
+        run_id="r1",
+        workspace_root=ws,
+    )
+    assert "--workspace-root" in argv
+    assert str(ws.resolve()) in argv
+
+
+def test_run_start_body_maps_workspace_root(tmp_path: Path) -> None:
+    doc = tmp_path / "g.json"
+    doc.write_text("{}", encoding="utf-8")
+    ws = tmp_path / "ws2"
+    ws.mkdir()
+    argv = run_start_body_to_argv_paths(
+        {"runId": "rid-ws", "workspaceRoot": str(ws)},
+        document_path=doc,
+        context_json_path=None,
+    )
+    assert "--workspace-root" in argv
+    assert str(ws.resolve()) in argv

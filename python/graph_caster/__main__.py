@@ -72,6 +72,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Directory of *.json graphs for graph_ref resolution (graphId → file)",
     )
     run.add_argument(
+        "--workspace-root",
+        type=Path,
+        default=None,
+        help="Workspace root for .graphcaster/workspace.secrets.env; if omitted, parent of --graphs-dir is used when -g is set",
+    )
+    run.add_argument(
         "--artifacts-base",
         type=Path,
         default=None,
@@ -199,7 +205,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     sink = NdjsonStdoutSink(sys.stdout.write, sys.stdout.flush)
 
     artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
-    host = RunHostContext(graphs_root=graphs_root, artifacts_base=artifacts_base)
+    workspace_root = Path(args.workspace_root).resolve() if args.workspace_root is not None else None
+    host = RunHostContext(
+        graphs_root=graphs_root,
+        artifacts_base=artifacts_base,
+        workspace_root=workspace_root,
+    )
     reg = get_default_run_registry() if args.track_session else None
     if args.control_stdin:
         if reg is None:

@@ -11,6 +11,7 @@ def build_graph_caster_run_argv(
     *,
     run_id: str,
     graphs_dir: Path | None = None,
+    workspace_root: Path | None = None,
     artifacts_base: Path | None = None,
     until_node: str | None = None,
     context_json_path: Path | None = None,
@@ -30,6 +31,8 @@ def build_graph_caster_run_argv(
     argv.extend(["--run-id", rid])
     if graphs_dir is not None and str(graphs_dir).strip():
         argv.extend(["-g", str(Path(graphs_dir))])
+    if workspace_root is not None and str(workspace_root).strip():
+        argv.extend(["--workspace-root", str(Path(workspace_root).resolve())])
     if artifacts_base is not None and str(artifacts_base).strip():
         argv.extend(["--artifacts-base", str(Path(artifacts_base))])
         if no_persist_run_events:
@@ -55,8 +58,10 @@ def run_start_body_to_argv_paths(
     context_json_path: Path | None,
 ) -> list[str]:
     graphs_dir_raw = body.get("graphsDir")
+    workspace_raw = body.get("workspaceRoot")
     artifacts_raw = body.get("artifactsBase")
     graphs_dir = Path(str(graphs_dir_raw)) if graphs_dir_raw and str(graphs_dir_raw).strip() else None
+    workspace_root = Path(str(workspace_raw)) if workspace_raw and str(workspace_raw).strip() else None
     artifacts_base = Path(str(artifacts_raw)) if artifacts_raw and str(artifacts_raw).strip() else None
     until_raw = body.get("untilNodeId")
     until_node = str(until_raw).strip() if until_raw is not None and str(until_raw).strip() else None
@@ -71,6 +76,7 @@ def run_start_body_to_argv_paths(
         document_path,
         run_id=run_id,
         graphs_dir=graphs_dir,
+        workspace_root=workspace_root,
         artifacts_base=artifacts_base,
         until_node=until_node,
         context_json_path=context_json_path,

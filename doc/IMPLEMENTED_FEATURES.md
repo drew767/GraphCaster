@@ -9,10 +9,24 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Документ графа отдельно от инфраструктуры запуска | JSON графа → `GraphDocument` / схема `graph-document.schema.json` |
-| Пути workspace, артефакты, индекс `graphs/` — не в «логике ноды» | `RunHostContext` (`python/graph_caster/host_context.py`): `graphs_root`, `artifacts_base`; передаётся в `GraphRunner(..., host=…)` |
+| Пути workspace, артефакты, индекс `graphs/` — не в «логике ноды» | `RunHostContext` (`python/graph_caster/host_context.py`): `graphs_root`, опционально `workspace_root` (иначе `resolved_workspace_root()` = родитель `graphs_root`), `artifacts_base`; передаётся в `GraphRunner(..., host=…)` |
 | Словарь прогона без подмешивания `graphs_root` / `artifacts_base` | `context` в `run` / `run_from`: host-ключи выкидываются в `_prepare_context`; инфраструктура только через `host=` |
 
 Документация: `python/README.md` (раздел про `RunHostContext`).
+
+---
+
+## Workspace-секреты и `envKeys` (**F8** v1, file-first)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Имена кредов в графе, значения в vault (n8n, Langflow global vars, …) | Файл **`<workspaceRoot>/.graphcaster/workspace.secrets.env`** (не в Git); в **`task.data.envKeys`** — только имена переменных (`schemas/graph-document.schema.json`, **`$defs.envKeysList`**) |
+| Подмешивание при исполнении | **`process_exec._build_task_subprocess_env`**: база **`os.environ`** → для ключей из **`envKeys`**, не перекрытых **`data.env`**, значение из файла, если есть → затем оверлей **`data.env`**; в **`envKeys`** допускаются только имена по тому же regex, что в схеме |
+| Наблюдаемость | **`redact_task_data_for_node_execute`** (`process_exec.py`): **`node_execute`** и снимок **`node_outputs[].data`** для **`task`** с **`envKeys`** не содержат сырое значение для пересечения с **`envKeys`** и **`data.env`** |
+| F17 + секреты из файла | **`compute_step_cache_key`** (`node_output_cache.py`): при непустом **`envKeys`** в ключ добавляется **`ws_sec_fp`** — SHA-256 файла секретов или **`no_file`** / **`no_workspace`** |
+| CLI / брокер | **`--workspace-root`** (`__main__.py`); **`run_start_body_to_argv_paths`** / **`build_graph_caster_run_argv`** — поле **`workspaceRoot`**; вложенный прогон (`nested_run_subprocess`) прокидывает **`host.workspace_root`** |
+
+Код: **`python/graph_caster/secrets_loader.py`** (**`secrets_file_fingerprint`**), **`runner.py`** (**`_get_workspace_secrets`**, **`_get_secrets_file_fingerprint`**, redacted **`data`** в outputs), тесты **`python/tests/test_workspace_secrets_env.py`**. Пример пути: **`.graphcaster/workspace.secrets.env.example`**; игнор — **`.gitignore`**.
 
 ---
 

@@ -38,6 +38,7 @@ from graph_caster.gc_pin import (
     merged_process_result_for_pin_short_circuit,
     snapshot_for_pin_event,
 )
+from graph_caster.process_exec import redact_task_data_for_node_execute, task_declares_env_keys
 from graph_caster.validate import (
     find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
@@ -189,6 +190,33 @@ class GraphRunner:
         self._step_cache_store: StepCacheStore | None = None
         self._step_cache_no_artifacts: bool = False
         self._node_by_id: dict[str, Node] = {n.id: n for n in document.nodes}
+        self._workspace_secrets_loaded = False
+        self._workspace_secrets: dict[str, str] = {}
+        self._secrets_file_fp_loaded = False
+        self._secrets_file_fp: str = ""
+
+    def _get_workspace_secrets(self) -> dict[str, str]:
+        if not self._workspace_secrets_loaded:
+            self._workspace_secrets_loaded = True
+            root = self._host.resolved_workspace_root()
+            if root is not None:
+                from graph_caster.secrets_loader import load_workspace_secrets
+
+                self._workspace_secrets = load_workspace_secrets(root)
+        return self._workspace_secrets
+
+    def _get_secrets_file_fingerprint(self) -> str:
+        if not self._secrets_file_fp_loaded:
+            self._secrets_file_fp_loaded = True
+            from graph_caster.secrets_loader import secrets_file_fingerprint
+
+            self._secrets_file_fp = secrets_file_fingerprint(self._host.resolved_workspace_root())
+        return self._secrets_file_fp
+
+    def _step_cache_workspace_secrets_fp(self, node_data: dict[str, Any]) -> str | None:
+        if not task_declares_env_keys(node_data):
+            return None
+        return self._get_secrets_file_fingerprint()
 
     def _ensure_step_cache_store(self) -> StepCacheStore | None:
         pol = self._step_cache
@@ -623,12 +651,19 @@ class GraphRunner:
                     break
 
                 self.emit("node_enter", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
-                self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=node.data)
+                if node.type == "task":
+                    red_task = redact_task_data_for_node_execute(node.data)
+                    exec_data = red_task
+                    stored_node_data = dict(node.data) if red_task is node.data else red_task
+                else:
+                    exec_data = node.data
+                    stored_node_data = dict(node.data)
+                self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=exec_data)
 
                 task_exit_used_pin = False
                 outs_map = ctx.setdefault("node_outputs", {})
                 prev_out = outs_map.get(node.id)
-                outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data)}
+                outs_map[node.id] = {"nodeType": node.type, "data": stored_node_data}
                 if isinstance(prev_out, dict):
                     for k, v in prev_out.items():
                         if k not in ("nodeType", "data"):
@@ -706,6 +741,9 @@ class GraphRunner:
                         )
                     )
                     upstream_incomplete = False
+                    cache_ws_fp: str | None = (
+                        self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
+                    )
 
                     if not pin_short and cache_active:
                         up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
@@ -725,6 +763,7 @@ class GraphRunner:
                                 node_data=node.data,
                                 upstream_outputs=up,
                                 tenant_id=tenant_s,
+                                workspace_secrets_file_fp=cache_ws_fp,
                             )
                             self.emit(
                                 "node_cache_miss",
@@ -741,6 +780,7 @@ class GraphRunner:
                                 node_data=node.data,
                                 upstream_outputs=up,
                                 tenant_id=tenant_s,
+                                workspace_secrets_file_fp=cache_ws_fp,
                             )
                             cached = store.get(cache_key)
                             if cached is not None:
@@ -771,6 +811,7 @@ class GraphRunner:
                                 ctx=ctx,
                                 emit=self.emit,
                                 should_cancel=_should_cancel if sess is not None else None,
+                                workspace_secrets=self._get_workspace_secrets(),
                             )
                         if (
                             ok

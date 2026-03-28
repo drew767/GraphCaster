@@ -260,3 +260,78 @@ def test_without_step_cache_flag_on_node_no_cache_events(tmp_path: Path) -> None
     ev: list[dict] = []
     GraphRunner(d, sink=lambda e: ev.append(e), host=host, step_cache=pol).run()
     assert not any(e.get("type") in ("node_cache_hit", "node_cache_miss") for e in ev)
+
+
+def test_step_cache_env_keys_invalidates_when_secrets_file_changes(tmp_path: Path) -> None:
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    graphs = ws / "graphs"
+    graphs.mkdir()
+    (ws / ".graphcaster").mkdir()
+    sec = ws / ".graphcaster" / "workspace.secrets.env"
+    sec.write_text("VAR=alpha\n", encoding="utf-8")
+
+    gid = "40404040-4040-4404-8404-404040404040"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "envkey-cache"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {
+                    "id": "t1",
+                    "type": "task",
+                    "position": {"x": 0, "y": 0},
+                    "data": {
+                        "command": [
+                            sys.executable,
+                            "-c",
+                            "import os, sys; v = os.environ.get('VAR', ''); "
+                            "sys.exit(0 if v in ('alpha', 'beta') else 1)",
+                        ],
+                        "cwd": str(ws),
+                        "stepCache": True,
+                        "envKeys": ["VAR"],
+                    },
+                },
+                {"id": "x1", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "source": "s1",
+                    "sourceHandle": "out_default",
+                    "target": "t1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+                {
+                    "id": "e2",
+                    "source": "t1",
+                    "sourceHandle": "out_default",
+                    "target": "x1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+            ],
+        }
+    )
+
+    host = RunHostContext(graphs_root=graphs, artifacts_base=ws)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+
+    ev1: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev1 if e.get("type") == "process_spawn" and e.get("nodeId") == "t1") == 1
+
+    ev2: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev2 if e.get("type") == "process_spawn" and e.get("nodeId") == "t1") == 0
+    assert any(e.get("type") == "node_cache_hit" for e in ev2)
+
+    sec.write_text("VAR=beta\n", encoding="utf-8")
+    ev3: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev3.append(e), host=host, step_cache=pol).run()
+    assert sum(1 for e in ev3 if e.get("type") == "process_spawn" and e.get("nodeId") == "t1") == 1
+    assert any(e.get("type") == "node_cache_miss" for e in ev3)

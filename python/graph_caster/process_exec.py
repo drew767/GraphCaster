@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import queue
+import re
 import shlex
 import subprocess
 import threading
 import time
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable
+
+_ENV_KEY_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 from graph_caster.cursor_agent_argv import MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN
 
@@ -106,13 +111,68 @@ def _float_positive(data: dict[str, Any], key: str, default: float | None) -> fl
     return x
 
 
-def _subprocess_env(data: dict[str, Any]) -> dict[str, str] | None:
-    raw = data.get("env")
-    if not isinstance(raw, dict) or not raw:
+def _parse_env_keys_list(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for x in raw:
+        if not isinstance(x, str):
+            continue
+        k = x.strip()
+        if not k or k in seen:
+            continue
+        if _ENV_KEY_NAME_RE.fullmatch(k) is None:
+            continue
+        seen.add(k)
+        out.append(k)
+    return out
+
+
+def task_declares_env_keys(data: Mapping[str, Any]) -> bool:
+    return len(_parse_env_keys_list(data.get("envKeys"))) > 0
+
+
+def _build_task_subprocess_env(
+    data: dict[str, Any],
+    workspace_secrets: Mapping[str, str] | None,
+) -> dict[str, str] | None:
+    ws = workspace_secrets or {}
+    raw_env = data.get("env")
+    has_explicit = isinstance(raw_env, dict) and len(raw_env) > 0
+    keys = _parse_env_keys_list(data.get("envKeys"))
+
+    if not has_explicit and not keys:
         return None
+
     out = dict(os.environ)
-    for k, v in raw.items():
-        out[str(k)] = "" if v is None else str(v)
+    explicit: dict[str, str] = {}
+    if has_explicit:
+        for k, v in raw_env.items():
+            explicit[str(k)] = "" if v is None else str(v)
+
+    for k in keys:
+        if k in explicit:
+            continue
+        if k in ws:
+            out[k] = ws[k]
+
+    for k, v in explicit.items():
+        out[k] = v
+    return out
+
+
+def redact_task_data_for_node_execute(data: dict[str, Any]) -> dict[str, Any]:
+    keys = _parse_env_keys_list(data.get("envKeys"))
+    if not keys:
+        return data
+    out = copy.deepcopy(data)
+    env = out.get("env")
+    if isinstance(env, dict):
+        for k in keys:
+            sk = str(k)
+            if sk in env:
+                env[sk] = "[redacted]"
     return out
 
 
@@ -425,6 +485,7 @@ def run_task_process(
     ctx: dict[str, Any],
     emit: EmitFn,
     should_cancel: Callable[[], bool] | None = None,
+    workspace_secrets: Mapping[str, str] | None = None,
 ) -> bool:
     argv, preset_cwd, preset_err = _resolve_argv_and_optional_preset_cwd(data, ctx)
     if preset_err:
@@ -472,7 +533,7 @@ def run_task_process(
         retries = max(retries, _int_non_negative(data, "maxRetries", 0))
     backoff = _float_positive(data, "retryBackoffSec", 1.0) or 1.0
     success_mode = str(data.get("successMode") or data.get("success_mode") or "exit_code")
-    subproc_env = _subprocess_env(data)
+    subproc_env = _build_task_subprocess_env(data, workspace_secrets)
 
     attempt = 0
     while True:

@@ -5,6 +5,9 @@
 **/TestResults/
 **/.vs/
 
+# Workspace secrets (F8); keep workspace.secrets.env.example in repo
+.graphcaster/workspace.secrets.env
+
 # Python
 __pycache__/
 *.py[cod]

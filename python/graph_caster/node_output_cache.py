@@ -65,6 +65,7 @@ def compute_step_cache_key(
     node_data: Mapping[str, Any],
     upstream_outputs: Mapping[str, Any],
     tenant_id: str | None = None,
+    workspace_secrets_file_fp: str | None = None,
 ) -> str:
     payload: dict[str, Any] = {
         "data": node_data_for_cache_key(node_data),
@@ -75,6 +76,8 @@ def compute_step_cache_key(
     }
     if tenant_id is not None and str(tenant_id).strip():
         payload["tenant"] = str(tenant_id).strip()
+    if workspace_secrets_file_fp is not None:
+        payload["ws_sec_fp"] = workspace_secrets_file_fp
     return hashlib.sha256(stable_json(payload).encode("utf-8")).hexdigest()
 
 

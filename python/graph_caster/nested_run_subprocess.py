@@ -189,6 +189,7 @@ def run_nested_graph_ref_subprocess(
             nested_path,
             run_id=str(run_id).strip(),
             graphs_dir=host.graphs_root,
+            workspace_root=host.workspace_root,
             artifacts_base=host.artifacts_base,
             context_json_path=ctx_in,
             step_cache=step_on,

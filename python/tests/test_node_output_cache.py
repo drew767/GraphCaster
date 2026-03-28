@@ -29,6 +29,21 @@ def test_compute_step_cache_key_stable() -> None:
     assert k1 == k2
 
 
+def test_compute_step_cache_key_workspace_secrets_fp_changes_key() -> None:
+    base = {
+        "graph_rev": "r",
+        "graph_id": "g",
+        "node_id": "n",
+        "node_data": {"command": "x", "envKeys": ["K"]},
+        "upstream_outputs": {"s": {"nodeType": "start", "data": {}}},
+    }
+    a = compute_step_cache_key(**base, workspace_secrets_file_fp="aaa")
+    b = compute_step_cache_key(**base, workspace_secrets_file_fp="bbb")
+    c = compute_step_cache_key(**base, workspace_secrets_file_fp=None)
+    assert a != b
+    assert a != c
+
+
 def test_node_data_for_cache_key_drops_step_cache_flag() -> None:
     a = node_data_for_cache_key({"command": "x", "stepCache": True})
     b = node_data_for_cache_key({"command": "x"})

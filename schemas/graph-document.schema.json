@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.7)",
+  "title": "GraphCaster graph document (v1.8)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -52,6 +52,15 @@
         }
       }
     },
+    "envKeysList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "uniqueItems": true,
+      "description": "Task-only: names of environment variables injected for the subprocess from <workspaceRoot>/.graphcaster/workspace.secrets.env when not set in task data.env (F8 v1)."
+    },
     "gcCursorAgent": {
       "type": "object",
       "additionalProperties": true,
@@ -101,7 +110,7 @@
         "data": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json. Task nodes may set stepCache: true to opt into cross-run disk step cache (F17) when the host passes --step-cache and --artifacts-base. Task nodes may set gcCursorAgent ($defs.gcCursorAgent) to run Cursor Agent CLI without hand-authored argv (command/argv still take precedence when set)."
+          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json. Task nodes may set stepCache: true to opt into cross-run disk step cache (F17) when the host passes --step-cache and --artifacts-base. Task nodes may set envKeys ($defs.envKeysList) for workspace secrets (F8). Task nodes may set gcCursorAgent ($defs.gcCursorAgent) to run Cursor Agent CLI without hand-authored argv (command/argv still take precedence when set)."
         },
         "parentId": {
           "type": "string",
