@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
@@ -9,6 +10,34 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use tauri::{AppHandle, Emitter, Manager, State};
+
+#[derive(Default)]
+struct StdoutRunTrack {
+    saw_run_finished: bool,
+    root_graph_id: Option<String>,
+}
+
+fn json_run_id_matches(v: &serde_json::Value, expected: &str) -> bool {
+    match v.get("runId") {
+        Some(serde_json::Value::String(s)) => s == expected,
+        Some(serde_json::Value::Number(n)) => n.to_string() == expected,
+        _ => false,
+    }
+}
+
+fn json_run_finished_is_terminal_ok(v: &serde_json::Value) -> bool {
+    v.get("type") == Some(&json!("run_finished"))
+        && v
+            .get("status")
+            .and_then(|x| x.as_str())
+            .map(|s| {
+                matches!(
+                    s,
+                    "success" | "failed" | "cancelled" | "partial"
+                )
+            })
+            .unwrap_or(false)
+}
 
 #[derive(Default)]
 pub struct RunSessionState {
@@ -297,6 +326,7 @@ pub fn gc_start_run(
         .ok_or_else(|| "child stderr missing".to_string())?;
 
     let child_arc: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(Some(child)));
+    let stdout_track: Arc<Mutex<StdoutRunTrack>> = Arc::new(Mutex::new(StdoutRunTrack::default()));
     {
         let mut map = state.active.lock().map_err(|_| "state poisoned")?;
         if map.len() >= max_runs {
@@ -326,12 +356,31 @@ pub fn gc_start_run(
 
     let app_out = app.clone();
     let rid_out = run_id.clone();
+    let track_out = Arc::clone(&stdout_track);
     let stdout_thread: JoinHandle<()> = thread::spawn(move || {
         let reader = BufReader::new(stdout);
         for line in reader.lines().map_while(Result::ok) {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('{') {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                    let mut g = track_out
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    if json_run_id_matches(&v, rid_out.as_str()) {
+                        if v.get("type") == Some(&json!("run_started")) {
+                            if let Some(s) = v.get("rootGraphId").and_then(|x| x.as_str()) {
+                                g.root_graph_id = Some(s.to_string());
+                            }
+                        }
+                        if json_run_finished_is_terminal_ok(&v) {
+                            g.saw_run_finished = true;
+                        }
+                    }
+                }
+            }
             let _ = app_out.emit(
                 "gc-run-event",
-                serde_json::json!({
+                json!({
                     "runId": rid_out,
                     "line": line,
                     "stream": "stdout",
@@ -359,22 +408,60 @@ pub fn gc_start_run(
     let app_exit = app.clone();
     let rid_exit = run_id.clone();
     let active = Arc::clone(&state.active);
+    let track_exit = Arc::clone(&stdout_track);
     thread::spawn(move || {
         let _ = stdout_thread.join();
         let _ = stderr_thread.join();
-        let code = match child_arc.lock() {
-            Ok(mut guard) => {
-                if let Some(mut ch) = guard.take() {
-                    ch.wait().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1)
-                } else {
-                    -1
-                }
+        let code = {
+            let mut guard = child_arc
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if let Some(mut ch) = guard.take() {
+                ch.wait().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1)
+            } else {
+                -1
             }
-            Err(_) => -1,
         };
+        let t = track_exit
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let synth_line: Option<String> = if t.saw_run_finished {
+            None
+        } else {
+            let gid = t
+                .root_graph_id
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
+            Some(
+                json!({
+                    "type": "run_finished",
+                    "runId": rid_exit,
+                    "rootGraphId": gid,
+                    "status": "failed",
+                    "finishedAt": chrono::Utc::now().to_rfc3339_opts(
+                        chrono::SecondsFormat::Millis,
+                        false,
+                    ),
+                    "reason": "coordinator_worker_lost",
+                    "coordinatorWorkerLost": true,
+                    "workerProcessExitCode": code,
+                })
+                .to_string(),
+            )
+        };
+        if let Some(line) = synth_line {
+            let _ = app_exit.emit(
+                "gc-run-event",
+                json!({
+                    "runId": rid_exit,
+                    "line": line,
+                    "stream": "stdout",
+                }),
+            );
+        }
         let _ = app_exit.emit(
             "gc-run-exit",
-            serde_json::json!({ "runId": rid_exit, "code": code }),
+            json!({ "runId": rid_exit, "code": code }),
         );
         let _ = std::fs::remove_file(&tmp);
         if let Ok(mut m) = active.lock() {

@@ -283,6 +283,16 @@ def test_process_like_events_validate() -> None:
             "status": "partial",
             "finishedAt": "2026-03-27T12:00:03+00:00",
         },
+        {
+            "type": "run_finished",
+            "runId": "550e8400-e29b-41d4-a716-446655440003",
+            "rootGraphId": "g1",
+            "status": "failed",
+            "finishedAt": "2026-03-27T12:00:04+00:00",
+            "reason": "coordinator_worker_lost",
+            "coordinatorWorkerLost": True,
+            "workerProcessExitCode": -9,
+        },
     ):
         validator.validate(ev)
 

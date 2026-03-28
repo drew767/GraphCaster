@@ -87,7 +87,15 @@
             "minLength": 1,
             "description": "ISO-8601 timestamp when the root run ended (UTC from emitter)."
           },
-          "reason": { "type": "string" }
+          "reason": { "type": "string" },
+          "coordinatorWorkerLost": {
+            "type": "boolean",
+            "description": "True when a host (dev run broker, Tauri) emitted this line because the worker process exited without emitting a normal run_finished event (crash, SIGKILL, OOM)."
+          },
+          "workerProcessExitCode": {
+            "type": "integer",
+            "description": "OS exit status of the worker process when coordinatorWorkerLost is true; may be negative on Unix when terminated by signal."
+          }
         }
       }
     },

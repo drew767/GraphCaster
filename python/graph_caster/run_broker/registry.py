@@ -14,6 +14,12 @@ from pathlib import Path
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
+from graph_caster.run_broker.worker_lost import (
+    build_coordinator_worker_lost_run_finished_line,
+    new_run_stdout_tracker,
+    should_emit_coordinator_worker_lost,
+    track_stdout_line_for_worker_terminal,
+)
 
 
 def _sub_queue_max() -> int:
@@ -156,12 +162,16 @@ class RunBrokerRegistry:
                 raise ValueError("max concurrent runs reached")
             self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths)
 
+        tracker = new_run_stdout_tracker()
+
         def pump_out() -> None:
             assert proc.stdout is not None
             for line in iter(proc.stdout.readline, ""):
                 if not line:
                     break
-                broadcaster.broadcast(FanOutMsg("out", line.rstrip("\r\n")))
+                text = line.rstrip("\r\n")
+                broadcaster.broadcast(FanOutMsg("out", text))
+                track_stdout_line_for_worker_terminal(text, expected_run_id=run_id, tracker=tracker)
             try:
                 proc.stdout.close()
             except OSError:
@@ -190,6 +200,15 @@ class RunBrokerRegistry:
                 th_out.join(timeout=60.0)
                 th_err.join(timeout=60.0)
                 exit_c = int(code) if code is not None else -1
+                if should_emit_coordinator_worker_lost(tracker):
+                    rg = tracker.get("root_graph_id")
+                    gid = rg if isinstance(rg, str) and rg.strip() else "unknown"
+                    syn = build_coordinator_worker_lost_run_finished_line(
+                        run_id=run_id,
+                        root_graph_id=gid,
+                        worker_process_exit_code=exit_c,
+                    )
+                    broadcaster.broadcast(FanOutMsg("out", syn))
                 broadcaster.broadcast(FanOutMsg("exit", exit_c))
                 with self._lock:
                     self._runs.pop(run_id, None)
