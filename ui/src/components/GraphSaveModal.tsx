@@ -49,10 +49,6 @@ export function GraphSaveModal({
   const [copyDone, setCopyDone] = useState(false);
   const isSavingRef = useRef(false);
 
-  useEffect(() => {
-    isSavingRef.current = isSaving;
-  }, [isSaving]);
-
   const safeClose = useCallback(() => {
     if (isSavingRef.current) {
       return;
@@ -116,6 +112,7 @@ export function GraphSaveModal({
       return;
     }
     setIsSaving(true);
+    isSavingRef.current = true;
     try {
       if (workspaceLinked) {
         const result = await onSaveToWorkspace(trimmed, doc);
@@ -149,6 +146,7 @@ export function GraphSaveModal({
         setSaveIssue({ kind: "write_failed", detail: d === "" ? null : d });
       }
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }, [fileName, getDocument, onClose, onSaveToWorkspace, workspaceLinked]);

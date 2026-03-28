@@ -15,10 +15,12 @@ type Props = {
 export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
   const { t } = useTranslation();
   const [copyDone, setCopyDone] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
       setCopyDone(false);
+      setCopyBusy(false);
     }
   }, [open, presentation?.copyText]);
 
@@ -50,8 +52,13 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
     if (!presentation) {
       return;
     }
-    const ok = await writeTextToClipboard(presentation.copyText);
-    setCopyDone(ok);
+    setCopyBusy(true);
+    try {
+      const ok = await writeTextToClipboard(presentation.copyText);
+      setCopyDone(ok);
+    } finally {
+      setCopyBusy(false);
+    }
   }, [presentation]);
 
   if (!open || !presentation) {
@@ -69,6 +76,7 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="gc-app-message-title"
+        aria-busy={copyBusy}
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -86,7 +94,12 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
           <button type="button" className="gc-btn" onClick={onClose}>
             {t("app.errors.openModal.close")}
           </button>
-          <button type="button" className="gc-btn gc-btn-primary" onClick={() => void onCopy()}>
+          <button
+            type="button"
+            className="gc-btn gc-btn-primary"
+            disabled={copyBusy}
+            onClick={() => void onCopy()}
+          >
             {copyDone ? t("app.errors.openModal.copied") : t("app.errors.openModal.copy")}
           </button>
         </div>
