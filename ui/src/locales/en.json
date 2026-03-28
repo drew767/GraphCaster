@@ -194,7 +194,7 @@
       "focusRunLabel": "Focused run (console and live canvas updates)",
       "hostConcurrencyHint": "Raise GC_RUN_BROKER_MAX_RUNS (web broker) or GC_TAURI_MAX_RUNS (desktop) to match or exceed gc.run.maxConcurrent in localStorage.",
       "console": {
-        "outputTruncated": "Console: {{count}} process output line(s) dropped (SSE subscriber queue full; run log on disk is unchanged)."
+        "outputTruncated": "Console: {{count}} process output line(s) dropped (SSE subscriber queue full). If run events are persisted to disk, that file is unchanged."
       }
     },
     "lang": {

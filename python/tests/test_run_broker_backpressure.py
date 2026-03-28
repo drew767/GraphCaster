@@ -120,3 +120,47 @@ def test_sub_queue_depth_zero_uses_minimum_bounded_queue() -> None:
     b = RunBroadcaster(run_id="00000000-0000-4000-8000-000000000000", config=cfg)
     q = b.subscribe()
     assert getattr(q, "maxsize", None) == 1
+
+
+def test_critical_out_reaches_second_subscriber_while_first_blocks() -> None:
+    cfg = RunBroadcasterConfig(max_sub_queue_depth=2, backpressure_emit_interval_sec=0.0)
+    b = RunBroadcaster(run_id="ffffffff-ffff-4fff-8fff-ffffffffffff", config=cfg)
+    q_block = b.subscribe()
+    q_clear = b.subscribe()
+    b.broadcast(FanOutMsg("out", _process_out_line(0)))
+    b.broadcast(FanOutMsg("out", _process_out_line(1)))
+    assert q_block.full() and q_clear.full()
+    q_clear.get(timeout=2.0)
+    q_clear.get(timeout=2.0)
+    assert q_clear.empty()
+    b.broadcast(FanOutMsg("out", _process_out_line(2)))
+    crit = json.dumps(
+        {
+            "type": "run_finished",
+            "runId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+            "rootGraphId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "status": "success",
+            "finishedAt": "2026-03-28T00:00:00+00:00",
+        },
+        separators=(",", ":"),
+    )
+
+    done = threading.Event()
+
+    def broadcast_crit() -> None:
+        b.broadcast(FanOutMsg("out", crit))
+        done.set()
+
+    th = threading.Thread(target=broadcast_crit, daemon=True)
+    th.start()
+    time.sleep(0.05)
+    m_po = q_clear.get(timeout=2.0)
+    assert "process_output" in str(m_po.payload)
+    m_fin = q_clear.get(timeout=2.0)
+    assert "run_finished" in str(m_fin.payload)
+    q_block.get(timeout=2.0)
+    q_block.get(timeout=2.0)
+    m_fin_b = q_block.get(timeout=2.0)
+    assert "run_finished" in str(m_fin_b.payload)
+    assert done.wait(timeout=2.0)
+    th.join(timeout=2.0)

@@ -194,7 +194,7 @@
       "focusRunLabel": "Активный запуск (консоль и обновления на холсте)",
       "hostConcurrencyHint": "Увеличьте GC_RUN_BROKER_MAX_RUNS (брокер веб) или GC_TAURI_MAX_RUNS (десктоп), чтобы было не меньше gc.run.maxConcurrent в localStorage.",
       "console": {
-        "outputTruncated": "Консоль: отброшено {{count}} строк(и) вывода process_output (переполнена очередь SSE-подписчика; лог на диске не меняется)."
+        "outputTruncated": "Консоль: отброшено {{count}} строк(и) вывода process_output (переполнена очередь SSE-подписчика). Если события прогона пишутся на диск, файл не затронут."
       }
     },
     "lang": {

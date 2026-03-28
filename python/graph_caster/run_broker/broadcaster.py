@@ -7,7 +7,7 @@ import json
 import queue
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 FanKind = Literal["out", "err", "exit"]
@@ -30,6 +30,7 @@ class _SubscriberSlot:
     queue: queue.Queue[FanOutMsg]
     dropped_since_emit: int = 0
     last_emit_mono: float = 0.0
+    bp_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 def _is_droppable_out_line(line: str) -> bool:
@@ -60,6 +61,8 @@ def _stream_backpressure_line(run_id: str, dropped: int) -> str:
 
 
 class RunBroadcaster:
+    _BACKPRESSURE_PUT_TIMEOUT_SEC = 0.35
+
     def __init__(self, run_id: str, config: RunBroadcasterConfig | None = None) -> None:
         self._run_id = run_id
         cfg = config if config is not None else RunBroadcasterConfig()
@@ -69,7 +72,6 @@ class RunBroadcaster:
         )
         self._subs: list[_SubscriberSlot] = []
         self._lock = threading.Lock()
-        self._broadcast_lock = threading.Lock()
 
     def subscribe(self) -> queue.Queue[FanOutMsg]:
         q: queue.Queue[FanOutMsg] = queue.Queue(maxsize=self._config.max_sub_queue_depth)
@@ -86,41 +88,60 @@ class RunBroadcaster:
                     return
 
     def _maybe_emit_backpressure(self, sub: _SubscriberSlot) -> None:
-        if sub.dropped_since_emit <= 0:
-            return
-        now = time.monotonic()
-        if self._config.backpressure_emit_interval_sec > 0.0:
-            if now - sub.last_emit_mono < self._config.backpressure_emit_interval_sec:
+        with sub.bp_lock:
+            if sub.dropped_since_emit <= 0:
                 return
-        n = sub.dropped_since_emit
-        sub.dropped_since_emit = 0
-        sub.last_emit_mono = now
-        line = _stream_backpressure_line(self._run_id, n)
-        warn = FanOutMsg("out", line)
+            now = time.monotonic()
+            ival = self._config.backpressure_emit_interval_sec
+            if ival > 0.0 and now - sub.last_emit_mono < ival:
+                return
+            n = sub.dropped_since_emit
+            sub.dropped_since_emit = 0
+            prev_last = sub.last_emit_mono
+            sub.last_emit_mono = now
+            warn = FanOutMsg("out", _stream_backpressure_line(self._run_id, n))
         try:
             sub.queue.put_nowait(warn)
         except queue.Full:
             try:
-                sub.queue.put(warn, timeout=30.0)
+                sub.queue.put(warn, timeout=self._BACKPRESSURE_PUT_TIMEOUT_SEC)
             except queue.Full:
-                sub.dropped_since_emit += n
+                with sub.bp_lock:
+                    sub.dropped_since_emit += n
+                    sub.last_emit_mono = prev_last
+
+    def _deliver_to_sub(self, sub: _SubscriberSlot, msg: FanOutMsg, droppable: bool) -> None:
+        if msg.kind != "out" or not droppable:
+            sub.queue.put(msg)
+            return
+        try:
+            sub.queue.put_nowait(msg)
+        except queue.Full:
+            with sub.bp_lock:
+                sub.dropped_since_emit += 1
+            self._maybe_emit_backpressure(sub)
 
     def broadcast(self, msg: FanOutMsg) -> None:
-        with self._broadcast_lock:
-            droppable = False
-            if msg.kind == "out":
-                droppable = _is_droppable_out_line(str(msg.payload))
-            with self._lock:
-                subs = list(self._subs)
+        droppable = False
+        if msg.kind == "out":
+            droppable = _is_droppable_out_line(str(msg.payload))
+        with self._lock:
+            subs = list(self._subs)
+        if len(subs) <= 1:
             for sub in subs:
-                if msg.kind != "out" or not droppable:
-                    sub.queue.put(msg)
-                else:
-                    try:
-                        sub.queue.put_nowait(msg)
-                    except queue.Full:
-                        sub.dropped_since_emit += 1
-                        self._maybe_emit_backpressure(sub)
+                self._deliver_to_sub(sub, msg, droppable)
+            return
+        threads: list[threading.Thread] = []
+        for sub in subs:
+            t = threading.Thread(
+                target=self._deliver_to_sub,
+                args=(sub, msg, droppable),
+                daemon=False,
+            )
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
     async def stream_queue(self, q: queue.Queue[FanOutMsg]):
         try:
