@@ -143,7 +143,7 @@
 ## Фаза 10 — Встраивание в Aura
 
 - Плагин / WebView / IPC — по плану продукта Aura; экспорт `dist/` или пакет, стабильный API **открыть документ / подписаться на события**.
-- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** — см. **`doc/IMPLEMENTED_FEATURES.md`**, **`python/README.md`**; полноценный embed в Aura остаётся отдельным шагом.
+- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** — см. **`doc/IMPLEMENTED_FEATURES.md`**, **`python/README.md`**; нода **`mcp_tool`** (клиент MCP, stdio + streamable HTTP MVP) — там же; полноценный embed в Aura остаётся отдельным шагом.
 
 ---
 

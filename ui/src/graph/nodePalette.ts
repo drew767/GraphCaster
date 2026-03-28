@@ -7,6 +7,7 @@ import {
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_MERGE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
 
@@ -67,6 +68,19 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         authorHint: "",
         onFailure: "stop_run",
         fallbackChoiceIndex: 1,
+      };
+    case GRAPH_NODE_TYPE_MCP_TOOL:
+      return {
+        title: "MCP tool",
+        transport: "stdio",
+        toolName: "echo",
+        arguments: {},
+        timeoutSec: 60,
+        argv: [],
+        serverUrl: "",
+        allowInsecureLocalhost: false,
+        bearerEnvKey: "",
+        envKeys: [],
       };
     default:
       return {};

@@ -12,7 +12,7 @@ function GcFlowNodeInner(props: NodeProps) {
   const kind = data?.graphNodeType ?? "unknown";
   const showTarget = kind !== "start";
   const showSource = kind !== "exit";
-  const showErrorOut = showSource && (kind === "task" || kind === "graph_ref");
+  const showErrorOut = showSource && (kind === "task" || kind === "graph_ref" || kind === "mcp_tool");
   const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}`;
   const raw = data?.raw;
   const pinOn =

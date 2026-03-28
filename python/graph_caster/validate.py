@@ -88,7 +88,39 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
         return d.get("command") is not None or d.get("argv") is not None
     if node.type == "graph_ref":
         return True
+    if node.type == "mcp_tool":
+        return True
     return False
+
+
+def find_mcp_tool_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "mcp_tool":
+            continue
+        d = n.data
+        tn = str(d.get("toolName") or "").strip()
+        if not tn:
+            out.append({"kind": "mcp_tool_empty_tool_name", "nodeId": n.id})
+        transport = str(d.get("transport") or "stdio").strip()
+        if transport == "stdio":
+            cmd = d.get("command")
+            argv = d.get("argv")
+            has_stdio = isinstance(argv, list) and len(argv) > 0
+            if not has_stdio and cmd is not None:
+                if isinstance(cmd, str) and cmd.strip() != "":
+                    has_stdio = True
+                elif isinstance(cmd, list) and len(cmd) > 0:
+                    has_stdio = True
+            if not has_stdio:
+                out.append({"kind": "mcp_tool_stdio_missing_command", "nodeId": n.id})
+        elif transport == "streamable_http":
+            url = str(d.get("serverUrl") or "").strip()
+            if not url:
+                out.append({"kind": "mcp_tool_http_empty_url", "nodeId": n.id})
+        else:
+            out.append({"kind": "mcp_tool_unknown_transport", "nodeId": n.id, "transport": transport})
+    return out
 
 
 def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> list[str]:

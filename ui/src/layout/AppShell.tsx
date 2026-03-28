@@ -1353,16 +1353,27 @@ export function AppShell({ onLangChange }: Props) {
                                       missing: issue.missingDescriptions,
                                       total: issue.outgoingEdges,
                                     })
-                                  : issue.kind === "schema_version_mismatch"
-                                    ? t("app.structure.schemaVersionMismatch", {
-                                        root: issue.root,
-                                        meta: issue.meta,
-                                      })
-                                    : issue.kind === "start_has_incoming"
-                                      ? t("app.structure.startHasIncoming", { id: issue.startId })
-                                      : t("app.structure.unknownIssue", {
-                                          kind: String((issue as { kind: string }).kind),
-                                        })}
+                                  : issue.kind === "mcp_tool_empty_tool_name"
+                                    ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
+                                    : issue.kind === "mcp_tool_stdio_missing_command"
+                                      ? t("app.structure.mcpToolStdioMissingCommand", { id: issue.nodeId })
+                                      : issue.kind === "mcp_tool_http_empty_url"
+                                        ? t("app.structure.mcpToolHttpEmptyUrl", { id: issue.nodeId })
+                                        : issue.kind === "mcp_tool_unknown_transport"
+                                          ? t("app.structure.mcpToolUnknownTransport", {
+                                              id: issue.nodeId,
+                                              transport: issue.transport,
+                                            })
+                                          : issue.kind === "schema_version_mismatch"
+                                            ? t("app.structure.schemaVersionMismatch", {
+                                                root: issue.root,
+                                                meta: issue.meta,
+                                              })
+                                            : issue.kind === "start_has_incoming"
+                                              ? t("app.structure.startHasIncoming", { id: issue.startId })
+                                              : t("app.structure.unknownIssue", {
+                                                  kind: String((issue as { kind: string }).kind),
+                                                })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (

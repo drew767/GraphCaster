@@ -6,6 +6,7 @@ import {
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_MERGE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
@@ -15,6 +16,7 @@ export const ADD_MENU_PRIMITIVE_ORDER = [
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_TASK,
   GRAPH_NODE_TYPE_AI_ROUTE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_COMMENT,
@@ -47,6 +49,7 @@ const FLOW_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
 const STEP_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
   GRAPH_NODE_TYPE_TASK,
   GRAPH_NODE_TYPE_AI_ROUTE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
 ]);
 
 export function primitivesForAddNodeCategory(category: AddNodeCategoryId): readonly AddMenuPrimitiveType[] {

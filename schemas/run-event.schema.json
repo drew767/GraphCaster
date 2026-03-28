@@ -37,7 +37,10 @@
         "node_outputs_snapshot",
         "ai_route_invoke",
         "ai_route_decided",
-        "ai_route_failed"
+        "ai_route_failed",
+        "mcp_tool_invoke",
+        "mcp_tool_result",
+        "mcp_tool_failed"
       ]
     },
     "runId": {
@@ -179,6 +182,39 @@
               "nodeId": { "type": "string", "minLength": 1 },
               "outgoingEdges": { "type": "integer", "minimum": 1 },
               "missingDescriptions": { "type": "integer", "minimum": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "mcp_tool_empty_tool_name" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "mcp_tool_stdio_missing_command" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "mcp_tool_http_empty_url" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "transport", "graphId"],
+            "properties": {
+              "kind": { "const": "mcp_tool_unknown_transport" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "transport": { "type": "string" },
               "graphId": { "type": "string", "minLength": 1 }
             }
           }
@@ -412,6 +448,55 @@
             ]
           },
           "detail": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "mcp_tool_invoke" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "toolName", "transport", "arguments"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "toolName": { "type": "string" },
+          "transport": { "type": "string" },
+          "arguments": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "mcp_tool_result" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "toolName", "transport", "resultPreview"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "toolName": { "type": "string", "minLength": 1 },
+          "transport": { "type": "string" },
+          "resultPreview": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "mcp_tool_failed" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "toolName", "transport", "errorMessage"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "toolName": { "type": "string" },
+          "transport": { "type": "string" },
+          "errorMessage": { "type": "string" },
+          "errorCode": { "type": "string" }
         }
       }
     },

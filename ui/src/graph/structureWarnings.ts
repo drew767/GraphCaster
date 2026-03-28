@@ -25,6 +25,10 @@ export type StructureIssue =
       outgoingEdges: number;
       missingDescriptions: number;
     }
+  | { kind: "mcp_tool_empty_tool_name"; nodeId: string }
+  | { kind: "mcp_tool_stdio_missing_command"; nodeId: string }
+  | { kind: "mcp_tool_http_empty_url"; nodeId: string }
+  | { kind: "mcp_tool_unknown_transport"; nodeId: string; transport: string }
   | { kind: "schema_version_mismatch"; root: number; meta: number };
 
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
@@ -77,6 +81,10 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
       return true;
     case "ai_route_no_outgoing":
     case "ai_route_missing_route_descriptions":
+    case "mcp_tool_empty_tool_name":
+    case "mcp_tool_stdio_missing_command":
+    case "mcp_tool_http_empty_url":
+    case "mcp_tool_unknown_transport":
     case "schema_version_mismatch":
       return false;
   }
@@ -248,6 +256,44 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
           missingDescriptions: missing,
         });
       }
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "mcp_tool") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const tn = typeof raw.toolName === "string" ? raw.toolName.trim() : "";
+    if (tn === "") {
+      issues.push({ kind: "mcp_tool_empty_tool_name", nodeId: n.id });
+    }
+    const transport =
+      typeof raw.transport === "string" && raw.transport.trim() !== "" ? raw.transport.trim() : "stdio";
+    if (transport === "stdio") {
+      const cmd = raw.command;
+      const argv = raw.argv;
+      let has = Array.isArray(argv) && argv.length > 0;
+      if (!has && cmd != null) {
+        if (typeof cmd === "string" && cmd.trim() !== "") {
+          has = true;
+        } else if (Array.isArray(cmd) && cmd.length > 0) {
+          has = true;
+        }
+      }
+      if (!has) {
+        issues.push({ kind: "mcp_tool_stdio_missing_command", nodeId: n.id });
+      }
+    } else if (transport === "streamable_http") {
+      const url = typeof raw.serverUrl === "string" ? raw.serverUrl.trim() : "";
+      if (url === "") {
+        issues.push({ kind: "mcp_tool_http_empty_url", nodeId: n.id });
+      }
+    } else {
+      issues.push({ kind: "mcp_tool_unknown_transport", nodeId: n.id, transport });
     }
   }
   return issues;

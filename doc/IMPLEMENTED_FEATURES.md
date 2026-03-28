@@ -18,7 +18,7 @@
 
 ## MCP stdio server — направление **(A)** (**§34**, как Langflow/Dify tool surface)
 
-Полная **сводная таблица продуктов** (Langflow, Dify, n8n, …) по MCP, а также **направление (B)** (нода-клиент MCP в графе), streamable HTTP, tenant-scoped провайдеры и прочий **нереализованный** объём — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§34**. Здесь — только **факты реализации (A)** в репозитории.
+Полная **сводная таблица продуктов** (Langflow, Dify, n8n, …) по MCP, tenant-scoped провайдеры и прочий расширяемый объём — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§34**. Здесь — **факты реализации (A)** и **MVP (B)**.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -31,13 +31,26 @@
 
 ---
 
+## MCP client node — направление **(B)** MVP (**§34**)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Отдельная нода / клиент MCP (n8n, Langflow, Dify, Flowise) | Тип ноды **`mcp_tool`**: один **`tools/call`** за визит; транспорты **`stdio`** и **`streamable_http`** (`graph_caster/mcp_client/client.py`, SDK **`mcp`**) |
+| Секреты не в JSON графа | **`envKeys`**, **`bearerEnvKey`**, **`data.env`** — как у **`task`** (F8); редукция в **`node_execute`** / **`mcp_tool_invoke`** |
+| Наблюдаемость | События **`mcp_tool_invoke`**, **`mcp_tool_result`**, **`mcp_tool_failed`**; **`run-event.schema.json`** |
+| Ошибка → ветка **`out_error`** | Как **`task`** / **`graph_ref`**; предупреждения структуры в **`validate.find_mcp_tool_structure_warnings`** |
+
+Код: **`graph_caster/mcp_client/`**, **`runner.py`**, **`handle_contract.py`**, схемы **`graph-document.schema.json`** (**`mcpToolNodeData`**), UI (**`mcp_tool`** в палитре и инспекторе). Тесты: **`python/tests/test_mcp_tool_node.py`**; фикстура **`schemas/test-fixtures/mcp-tool-linear.json`**. Опциональный e2e: **`GC_MCP_INTEGRATION=1`**. Не в MVP: OAuth, пул сессий, шаблоны в **`arguments`**.
+
+---
+
 ## Workspace-секреты и `envKeys` (**F8** v1, file-first)
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
-| Имена кредов в графе, значения в vault (n8n, Langflow global vars, …) | Файл **`<workspaceRoot>/.graphcaster/workspace.secrets.env`** (не в Git); в **`task.data.envKeys`** — только имена переменных (`schemas/graph-document.schema.json`, **`$defs.envKeysList`**) |
+| Имена кредов в графе, значения в vault (n8n, Langflow global vars, …) | Файл **`<workspaceRoot>/.graphcaster/workspace.secrets.env`** (не в Git); в **`task.data.envKeys`** и **`mcp_tool.data.envKeys`** — только имена переменных (`schemas/graph-document.schema.json`, **`$defs.envKeysList`**) |
 | Подмешивание при исполнении | **`process_exec._build_task_subprocess_env`**: база **`os.environ`** → для ключей из **`envKeys`**, не перекрытых **`data.env`**, значение из файла, если есть → затем оверлей **`data.env`**; в **`envKeys`** допускаются только имена по тому же regex, что в схеме |
-| Наблюдаемость | **`redact_task_data_for_node_execute`** (`process_exec.py`): **`node_execute`** и снимок **`node_outputs[].data`** для **`task`** с **`envKeys`** не содержат сырое значение для пересечения с **`envKeys`** и **`data.env`** |
+| Наблюдаемость | **`redact_task_data_for_node_execute`** (`process_exec.py`): **`node_execute`** и снимок **`node_outputs[].data`** для **`task`** с **`envKeys`** не содержат сырое значение для пересечения с **`envKeys`** и **`data.env`**; для **`mcp_tool`** — редукция в **`runner`** / событиях **`mcp_tool_*`** |
 | F17 + секреты из файла | **`compute_step_cache_key`** (`node_output_cache.py`): при непустом **`envKeys`** в ключ добавляется **`ws_sec_fp`** — SHA-256 файла секретов или **`no_file`** / **`no_workspace`** |
 | CLI / брокер | **`--workspace-root`** (`__main__.py`); **`run_start_body_to_argv_paths`** / **`build_graph_caster_run_argv`** — поле **`workspaceRoot`**; вложенный прогон (`nested_run_subprocess`) прокидывает **`host.workspace_root`** |
 

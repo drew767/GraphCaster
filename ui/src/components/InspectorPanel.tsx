@@ -9,6 +9,7 @@ import { graphIdFromDocument } from "../graph/parseDocument";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MERGE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_TASK,
 } from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
@@ -133,6 +134,15 @@ export function InspectorPanel({
   const [caPrintMode, setCaPrintMode] = useState(true);
   const [caApplyFileChanges, setCaApplyFileChanges] = useState(false);
 
+  const [mcpTransport, setMcpTransport] = useState<"stdio" | "streamable_http">("stdio");
+  const [mcpToolName, setMcpToolName] = useState("");
+  const [mcpTimeoutSec, setMcpTimeoutSec] = useState("60");
+  const [mcpCommand, setMcpCommand] = useState("");
+  const [mcpServerUrl, setMcpServerUrl] = useState("");
+  const [mcpAllowInsecure, setMcpAllowInsecure] = useState(false);
+  const [mcpBearerKey, setMcpBearerKey] = useState("");
+  const [mcpArgsJson, setMcpArgsJson] = useState("{}");
+
   const [graphTitle, setGraphTitle] = useState("");
   const [graphAuthor, setGraphAuthor] = useState("");
   const [graphSchemaVersion, setGraphSchemaVersion] = useState("1");
@@ -178,6 +188,27 @@ export function InspectorPanel({
         setCaPrintMode(true);
         setCaApplyFileChanges(false);
       }
+    }
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_MCP_TOOL) {
+      const r = selection.raw;
+      setMcpTransport(r.transport === "streamable_http" ? "streamable_http" : "stdio");
+      setMcpToolName(typeof r.toolName === "string" ? r.toolName : "");
+      const ts = r.timeoutSec;
+      setMcpTimeoutSec(
+        typeof ts === "number" && Number.isFinite(ts)
+          ? String(ts)
+          : typeof ts === "string" && ts.trim() !== ""
+            ? ts.trim()
+            : "60",
+      );
+      setMcpCommand(typeof r.command === "string" ? r.command : "");
+      setMcpServerUrl(typeof r.serverUrl === "string" ? r.serverUrl : "");
+      setMcpAllowInsecure(r.allowInsecureLocalhost === true);
+      setMcpBearerKey(typeof r.bearerEnvKey === "string" ? r.bearerEnvKey : "");
+      const ar = r.arguments;
+      setMcpArgsJson(
+        JSON.stringify(ar != null && typeof ar === "object" && !Array.isArray(ar) ? ar : {}, null, 2),
+      );
     }
     if (selection?.kind === "node") {
       setDataText(JSON.stringify(selection.raw, null, 2));
@@ -403,6 +434,56 @@ export function InspectorPanel({
     onApplyGraphDocumentSettings(patch);
   };
 
+  const applyMcpFields = () => {
+    if (runLocked || selection?.kind !== "node" || selection.graphNodeType !== GRAPH_NODE_TYPE_MCP_TOOL) {
+      return;
+    }
+    let argsObj: Record<string, unknown>;
+    try {
+      const p = JSON.parse(mcpArgsJson);
+      if (!isPlainObject(p)) {
+        throw new Error("not_object");
+      }
+      argsObj = p;
+    } catch {
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.mcpArgumentsInvalid"),
+        "app.inspector.mcpArgumentsInvalid",
+      );
+      return;
+    }
+    const toN = Number.parseFloat(mcpTimeoutSec);
+    const timeoutSec = Number.isFinite(toN) ? Math.min(600, Math.max(1, toN)) : 60;
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    const cmdTrim = mcpCommand.trim();
+    const next: Record<string, unknown> = {
+      ...base,
+      transport: mcpTransport,
+      toolName: mcpToolName.trim(),
+      timeoutSec,
+      arguments: argsObj,
+      allowInsecureLocalhost: mcpAllowInsecure,
+    };
+    if (cmdTrim !== "") {
+      next.command = mcpCommand;
+    } else {
+      delete next.command;
+    }
+    const urlTrim = mcpServerUrl.trim();
+    if (urlTrim !== "") {
+      next.serverUrl = mcpServerUrl;
+    } else {
+      delete next.serverUrl;
+    }
+    const beTrim = mcpBearerKey.trim();
+    if (beTrim !== "") {
+      next.bearerEnvKey = beTrim;
+    } else {
+      delete next.bearerEnvKey;
+    }
+    onApplyNodeData(selection.id, next);
+  };
+
   return (
     <aside className="gc-inspector">
       <h2>{t("app.inspector.heading")}</h2>
@@ -442,6 +523,145 @@ export function InspectorPanel({
                 <option value="barrier">{t("app.inspector.mergeModeBarrier")}</option>
               </select>
               <p className="gc-inspector-edge-hint">{t("app.inspector.mergeModeHint")}</p>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_MCP_TOOL ? (
+            <div className="gc-inspector-mcp">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-transport">
+                  {t("app.inspector.mcpTransport")}
+                </label>
+                <select
+                  id="gc-inspector-mcp-transport"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={mcpTransport}
+                  onChange={(ev) => {
+                    const v = ev.target.value === "streamable_http" ? "streamable_http" : "stdio";
+                    setMcpTransport(v);
+                  }}
+                >
+                  <option value="stdio">{t("app.inspector.mcpTransportStdio")}</option>
+                  <option value="streamable_http">{t("app.inspector.mcpTransportHttp")}</option>
+                </select>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-tool">
+                  {t("app.inspector.mcpToolName")}
+                </label>
+                <input
+                  id="gc-inspector-mcp-tool"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={mcpToolName}
+                  onChange={(ev) => {
+                    setMcpToolName(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-timeout">
+                  {t("app.inspector.mcpTimeoutSec")}
+                </label>
+                <input
+                  id="gc-inspector-mcp-timeout"
+                  type="text"
+                  inputMode="decimal"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={mcpTimeoutSec}
+                  onChange={(ev) => {
+                    setMcpTimeoutSec(ev.target.value);
+                  }}
+                />
+              </div>
+              {mcpTransport === "stdio" ? (
+                <div className="gc-inspector-row gc-inspector-row--field">
+                  <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-cmd">
+                    {t("app.inspector.mcpCommand")}
+                  </label>
+                  <input
+                    id="gc-inspector-mcp-cmd"
+                    className="gc-inspector-condition-input"
+                    disabled={runLocked}
+                    value={mcpCommand}
+                    onChange={(ev) => {
+                      setMcpCommand(ev.target.value);
+                    }}
+                  />
+                  <p className="gc-inspector-edge-hint">{t("app.inspector.mcpCommandHint")}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="gc-inspector-row gc-inspector-row--field">
+                    <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-url">
+                      {t("app.inspector.mcpServerUrl")}
+                    </label>
+                    <input
+                      id="gc-inspector-mcp-url"
+                      className="gc-inspector-condition-input"
+                      disabled={runLocked}
+                      value={mcpServerUrl}
+                      onChange={(ev) => {
+                        setMcpServerUrl(ev.target.value);
+                      }}
+                    />
+                    <p className="gc-inspector-edge-hint">{t("app.inspector.mcpServerUrlHint")}</p>
+                  </div>
+                  <div className="gc-inspector-row gc-inspector-row--field">
+                    <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-bearer">
+                      {t("app.inspector.mcpBearerEnvKey")}
+                    </label>
+                    <input
+                      id="gc-inspector-mcp-bearer"
+                      className="gc-inspector-condition-input"
+                      disabled={runLocked}
+                      value={mcpBearerKey}
+                      onChange={(ev) => {
+                        setMcpBearerKey(ev.target.value);
+                      }}
+                    />
+                    <p className="gc-inspector-edge-hint">{t("app.inspector.mcpBearerEnvKeyHint")}</p>
+                  </div>
+                  <div className="gc-inspector-row gc-inspector-row--field">
+                    <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-insecure">
+                      {t("app.inspector.mcpAllowInsecureLocalhost")}
+                    </label>
+                    <input
+                      id="gc-inspector-mcp-insecure"
+                      type="checkbox"
+                      disabled={runLocked}
+                      checked={mcpAllowInsecure}
+                      onChange={(ev) => {
+                        setMcpAllowInsecure(ev.target.checked);
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-args">
+                  {t("app.inspector.mcpArgumentsJson")}
+                </label>
+                <textarea
+                  id="gc-inspector-mcp-args"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  rows={5}
+                  value={mcpArgsJson}
+                  onChange={(ev) => {
+                    setMcpArgsJson(ev.target.value);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked}
+                onClick={applyMcpFields}
+              >
+                {t("app.inspector.applyMcpSettings")}
+              </button>
             </div>
           ) : null}
           {aiRouteEndpointHref != null ? (

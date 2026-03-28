@@ -38,11 +38,18 @@ from graph_caster.gc_pin import (
     merged_process_result_for_pin_short_circuit,
     snapshot_for_pin_event,
 )
+from graph_caster.mcp_client import (
+    format_mcp_result_preview,
+    redact_mcp_tool_arguments_for_event,
+    redact_mcp_tool_data_for_execute,
+    run_mcp_tool_call,
+)
 from graph_caster.process_exec import redact_task_data_for_node_execute, task_declares_env_keys
 from graph_caster.validate import (
     find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
     find_fork_few_outputs_warnings,
+    find_mcp_tool_structure_warnings,
     merge_mode,
 )
 
@@ -486,6 +493,99 @@ class GraphRunner:
         )
         return True
 
+    def _execute_mcp_tool(self, node: Node, ctx: dict[str, Any]) -> bool:
+        sess = ctx.get("_gc_run_session")
+        if sess is not None and sess.cancel_event.is_set():
+            ctx["_run_cancelled"] = True
+            return False
+
+        d = dict(node.data)
+        tool_name = str(d.get("toolName") or "").strip()
+        raw_args = d.get("arguments")
+        arguments: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+
+        to = float(d.get("timeoutSec") if d.get("timeoutSec") is not None else 60.0)
+        if to < 1.0:
+            to = 1.0
+        if to > 600.0:
+            to = 600.0
+
+        transport = str(d.get("transport") or "stdio").strip()
+        outs_map = ctx.setdefault("node_outputs", {})
+
+        if not tool_name:
+            self.emit(
+                "mcp_tool_failed",
+                nodeId=node.id,
+                graphId=self._doc.graph_id,
+                toolName=tool_name,
+                transport=transport,
+                errorMessage="empty_tool_name",
+                errorCode="config",
+            )
+            outs_map[node.id]["mcpTool"] = {
+                "success": False,
+                "error": "empty_tool_name",
+                "code": "config",
+            }
+            ctx["last_result"] = False
+            return False
+
+        inv_args = redact_mcp_tool_arguments_for_event(arguments)
+        self.emit(
+            "mcp_tool_invoke",
+            nodeId=node.id,
+            graphId=self._doc.graph_id,
+            toolName=tool_name,
+            transport=transport,
+            arguments=inv_args,
+        )
+
+        prov = ctx.get("mcp_tool_provider")
+        override = prov if callable(prov) else None
+        outcome = run_mcp_tool_call(
+            data=d,
+            ctx=ctx,
+            graph_id=self._doc.graph_id,
+            node_id=node.id,
+            workspace_secrets=self._get_workspace_secrets(),
+            tool_name=tool_name,
+            arguments=arguments,
+            timeout_sec=to,
+            provider=override,
+        )
+
+        if outcome.ok:
+            self.emit(
+                "mcp_tool_result",
+                nodeId=node.id,
+                graphId=self._doc.graph_id,
+                toolName=tool_name,
+                transport=transport,
+                resultPreview=format_mcp_result_preview(outcome.result),
+            )
+            outs_map[node.id]["mcpTool"] = {"success": True, "result": outcome.result}
+            ctx["last_result"] = True
+            return True
+
+        self.emit(
+            "mcp_tool_failed",
+            nodeId=node.id,
+            graphId=self._doc.graph_id,
+            toolName=tool_name,
+            transport=transport,
+            errorMessage=outcome.error or "error",
+            errorCode=outcome.code,
+        )
+        outs_map[node.id]["mcpTool"] = {
+            "success": False,
+            "error": outcome.error,
+            "code": outcome.code,
+            "result": outcome.result,
+        }
+        ctx["last_result"] = False
+        return False
+
     def _follow_edges_from(
         self,
         node_id: str,
@@ -630,6 +730,8 @@ class GraphRunner:
                 )
             for w in find_ai_route_structure_warnings(self._doc):
                 self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+            for w in find_mcp_tool_structure_warnings(self._doc):
+                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             ctx["graph_rev"] = graph_document_revision(self._doc)
             step_q = StepQueue(start_node_id)
             visited_guard = 0
@@ -655,6 +757,10 @@ class GraphRunner:
                     red_task = redact_task_data_for_node_execute(node.data)
                     exec_data = red_task
                     stored_node_data = dict(node.data) if red_task is node.data else red_task
+                elif node.type == "mcp_tool":
+                    red_m = redact_mcp_tool_data_for_execute(node.data)
+                    exec_data = red_m
+                    stored_node_data = dict(node.data) if red_m is node.data else red_m
                 else:
                     exec_data = node.data
                     stored_node_data = dict(node.data)
@@ -686,6 +792,15 @@ class GraphRunner:
                     pass
                 elif node.type == "graph_ref":
                     ok = self._execute_graph_ref(node, ctx)
+                    if not ok:
+                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        if not ctx.get("_run_cancelled"):
+                            ctx["last_result"] = False
+                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+                                continue
+                        break
+                elif node.type == "mcp_tool":
+                    ok = self._execute_mcp_tool(node, ctx)
                     if not ok:
                         self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
                         if not ctx.get("_run_cancelled"):

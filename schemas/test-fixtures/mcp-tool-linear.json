@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "mcp-tool-linear-fixture",
+    "title": "MCP tool linear (fixture)"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    { "id": "s1", "type": "start", "position": { "x": 0, "y": 0 }, "data": { "title": "Start" } },
+    {
+      "id": "m1",
+      "type": "mcp_tool",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "MCP",
+        "transport": "stdio",
+        "toolName": "echo",
+        "arguments": { "msg": "hi" },
+        "timeoutSec": 60,
+        "argv": ["python", "-c", "pass"]
+      }
+    },
+    { "id": "x1", "type": "exit", "position": { "x": 400, "y": 0 }, "data": { "title": "Exit" } }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "m1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "m1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

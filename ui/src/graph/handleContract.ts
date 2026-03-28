@@ -12,6 +12,7 @@ import {
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_MERGE,
+  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
@@ -41,6 +42,7 @@ export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
       return EMPTY;
     case GRAPH_NODE_TYPE_TASK:
     case GRAPH_NODE_TYPE_GRAPH_REF:
+    case GRAPH_NODE_TYPE_MCP_TOOL:
       return SET_TASK_IO;
     case GRAPH_NODE_TYPE_MERGE:
     case GRAPH_NODE_TYPE_FORK:
@@ -61,6 +63,7 @@ export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
       return SET_EXIT_IN;
     case GRAPH_NODE_TYPE_TASK:
     case GRAPH_NODE_TYPE_GRAPH_REF:
+    case GRAPH_NODE_TYPE_MCP_TOOL:
       return SET_TASK_IN;
     case GRAPH_NODE_TYPE_MERGE:
     case GRAPH_NODE_TYPE_FORK:

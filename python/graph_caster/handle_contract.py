@@ -12,6 +12,7 @@ _START = "start"
 _EXIT = "exit"
 _TASK = "task"
 _GRAPH_REF = "graph_ref"
+_MCP_TOOL = "mcp_tool"
 _COMMENT = "comment"
 _MERGE = "merge"
 _FORK = "fork"
@@ -25,7 +26,7 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         return frozenset()
     if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_OUT_DEFAULT})
-    if node_type in (_TASK, _GRAPH_REF):
+    if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
     if node_type == _COMMENT:
         return frozenset()
@@ -39,7 +40,7 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_IN_DEFAULT})
-    if node_type in (_TASK, _GRAPH_REF):
+    if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL):
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type == _COMMENT:
         return frozenset()

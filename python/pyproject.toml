@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 license = { text = "Proprietary" }
 authors = [{ name = "Aura" }]
 
-dependencies = ["jsonschema>=4.0"]
+dependencies = ["jsonschema>=4.0", "anyio>=4.0"]
 
 [project.scripts]
 graph-caster = "graph_caster.__main__:main"
