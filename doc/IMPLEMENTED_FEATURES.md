@@ -28,6 +28,17 @@
 
 ---
 
+## Открытие графа: ошибки JSON и парсера (P1, как n8n/Dify — явная причина отказа)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Не показывать безликий alert при битом workflow | **Файл → Открыть** и **Открыть из graphs/…**: при ошибке чтения, синтаксиса JSON или **`parseGraphDocumentJsonResult`** — модалка **`OpenGraphErrorModal`** с i18n-текстом по виду ошибки (**`nodes` не массив**, невалидный **`schemaVersion`**, индекс битой ноды/ребра и т.д.) |
+| Понять, какой файл ломается | Заголовок **`titleWithFile`** с **`fileName`** (локальный pick и файл воркспейса); детали для копирования — JSON ошибки парсера или текст **`JSON.parse`** / read |
+
+Код: **`ui/src/graph/openGraphErrorPresentation.ts`**, **`ui/src/components/OpenGraphErrorModal.tsx`**, **`ui/src/layout/AppShell.tsx`**; Vitest **`ui/src/graph/openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 помечен как **закрытый**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
+
+---
+
 ## Редактор: расхождение **`schemaVersion`** и сбой автосохранения (P3, UX как у зрелых IDE)
 
 | Идея конкурента | Реализация GC |

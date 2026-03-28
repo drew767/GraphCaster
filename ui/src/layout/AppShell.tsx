@@ -409,19 +409,19 @@ export function AppShell({ onLangChange }: Props) {
       try {
         text = await file.text();
       } catch {
-        setGraphOpenError(presentationForReadFailure(t));
+        setGraphOpenError(presentationForReadFailure(t, { fileName: file.name }));
         return;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch (err) {
-        setGraphOpenError(presentationForJsonSyntaxError(t, err));
+        setGraphOpenError(presentationForJsonSyntaxError(t, err, { fileName: file.name }));
         return;
       }
       const res = parseGraphDocumentJsonResult(parsed);
       if (!res.ok) {
-        setGraphOpenError(presentationForParseError(t, res.error));
+        setGraphOpenError(presentationForParseError(t, res.error, { fileName: file.name }));
         return;
       }
       nestedGraphRefStackRef.current = [];
@@ -470,19 +470,19 @@ export function AppShell({ onLangChange }: Props) {
       try {
         text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
       } catch {
-        setGraphOpenError(presentationForReadFailure(t));
+        setGraphOpenError(presentationForReadFailure(t, { fileName }));
         return false;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch (err) {
-        setGraphOpenError(presentationForJsonSyntaxError(t, err));
+        setGraphOpenError(presentationForJsonSyntaxError(t, err, { fileName }));
         return false;
       }
       const res = parseGraphDocumentJsonResult(parsed);
       if (!res.ok) {
-        setGraphOpenError(presentationForParseError(t, res.error));
+        setGraphOpenError(presentationForParseError(t, res.error, { fileName }));
         return false;
       }
       preDragDocumentRef.current = null;

@@ -70,29 +70,56 @@ function messageKeyForParseError(error: GraphDocumentParseError): string {
   }
 }
 
+export type OpenGraphErrorPresentationOptions = {
+  fileName?: string;
+};
+
+function titleForOpenError(t: TFunction, opts?: OpenGraphErrorPresentationOptions): string {
+  const fn = opts?.fileName?.trim();
+  if (fn) {
+    return t("app.errors.openModal.titleWithFile", { fileName: fn });
+  }
+  return t("app.errors.openModal.title");
+}
+
 export function presentationForParseError(
   t: TFunction,
   error: GraphDocumentParseError,
+  presentationOpts?: OpenGraphErrorPresentationOptions,
 ): OpenGraphErrorPresentation {
   const key = messageKeyForParseError(error);
   const opts =
     error.kind === "invalid_node" || error.kind === "invalid_edge" ? { index: error.index } : undefined;
   const message = t(key, opts);
-  const title = t("app.errors.openModal.title");
-  const copyText = `${message}\n\n${JSON.stringify(error)}`;
+  const title = titleForOpenError(t, presentationOpts);
+  const fn = presentationOpts?.fileName?.trim();
+  const body = `${message}\n\n${JSON.stringify(error)}`;
+  const copyText = fn ? `${fn}\n\n${body}` : body;
   return { title, message, copyText };
 }
 
-export function presentationForJsonSyntaxError(t: TFunction, err: unknown): OpenGraphErrorPresentation {
-  const title = t("app.errors.openModal.title");
+export function presentationForJsonSyntaxError(
+  t: TFunction,
+  err: unknown,
+  presentationOpts?: OpenGraphErrorPresentationOptions,
+): OpenGraphErrorPresentation {
+  const title = titleForOpenError(t, presentationOpts);
   const rawMsg = err instanceof Error ? err.message : String(err);
-  const message = t("app.errors.openModal.json_invalid", { message: rawMsg });
-  const copyText = rawMsg;
+  const prefix = t("app.errors.openModal.json_invalid_prefix");
+  const message = rawMsg.trim() === "" ? prefix : `${prefix} ${rawMsg}`;
+  const fn = presentationOpts?.fileName?.trim();
+  const detailForCopy = rawMsg.trim() === "" ? prefix : `${prefix} ${rawMsg}`;
+  const copyText = fn ? `${fn}\n\n${detailForCopy}` : detailForCopy;
   return { title, message, copyText };
 }
 
-export function presentationForReadFailure(t: TFunction): OpenGraphErrorPresentation {
-  const title = t("app.errors.openModal.title");
+export function presentationForReadFailure(
+  t: TFunction,
+  presentationOpts?: OpenGraphErrorPresentationOptions,
+): OpenGraphErrorPresentation {
+  const title = titleForOpenError(t, presentationOpts);
   const message = t("app.errors.openModal.read_failed");
-  return { title, message, copyText: message };
+  const fn = presentationOpts?.fileName?.trim();
+  const copyText = fn ? `${fn}\n\n${message}` : message;
+  return { title, message, copyText };
 }

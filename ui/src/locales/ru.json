@@ -207,12 +207,11 @@
       "ru": "Русский"
     },
     "errors": {
-      "invalidGraphJson": "Неверный файл графа: нужен JSON-объект с массивами \"nodes\" и \"edges\".",
-      "readJsonFailed": "Не удалось прочитать или разобрать файл как JSON.",
       "openModal": {
         "title": "Не удалось открыть граф",
+        "titleWithFile": "Не удалось открыть граф: {{fileName}}",
         "read_failed": "Не удалось прочитать файл.",
-        "json_invalid": "Некорректный JSON: {{message}}",
+        "json_invalid_prefix": "Некорректный JSON:",
         "copy": "Копировать детали",
         "copied": "Скопировано",
         "close": "Закрыть",

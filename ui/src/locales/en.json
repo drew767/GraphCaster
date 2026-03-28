@@ -207,12 +207,11 @@
       "ru": "Русский"
     },
     "errors": {
-      "invalidGraphJson": "Invalid graph file: need a JSON object with \"nodes\" and \"edges\" arrays.",
-      "readJsonFailed": "Could not read or parse the file as JSON.",
       "openModal": {
         "title": "Could not open graph",
+        "titleWithFile": "Could not open graph: {{fileName}}",
         "read_failed": "The file could not be read.",
-        "json_invalid": "Invalid JSON: {{message}}",
+        "json_invalid_prefix": "Invalid JSON:",
         "copy": "Copy details",
         "copied": "Copied",
         "close": "Close",

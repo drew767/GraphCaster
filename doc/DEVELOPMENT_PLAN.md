@@ -78,6 +78,7 @@
 - **Цель:** одно понятное сообщение (тип ошибки + по возможности путь/ключ: например «`nodes` must be array», «invalid `schemaVersion`»); строки через **i18n**.
 - **Гейт:** ручная проверка: испорченный файл → сообщение помогает исправить без чтения кода.
 - **Затрагивает:** `ui/src/layout/AppShell.tsx` (и при необходимости тонкий слой поверх `parseGraphDocumentJson`).
+- **Сделано:** модальное окно **`OpenGraphErrorModal`** + **`presentationForParseError`** / **`presentationForJsonSyntaxError`** / **`presentationForReadFailure`** (`ui/src/graph/openGraphErrorPresentation.ts`); ключи **`app.errors.openModal.*`** (en/ru); при открытии из файла или из **`graphs/`** в заголовке — **`titleWithFile`** с именем файла; копирование деталей в буфер. См. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел про открытие графа).
 
 ### P2 — Прозрачность `sanitizeGraphConnectivity` при экспорте
 
