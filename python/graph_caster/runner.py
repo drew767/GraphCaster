@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import threading
 import uuid
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from graph_caster.document_revision import graph_document_revision
+from graph_caster.fork_parallel import ForkBranchPlan, build_fork_parallel_plans
 from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
@@ -181,6 +185,7 @@ class GraphRunner:
         stop_after_node_id: str | None = None,
         step_cache: StepCachePolicy | None = None,
         persist_run_events: bool = False,
+        fork_max_parallel: int | None = None,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -202,6 +207,13 @@ class GraphRunner:
         self._workspace_secrets: dict[str, str] = {}
         self._secrets_file_fp_loaded = False
         self._secrets_file_fp: str = ""
+        self._emit_lock = threading.Lock()
+        self._state_lock = threading.RLock()
+        if fork_max_parallel is not None:
+            self._fork_max_parallel_cap = max(1, int(fork_max_parallel))
+        else:
+            raw = (os.environ.get("GC_FORK_MAX_PARALLEL") or "").strip()
+            self._fork_max_parallel_cap = max(1, int(raw)) if raw.isdigit() else 1
 
     def _get_workspace_secrets(self) -> dict[str, str]:
         if not self._workspace_secrets_loaded:
@@ -292,7 +304,8 @@ class GraphRunner:
         rid = self._run_id
         if rid:
             ev["runId"] = rid
-        self._event_sink.emit(ev)
+        with self._emit_lock:
+            self._event_sink.emit(ev)
 
     def _merge_barrier_state(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return ctx.setdefault("_gc_merge_barrier", {})
@@ -309,34 +322,36 @@ class GraphRunner:
         return frozenset(req)
 
     def _merge_barrier_arrive(self, merge_id: str, from_source_id: str, ctx: dict[str, Any], step_q: StepQueue) -> None:
-        stmap = self._merge_barrier_state(ctx)
-        if merge_id not in stmap:
-            stmap[merge_id] = {
-                "required": self._barrier_required_sources(merge_id),
-                "arrived": set(),
-                "scheduled": False,
-            }
-        st = stmap[merge_id]
-        req = st["required"]
-        if not req:
-            return
-        st["arrived"].add(from_source_id)
-        if st["arrived"].issuperset(req) and not st["scheduled"]:
-            st["scheduled"] = True
-            step_q.append(ExecutionFrame(merge_id))
+        with self._state_lock:
+            stmap = self._merge_barrier_state(ctx)
+            if merge_id not in stmap:
+                stmap[merge_id] = {
+                    "required": self._barrier_required_sources(merge_id),
+                    "arrived": set(),
+                    "scheduled": False,
+                }
+            st = stmap[merge_id]
+            req = st["required"]
+            if not req:
+                return
+            st["arrived"].add(from_source_id)
+            if st["arrived"].issuperset(req) and not st["scheduled"]:
+                st["scheduled"] = True
+                step_q.append(ExecutionFrame(merge_id))
 
     def _has_incomplete_barrier(self, ctx: dict[str, Any]) -> bool:
-        mb = ctx.get("_gc_merge_barrier") or {}
-        for _, st in mb.items():
-            req = st.get("required") or frozenset()
-            if not req:
-                continue
-            if st.get("scheduled"):
-                continue
-            arr = st.get("arrived") or set()
-            if arr != req:
-                return True
-        return False
+        with self._state_lock:
+            mb = ctx.get("_gc_merge_barrier") or {}
+            for _, st in mb.items():
+                req = st.get("required") or frozenset()
+                if not req:
+                    continue
+                if st.get("scheduled"):
+                    continue
+                arr = st.get("arrived") or set()
+                if arr != req:
+                    return True
+            return False
 
     def _traverse_chosen_edge(
         self,
@@ -379,19 +394,342 @@ class GraphRunner:
                     graphId=self._doc.graph_id,
                 )
                 return
-            step_q.append(ExecutionFrame(edge.target))
+            with self._state_lock:
+                step_q.append(ExecutionFrame(edge.target))
             return
         tgt_node = self._node_by_id.get(edge.target)
         if tgt_node is not None and tgt_node.type == "merge" and merge_mode(tgt_node) == "barrier":
             self._merge_barrier_arrive(edge.target, from_node_id, ctx, step_q)
             return
-        step_q.append(ExecutionFrame(edge.target))
+        with self._state_lock:
+            step_q.append(ExecutionFrame(edge.target))
+
+    def _resolve_fork_max_parallel(self, fork_id: str, ctx: dict[str, Any]) -> int:
+        cap = self._fork_max_parallel_cap
+        fn = self._node_by_id.get(fork_id)
+        if fn is not None:
+            raw_mp = fn.data.get("maxParallel")
+            if raw_mp is not None:
+                try:
+                    cap = min(cap, max(1, int(raw_mp)))
+                except (TypeError, ValueError):
+                    pass
+        ctx_mp = ctx.get("fork_max_parallel")
+        if ctx_mp is not None:
+            try:
+                cap = min(cap, max(1, int(ctx_mp)))
+            except (TypeError, ValueError):
+                pass
+        return cap
+
+    def _fork_plans_single_layer_process_tasks(self, plans: list[ForkBranchPlan]) -> bool:
+        for p in plans:
+            if len(p.node_ids) != 1:
+                return False
+            n = self._node_by_id.get(p.node_ids[0])
+            if n is None or n.type != "task" or not _task_has_process_command(n):
+                return False
+        return True
+
+    def _emit_fork_parallel_frontier_events(self, fork_id: str, plans: list[ForkBranchPlan]) -> None:
+        by_eid = {e.id: e for e in self._doc.edges}
+        gid = self._doc.graph_id
+        multi = len(plans) > 1
+        for p in plans:
+            edge = by_eid.get(p.first_edge_id)
+            if edge is None:
+                continue
+            if multi:
+                self.emit(
+                    "branch_taken",
+                    edgeId=edge.id,
+                    fromNode=edge.source,
+                    toNode=edge.target,
+                    graphId=gid,
+                )
+            self.emit(
+                "edge_traverse",
+                edgeId=edge.id,
+                fromNode=edge.source,
+                toNode=edge.target,
+                graphId=gid,
+            )
+
+    def _fork_worker_begin_task_visit(self, node: Node, ctx: dict[str, Any]) -> None:
+        red_task = redact_task_data_for_node_execute(node.data)
+        exec_data = red_task
+        stored_node_data = dict(node.data) if red_task is node.data else red_task
+        self.emit("node_enter", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+        self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=exec_data)
+        outs_map = ctx.setdefault("node_outputs", {})
+        prev_out = outs_map.get(node.id)
+        outs_map[node.id] = {"nodeType": node.type, "data": stored_node_data}
+        if isinstance(prev_out, dict):
+            for k, v in prev_out.items():
+                if k not in ("nodeType", "data"):
+                    outs_map[node.id][k] = copy.deepcopy(v)
+
+    def _run_subprocess_task_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        from graph_caster.process_exec import run_task_process
+
+        task_exit_used_pin = False
+        outs_map = ctx.setdefault("node_outputs", {})
+        sess = ctx.get("_gc_run_session")
+
+        def _should_cancel() -> bool:
+            if fork_parallel_worker and ctx.get("_run_cancelled"):
+                return True
+            return sess is not None and sess.cancel_event.is_set()
+
+        pr_pin = merged_process_result_for_pin_short_circuit(outs_map.get(node.id))
+        pin_short = gc_pin_valid_for_short_circuit(node) and pr_pin is not None
+        if pin_short:
+            task_exit_used_pin = True
+            ctx["last_result"] = last_result_from_process_result(pr_pin)
+            self.emit(
+                "node_pinned_skip",
+                nodeId=node.id,
+                graphId=self._doc.graph_id,
+            )
+            ok = ctx["last_result"]
+        else:
+            ok = True
+
+        used_step_cache = False
+        cache_key: str | None = None
+        pol = self._step_cache
+        store = self._ensure_step_cache_store()
+        want_cache = _node_wants_step_cache(node)
+        cache_active = (
+            not pin_short
+            and want_cache
+            and pol is not None
+            and pol.enabled
+            and store is not None
+        )
+        gid = self._doc.graph_id
+        graph_rev = str(ctx.get("graph_rev") or "")
+        tenant_id = ctx.get("tenant_id")
+        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
+        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
+        dirty = bool(
+            pol
+            and pol.enabled
+            and (
+                node.id in pol.dirty_nodes
+                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
+            )
+        )
+        upstream_incomplete = False
+        cache_ws_fp: str | None = (
+            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
+        )
+
+        if not pin_short and cache_active:
+            up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
+            if inc_reason:
+                upstream_incomplete = True
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    reason=inc_reason,
+                )
+            elif dirty:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                )
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    keyPrefix=_cache_key_prefix(cache_key),
+                    reason="dirty",
+                )
+            else:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                )
+                cached = store.get(cache_key)
+                if cached is not None:
+                    outs_map[node.id] = copy.deepcopy(cached)
+                    pr = cached.get("processResult")
+                    ctx["last_result"] = last_result_from_process_result(pr)
+                    self.emit(
+                        "node_cache_hit",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+                    used_step_cache = True
+                else:
+                    self.emit(
+                        "node_cache_miss",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+
+        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
+        if not pin_short:
+            if not used_step_cache:
+                ok = run_task_process(
+                    node_id=node.id,
+                    graph_id=self._doc.graph_id,
+                    data=dict(node.data),
+                    ctx=ctx,
+                    emit=self.emit,
+                    should_cancel=cancel_fn,
+                    workspace_secrets=self._get_workspace_secrets(),
+                )
+            if (
+                ok
+                and not used_step_cache
+                and cache_active
+                and cache_key is not None
+                and store is not None
+                and not upstream_incomplete
+            ):
+                store.put(cache_key, copy.deepcopy(outs_map[node.id]))
+            snap_o = outs_map.get(node.id)
+            if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
+                self.emit(
+                    "node_outputs_snapshot",
+                    nodeId=node.id,
+                    graphId=self._doc.graph_id,
+                    snapshot=snapshot_for_pin_event(snap_o),
+                )
+
+        if not ok:
+            if ctx.get("_gc_process_cancelled"):
+                ctx["_run_cancelled"] = True
+            ne_task: dict[str, Any] = {
+                "nodeId": node.id,
+                "nodeType": node.type,
+                "graphId": self._doc.graph_id,
+            }
+            if task_exit_used_pin:
+                ne_task["usedPin"] = True
+            self.emit("node_exit", **ne_task)
+            if ctx.get("_gc_process_cancelled"):
+                return "break", task_exit_used_pin
+            ctx["last_result"] = False
+            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+                return "continue", task_exit_used_pin
+            return "break", task_exit_used_pin
+
+        return "ok", task_exit_used_pin
+
+    def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
+        if ctx.get("_run_cancelled"):
+            return
+        nid = plan.node_ids[0]
+        node = self._node_by_id.get(nid)
+        if node is None:
+            return
+        try:
+            self._fork_worker_begin_task_visit(node, ctx)
+            outcome, used_pin = self._run_subprocess_task_visit(
+                node, ctx, step_q, fork_parallel_worker=True
+            )
+            if ctx.get("_run_cancelled"):
+                return
+            if outcome == "ok":
+                ne: dict[str, Any] = {
+                    "nodeId": node.id,
+                    "nodeType": node.type,
+                    "graphId": self._doc.graph_id,
+                }
+                if used_pin:
+                    ne["usedPin"] = True
+                self.emit("node_exit", **ne)
+                self._merge_barrier_arrive(plan.merge_id, plan.arrive_source, ctx, step_q)
+        except BaseException:
+            ctx["_run_cancelled"] = True
+
+    def _run_fork_parallel_branches(
+        self,
+        fork_id: str,
+        plans: list[ForkBranchPlan],
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        max_workers: int,
+    ) -> None:
+        self._emit_fork_parallel_frontier_events(fork_id, plans)
+        n_workers = max(1, min(max_workers, len(plans)))
+        with ThreadPoolExecutor(max_workers=n_workers) as ex:
+            futures = [ex.submit(self._fork_parallel_branch_worker, p, ctx, step_q) for p in plans]
+            for fut in as_completed(futures):
+                fut.result()
 
     def _enqueue_fork_branches(self, fork_id: str, ctx: dict[str, Any], step_q: StepQueue) -> bool:
         edges = _fork_unconditional_edges(self._doc, fork_id, self._node_by_id)
         if not edges:
             self.emit("run_end", reason="fork_no_unconditional_outgoing")
             return False
+
+        plans, plan_reason = build_fork_parallel_plans(self._doc, fork_id, self._node_by_id)
+        mp = self._resolve_fork_max_parallel(fork_id, ctx)
+
+        deferred_parallel = (
+            plans is not None
+            and len(plans) >= 2
+            and mp >= 2
+            and self._stop_after_node_id is None
+            and not self._fork_plans_single_layer_process_tasks(plans)
+        )
+        if deferred_parallel:
+            self.emit(
+                "structure_warning",
+                kind="fork_parallel_deferred",
+                forkNodeId=fork_id,
+                reason="multi_hop_or_non_subprocess_task",
+                graphId=self._doc.graph_id,
+            )
+
+        parallel_ok = (
+            plans is not None
+            and len(plans) >= 2
+            and mp >= 2
+            and self._stop_after_node_id is None
+            and self._fork_plans_single_layer_process_tasks(plans)
+        )
+        if parallel_ok:
+            workers = min(mp, len(plans))
+            self._run_fork_parallel_branches(fork_id, plans, ctx, step_q, workers)
+            return True
+
+        if plans is None and plan_reason is not None and mp >= 2:
+            self.emit(
+                "structure_warning",
+                kind="fork_parallel_region_unsupported",
+                forkNodeId=fork_id,
+                reason=plan_reason,
+                graphId=self._doc.graph_id,
+            )
+
         multi = len(edges) > 1
         for e in edges:
             self._traverse_chosen_edge(
@@ -804,8 +1142,9 @@ class GraphRunner:
                     outs_map[node.id]["fork"] = True
                 elif node.type == "merge":
                     if merge_mode(node) == "barrier":
-                        st = (ctx.get("_gc_merge_barrier") or {}).get(node.id, {})
-                        arrived = st.get("arrived") or set()
+                        with self._state_lock:
+                            st = (ctx.get("_gc_merge_barrier") or {}).get(node.id, {})
+                            arrived = set(st.get("arrived") or set())
                         outs_map[node.id]["merge"] = {
                             "passthrough": False,
                             "barrier": True,
@@ -835,164 +1174,12 @@ class GraphRunner:
                                 continue
                         break
                 elif node.type == "task" and _task_has_process_command(node):
-                    from graph_caster.process_exec import run_task_process
-
-                    sess = ctx.get("_gc_run_session")
-
-                    def _should_cancel() -> bool:
-                        return sess is not None and sess.cancel_event.is_set()
-
-                    pr_pin = merged_process_result_for_pin_short_circuit(outs_map.get(node.id))
-                    pin_short = gc_pin_valid_for_short_circuit(node) and pr_pin is not None
-                    if pin_short:
-                        task_exit_used_pin = True
-                        ctx["last_result"] = last_result_from_process_result(pr_pin)
-                        self.emit(
-                            "node_pinned_skip",
-                            nodeId=node.id,
-                            graphId=self._doc.graph_id,
-                        )
-                        ok = ctx["last_result"]
-                    else:
-                        ok = True
-
-                    used_step_cache = False
-                    cache_key: str | None = None
-                    pol = self._step_cache
-                    store = self._ensure_step_cache_store()
-                    want_cache = _node_wants_step_cache(node)
-                    cache_active = (
-                        not pin_short
-                        and want_cache
-                        and pol is not None
-                        and pol.enabled
-                        and store is not None
+                    outcome, task_exit_used_pin = self._run_subprocess_task_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
                     )
-                    gid = self._doc.graph_id
-                    graph_rev = str(ctx.get("graph_rev") or "")
-                    tenant_id = ctx.get("tenant_id")
-                    tenant_s = str(tenant_id).strip() if tenant_id is not None else None
-                    parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
-                    dirty = bool(
-                        pol
-                        and pol.enabled
-                        and (
-                            node.id in pol.dirty_nodes
-                            or (parent_ref != "" and parent_ref in pol.dirty_nodes)
-                        )
-                    )
-                    upstream_incomplete = False
-                    cache_ws_fp: str | None = (
-                        self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
-                    )
-
-                    if not pin_short and cache_active:
-                        up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
-                        gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
-                        if inc_reason:
-                            upstream_incomplete = True
-                            self.emit(
-                                "node_cache_miss",
-                                nodeId=node.id,
-                                graphId=gid,
-                                reason=inc_reason,
-                            )
-                        elif dirty:
-                            cache_key = compute_step_cache_key(
-                                graph_rev=graph_rev,
-                                graph_id=gid,
-                                node_id=node.id,
-                                node_data=node.data,
-                                upstream_outputs=up,
-                                tenant_id=tenant_s,
-                                workspace_secrets_file_fp=cache_ws_fp,
-                                graph_ref_upstream_revisions=gr_pairs,
-                            )
-                            self.emit(
-                                "node_cache_miss",
-                                nodeId=node.id,
-                                graphId=gid,
-                                keyPrefix=_cache_key_prefix(cache_key),
-                                reason="dirty",
-                            )
-                        else:
-                            cache_key = compute_step_cache_key(
-                                graph_rev=graph_rev,
-                                graph_id=gid,
-                                node_id=node.id,
-                                node_data=node.data,
-                                upstream_outputs=up,
-                                tenant_id=tenant_s,
-                                workspace_secrets_file_fp=cache_ws_fp,
-                                graph_ref_upstream_revisions=gr_pairs,
-                            )
-                            cached = store.get(cache_key)
-                            if cached is not None:
-                                outs_map[node.id] = copy.deepcopy(cached)
-                                pr = cached.get("processResult")
-                                ctx["last_result"] = last_result_from_process_result(pr)
-                                self.emit(
-                                    "node_cache_hit",
-                                    nodeId=node.id,
-                                    graphId=gid,
-                                    keyPrefix=_cache_key_prefix(cache_key),
-                                )
-                                used_step_cache = True
-                            else:
-                                self.emit(
-                                    "node_cache_miss",
-                                    nodeId=node.id,
-                                    graphId=gid,
-                                    keyPrefix=_cache_key_prefix(cache_key),
-                                )
-
-                    if not pin_short:
-                        if not used_step_cache:
-                            ok = run_task_process(
-                                node_id=node.id,
-                                graph_id=self._doc.graph_id,
-                                data=dict(node.data),
-                                ctx=ctx,
-                                emit=self.emit,
-                                should_cancel=_should_cancel if sess is not None else None,
-                                workspace_secrets=self._get_workspace_secrets(),
-                            )
-                        if (
-                            ok
-                            and not used_step_cache
-                            and cache_active
-                            and cache_key is not None
-                            and store is not None
-                            and not upstream_incomplete
-                        ):
-                            store.put(cache_key, copy.deepcopy(outs_map[node.id]))
-                        snap_o = outs_map.get(node.id)
-                        if isinstance(snap_o, dict) and isinstance(
-                            snap_o.get("processResult"), dict
-                        ):
-                            self.emit(
-                                "node_outputs_snapshot",
-                                nodeId=node.id,
-                                graphId=self._doc.graph_id,
-                                snapshot=snapshot_for_pin_event(snap_o),
-                            )
-
-                    if not ok:
-                        if ctx.get("_gc_process_cancelled"):
-                            ctx["_run_cancelled"] = True
-                        ne_task: dict[str, Any] = {
-                            "nodeId": node.id,
-                            "nodeType": node.type,
-                            "graphId": self._doc.graph_id,
-                        }
-                        if task_exit_used_pin:
-                            ne_task["usedPin"] = True
-                        self.emit("node_exit", **ne_task)
-                        if ctx.get("_gc_process_cancelled"):
-                            break
-                        ctx["last_result"] = False
-                        if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                            continue
+                    if outcome == "continue":
+                        continue
+                    if outcome == "break":
                         break
 
                 ne: dict[str, Any] = {

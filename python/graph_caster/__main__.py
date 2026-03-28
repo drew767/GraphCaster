@@ -132,6 +132,13 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="NODE_IDS",
         help="Comma-separated node ids that skip cache read (re-exec like n8n dirtyNodeNames); requires --step-cache",
     )
+    run.add_argument(
+        "--fork-max-parallel",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Upper bound on parallel fork branches (>=1); also fork.data.maxParallel and GC_FORK_MAX_PARALLEL; default 1 is sequential",
+    )
 
     sz = sub.add_parser("artifacts-size", help="Print total artifact size in bytes under runs/")
     sz.add_argument("--base", type=Path, required=True, help="Workspace root (parent of runs/)")
@@ -271,6 +278,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         stop_after_node_id=stop_after,
         step_cache=step_cache_pol,
         persist_run_events=persist_ev,
+        fork_max_parallel=args.fork_max_parallel,
     )
     try:
         ctx: dict = {"last_result": True}

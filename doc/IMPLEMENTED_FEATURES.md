@@ -97,7 +97,7 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
-Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), продуктовая документация, расширение контекста предикатов, **истинный параллелизм** веток (**F6**). **Структурированное ИИ-ветвление** (**нода `ai_route`**, wire v1) — **закрыто** (подраздел **«ИИ-ветвление / нода `ai_route`»** ниже и п.4 **§32.2** в competitive). Узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
+Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), продуктовая документация, расширение контекста предикатов, **межпрогоновый** worker pool / queue (**F6**, **§13**). **Внутриграфовый** bounded OS-параллель после **`fork`** — в таблице **Merge** ниже. **Структурированное ИИ-ветвление** (**нода `ai_route`**, wire v1) — **закрыто** (подраздел **«ИИ-ветвление / нода `ai_route`»** ниже и п.4 **§32.2** в competitive). Узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -111,7 +111,7 @@
 
 **Закрыто в этом файле (маппинг конкурентов → код):** **структурированное ИИ-ветвление** — нода **`ai_route`** (wire v1), таблица ниже; смешение классики и ИИ на одной ноде — **не** в v1 (композиция **`task` → `ai_route`**).
 
-**Открыто в F4 (см. `COMPETITIVE_ANALYSIS.md` §32.2):** полноценный **n8n Expression** (произвольные функции, произвольный JS, sandbox VM) — **вне** безопасной грамматики JSON Logic + mustache + **`$json`** + ограниченного **`$node`** (только чтение из **`node_outputs`**, таблица выше). **Fan-out/join** в одном процессе (**`fork`**, **`merge`** **`barrier`**) — в таблице **Merge** ниже. В competitive остаётся: **истинный параллелизм веток** (worker pool / **F6**); подмешивание LLM в **`edge.condition`** без отдельной ноды — **§32.2** п.4. In-graph **`out_error`** — раздел **F19** ниже.
+**Открыто в F4 (см. `COMPETITIVE_ANALYSIS.md` §32.2):** полноценный **n8n Expression** (произвольные функции, произвольный JS, sandbox VM) — **вне** безопасной грамматики JSON Logic + mustache + **`$json`** + ограниченного **`$node`** (только чтение из **`node_outputs`**, таблица выше). **Fan-out/join** в одном процессе (**`fork`**, **`merge`** **`barrier`**) — в таблице **Merge** ниже (в т.ч. опциональный **OS-параллель** веток). В competitive остаётся: **межпрогоновый** параллелизм / полный паритет **n8n Merge** (**§13**, **F6**); подмешивание LLM в **`edge.condition`** без отдельной ноды — **§32.2** п.4. In-graph **`out_error`** — раздел **F19** ниже.
 
 ### ИИ-ветвление / нода **`ai_route`** (wire v1)
 
@@ -132,12 +132,12 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | **n8n** — отдельная нода **Merge**, несколько входов | Тип ноды **`merge`**: **`in_default`** / **`out_default`** только (**F18**); в меню полотна (ПКМ); ромб на канвасе (`ui/`) |
-| **Dify** — неявное ожидание предков в **GraphEngine** | **Passthrough:** **`node_outputs[id].merge.passthrough`** при **`data.mode`** не **`barrier`**. **Barrier (`data.mode` = `barrier`):** join как у n8n **Merge** «дождаться всех» — приход с каждого предка по **`out_default`**; без успешных входов barrier не планируется. **Переход `out_error` в barrier-merge** не ставит ноду в очередь: **`error`** **`barrier_merge_error_path_not_supported`**. **`node_outputs[id].merge`**: **`barrier`**, **`arrivedFrom`**, **`passthrough`:** **`false`**. Ветки по-прежнему **последовательно** в одном процессе |
-| **n8n** — несколько исходов в шину + **Merge** | Нода **`fork`** — все безусловные **`out_default`** в порядке документа в **`StepQueue`**; без OS-параллелизма (**F6** вне MVP) |
+| **Dify** — неявное ожидание предков в **GraphEngine** | **Passthrough:** **`node_outputs[id].merge.passthrough`** при **`data.mode`** не **`barrier`**. **Barrier (`data.mode` = `barrier`):** join как у n8n **Merge** «дождаться всех» — приход с каждого предка по **`out_default`**; без успешных входов barrier не планируется. **Переход `out_error` в barrier-merge** не ставит ноду в очередь: **`error`** **`barrier_merge_error_path_not_supported`**. **`node_outputs[id].merge`**: **`barrier`**, **`arrivedFrom`**, **`passthrough`:** **`false`**. Между **`fork`** и barrier по умолчанию ветки **последовательно**; при **`maxParallel` > 1** — см. строку **n8n** ниже |
+| **n8n** — несколько исходов в шину + **Merge** | Нода **`fork`** — безусловные **`out_default`**; по умолчанию последовательно в **`StepQueue`**. Опционально **OS-параллель** веток до одного **`merge`** **`barrier`**: **`fork.data.maxParallel`**, **`--fork-max-parallel`**, **`GC_FORK_MAX_PARALLEL`**, **`context["fork_max_parallel"]`** (минимум из лимитов, **≥1**); только линейные ветки по одному subprocess-**`task`**; иначе **`structure_warning`** и последовательный fallback. Код: **`fork_parallel.py`**, **`runner.py`** (**`ThreadPoolExecutor`**); тесты **`test_merge_barrier_fork.py`**, **`test_fork_parallel.py`** |
 | Статика | Python: **`find_merge_incoming_warnings`**, **`find_fork_few_outputs_warnings`**, **`find_barrier_merge_out_error_incoming`**, **`find_barrier_merge_no_success_incoming_warnings`**; UI: **`merge_few_inputs`**, **`fork_few_outputs`**, **`barrier_merge_out_error_incoming`**, **`barrier_merge_no_success_incoming`** в **`findStructureIssues`**. Раннер эмитит соответствующие **`structure_warning`** в NDJSON |
 | Контракт документа | `schemas/graph-document.schema.json` (описание **`type`**, **`fork`**, **`merge.data.mode`**), фикстуры **`handle-merge.json`**, **`merge-after-branch.json`**, **`fork-merge-barrier.json`**, **`handle-fork.json`** |
 
-Код: **`python/graph_caster/runner.py`** (в т.ч. **`fork`**, **`_gc_merge_barrier`**), **`handle_contract.py`**, **`validate.py`**; тесты **`test_merge_node.py`**, **`test_merge_barrier_fork.py`**, **`test_validate_structure.py`**, **`test_handle_compatibility.py`**.
+Код: **`python/graph_caster/runner.py`** (в т.ч. **`fork`**, **`_gc_merge_barrier`**, параллельный срез **F6**), **`fork_parallel.py`**, **`handle_contract.py`**, **`validate.py`**; тесты **`test_merge_node.py`**, **`test_merge_barrier_fork.py`**, **`test_fork_parallel.py`**, **`test_validate_structure.py`**, **`test_handle_compatibility.py`**.
 
 Документация: `python/README.md` (раздел «Условия на рёбрах»), `schemas/graph-document.schema.json` (`edges[].condition`). Углублённое сравнение с конкурентами — **§32** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md).
 
@@ -162,7 +162,7 @@
 
 ## Статическая достижимость из **start** (F3, как n8n/Dify структурные проверки)
 
-Пункт **§31.2** п.1 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) перенесён сюда как **закрытый** срез; в competitive остаются «открытые» темы (циклы, полная рантайм-связность с симуляцией **F4**, OS-параллелизм **F6**) — см. строку **GraphCaster** в таблице F3 там же.
+Пункт **§31.2** п.1 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) перенесён сюда как **закрытый** срез; в competitive остаются «открытые» темы (циклы, полная рантайм-связность с симуляцией **F4**, **межпрогоновый** **F6** / очереди) — см. строку **GraphCaster** в таблице F3 там же. **Внутриграфовый** bounded параллель после **`fork`** — подраздел **Merge** выше, не дублировать здесь.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -282,7 +282,7 @@
 
 Тесты: **`python/tests/test_run_event_frame.py`**, **`python/tests/test_run_broker.py`** (в т.ч. WS + неверный токен). В **`COMPETITIVE_ANALYSIS.md`** обзорный ряд **§39.1** для **GraphCaster** и **§3.2.1** («Для GC») ссылаются сюда вместо дублирования полного списка отличий от n8n **`ExecutionPushMessage`**.
 
-### Слой события → транспорт и очередь шагов (срез **F6**, без worker pool)
+### Слой события → транспорт и очередь шагов (срез **F6**, + опциональный пул после **fork**)
 
 Сравнение продуктов по очередям прогонов, режимам **n8n** `queue`, **Dify**/**Comfy** и планирование межпрогонового параллелизма / моста (**§13.2–§13.3**) — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) §**13**; ниже только то, что уже в коде **graph-caster**.
 

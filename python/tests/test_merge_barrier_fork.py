@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 from graph_caster import GraphRunner, validate_graph_structure
@@ -21,6 +22,42 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _cmd_py() -> list[str]:
     return [sys.executable, "-c", "print(1)"]
+
+
+def test_fork_parallel_two_sleeps_faster_than_sequential(tmp_path: Path) -> None:
+    delay = 0.45
+    raw = json.loads((ROOT / "schemas" / "test-fixtures" / "fork-merge-barrier.json").read_text(encoding="utf-8"))
+    for nid in ("t0", "ta", "tb"):
+        n = next(x for x in raw["nodes"] if x["id"] == nid)
+        if nid == "t0":
+            n["data"] = {"command": _cmd_py(), "cwd": str(tmp_path)}
+        else:
+            n["data"] = {
+                "command": [sys.executable, "-c", f"import time; time.sleep({delay})"],
+                "cwd": str(tmp_path),
+            }
+    fork = next(x for x in raw["nodes"] if x["id"] == "f1")
+    fork["data"] = {**(fork.get("data") or {}), "maxParallel": 2}
+    doc = GraphDocument.from_dict(raw)
+    events: list[dict] = []
+    t0 = time.monotonic()
+    GraphRunner(
+        doc,
+        sink=lambda e: events.append(e),
+        host=RunHostContext(artifacts_base=tmp_path),
+        fork_max_parallel=8,
+    ).run()
+    parallel_elapsed = time.monotonic() - t0
+    assert events[-1]["type"] == "run_finished"
+    assert events[-1].get("status") == "success"
+
+    events_seq: list[dict] = []
+    t1 = time.monotonic()
+    GraphRunner(doc, sink=lambda e: events_seq.append(e), host=RunHostContext(artifacts_base=tmp_path)).run()
+    seq_elapsed = time.monotonic() - t1
+    assert events_seq[-1].get("status") == "success"
+    assert seq_elapsed > delay * 1.45
+    assert parallel_elapsed < seq_elapsed * 0.88
 
 
 def test_barrier_runs_after_two_branches(tmp_path: Path) -> None:

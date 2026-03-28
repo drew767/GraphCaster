@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -115,6 +116,7 @@ def step_cache_root(artifacts_base: Path, graph_id: str) -> Path:
 class StepCacheStore:
     def __init__(self, root: Path) -> None:
         self._root = Path(root)
+        self._lock = threading.Lock()
 
     def _path_for(self, key_hex: str) -> Path:
         if len(key_hex) < 4:
@@ -122,35 +124,37 @@ class StepCacheStore:
         return self._root / key_hex[:2] / key_hex[2:4] / f"{key_hex}.json"
 
     def get(self, key_hex: str) -> dict[str, Any] | None:
-        p = self._path_for(key_hex)
-        if not p.is_file():
-            return None
-        try:
-            raw = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        if not isinstance(raw, dict):
-            return None
-        return _coerce_step_cache_entry(raw)
+        with self._lock:
+            p = self._path_for(key_hex)
+            if not p.is_file():
+                return None
+            try:
+                raw = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return None
+            if not isinstance(raw, dict):
+                return None
+            return _coerce_step_cache_entry(raw)
 
     def put(self, key_hex: str, entry: dict[str, Any]) -> None:
-        p = self._path_for(key_hex)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        data = stable_json(entry).encode("utf-8")
-        fd, tmp = tempfile.mkstemp(suffix=".json", dir=p.parent, text=False)
-        try:
-            os.write(fd, data)
-            os.close(fd)
-            fd = -1
-            os.replace(tmp, p)
-        finally:
-            if fd >= 0:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
-            if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
+        with self._lock:
+            p = self._path_for(key_hex)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            data = stable_json(entry).encode("utf-8")
+            fd, tmp = tempfile.mkstemp(suffix=".json", dir=p.parent, text=False)
+            try:
+                os.write(fd, data)
+                os.close(fd)
+                fd = -1
+                os.replace(tmp, p)
+            finally:
+                if fd >= 0:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                if os.path.exists(tmp):
+                    try:
+                        os.remove(tmp)
+                    except OSError:
+                        pass
