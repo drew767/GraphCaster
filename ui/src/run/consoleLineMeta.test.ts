@@ -74,6 +74,8 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
     expect(m.displayLine).toBe(line);
     expect(consoleLineMatchesSearch(m, "dropped")).toBe(true);
+    expect(consoleLineMatchesSearch(m, "отброшено")).toBe(true);
+    expect(consoleLineMatchesSearch(m, "subscriber")).toBe(true);
   });
 
   it("formats process_output stdout for display", () => {

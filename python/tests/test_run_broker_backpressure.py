@@ -11,7 +11,23 @@ from graph_caster.run_broker.broadcaster import (
     FanOutMsg,
     RunBroadcaster,
     RunBroadcasterConfig,
+    _is_droppable_out_line,
 )
+
+
+def test_is_droppable_uses_type_not_substring() -> None:
+    line = json.dumps(
+        {
+            "type": "run_started",
+            "runId": "r",
+            "rootGraphId": "g",
+            "startedAt": "t",
+            "mode": "manual",
+            "note": "mentions process_output substring",
+        },
+        separators=(",", ":"),
+    )
+    assert _is_droppable_out_line(line) is False
 
 
 def _process_out_line(seq: int) -> str:

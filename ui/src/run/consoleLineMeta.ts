@@ -4,6 +4,10 @@ import { parseRunEventLine } from "./parseRunEventLine";
 
 export const STDERR_PREFIX = "[stderr] ";
 
+/** Matches keywords from app.run.console.outputTruncated (en + ru) for search when UI shows i18n only. */
+const STREAM_BACKPRESSURE_SEARCH_EXTRA =
+  "Console process_output dropped subscriber queue SSE persisted Консоль отброшено очередь подписчика NDJSON stream_backpressure";
+
 export type ConsoleLineMeta = {
   rawLine: string;
   displayLine: string;
@@ -177,5 +181,10 @@ export function consoleLineMatchesSearch(meta: ConsoleLineMeta, query: string): 
   if (q === "") {
     return true;
   }
-  return meta.displayLine.toLowerCase().includes(q);
+  const parts = [meta.displayLine];
+  if (meta.streamBackpressureDropped != null) {
+    parts.push(meta.rawLine, STREAM_BACKPRESSURE_SEARCH_EXTRA);
+  }
+  const hay = parts.join(" ").toLowerCase();
+  return hay.includes(q);
 }

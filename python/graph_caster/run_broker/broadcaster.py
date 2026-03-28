@@ -16,7 +16,10 @@ _DELIVER_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gc_bcast"
 
 
 def _shutdown_deliver_pool() -> None:
-    _DELIVER_POOL.shutdown(wait=False)
+    try:
+        _DELIVER_POOL.shutdown(wait=False, cancel_futures=True)
+    except TypeError:
+        _DELIVER_POOL.shutdown(wait=False)
 
 
 atexit.register(_shutdown_deliver_pool)
@@ -51,14 +54,6 @@ def _is_droppable_out_line(line: str) -> bool:
         return False
     if not s.startswith("{"):
         return True
-    if "process_output" not in s:
-        try:
-            obj = json.loads(s)
-        except json.JSONDecodeError:
-            return True
-        if not isinstance(obj, dict):
-            return True
-        return False
     try:
         obj = json.loads(s)
     except json.JSONDecodeError:
