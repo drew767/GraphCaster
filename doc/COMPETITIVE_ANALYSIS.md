@@ -487,6 +487,7 @@
 | `process_complete` | Подпроцесс завершён успешно | — |
 | `process_failed` | Ошибка / ненулевой код (по политике) | Comfy `execution_error`; Dify `NodeRunFailedEvent` |
 | `process_retry` | Повтор по retry-настройкам | Dify `NodeRunRetryEvent` |
+| `process_output` | Чанки stdout/stderr подпроцесса `task` до `process_complete` | n8n/Flowise/Dify инкрементальные логи шага; факт реализации и контракт — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) («Инкрементальный вывод подпроцесса **task**») |
 | `nested_graph_enter` / `nested_graph_exit` | Вход/выход из `graph_ref` | Dify child graph; n8n sub-workflow |
 | `edge_traverse` | Выбрано исходящее ребро | — (часто не отдельное событие у других) |
 | `branch_skipped` | Условное ребро оценено, предикат ложен (перед выбором другого исхода) | Dify skip / невыбранная ветвь в логе; n8n непройденная веть IF |
@@ -500,7 +501,7 @@
 **Пробелы относительно фазы 8 (`DEVELOPMENT_PLAN.md`):**
 
 - **`runId`**, реестр, отмена, **мост десктоп UI ↔ subprocess** — **закрыто:** см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
-- Нет потоковой разбивки **stdout/stderr** *внутреннего подпроцесса* ноды **`task`** в поток **`run-event`** (только итоговые `process_*`); Comfy **`progress`**, Langflow **token stream** — отдельное расширение для «живого» лога *task*-CLI.
+- Инкрементальный **stdout/stderr** ноды **`task`** в **`run-event`** (**`process_output`**) — **закрыто:** тот же файл, раздел «Инкрементальный вывод подпроцесса **task**». **Вне текущего паритета** GC: отдельные каналы уровня Comfy **`progress`**, Langflow **token stream** (иной слой, не NDJSON-лог subprocess **`task`**).
 
 ### 3.7.1. Стабильный **`runId`** и мост UI (фаза 8) — статус
 

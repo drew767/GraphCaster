@@ -210,6 +210,7 @@
 | Поведение по строкам | События по **`readline`**: вывод без **`flush()`**/перевода строки может появляться в UI с задержкой до завершения строки или процесса |
 | Контракт | **`schemas/run-event.schema.json`** (ветка **`process_output`**) |
 | Консоль UI | Сырые строки NDJSON в сторе; отображение: **`buildConsoleLineMeta`** (`ui/src/run/consoleLineMeta.ts`) — читаемые строки **`[nodeId] …`** и префикс **`[stderr]`** для потока stderr |
+| Сводная таблица **`type` (GC)** в competitive | Строка **`process_output`** добавлена в **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); устаревший пункт «нет потоковой разбивки» **task** удалён оттуда — факт реализации перенесён сюда |
 
 Код/тесты: `process_exec.py`, `test_run_event_schema.py`, **`python/tests/test_process_exec_streaming.py`**, Vitest **`consoleLineMeta.test.ts`**.
 
