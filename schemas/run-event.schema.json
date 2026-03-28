@@ -34,7 +34,10 @@
         "node_cache_hit",
         "node_cache_miss",
         "node_pinned_skip",
-        "node_outputs_snapshot"
+        "node_outputs_snapshot",
+        "ai_route_invoke",
+        "ai_route_decided",
+        "ai_route_failed"
       ]
     },
     "runId": {
@@ -149,6 +152,25 @@
             "properties": {
               "kind": { "const": "gc_pin_enabled_empty_payload" },
               "nodeId": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "outgoingEdges", "graphId"],
+            "properties": {
+              "kind": { "const": "ai_route_no_outgoing" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "outgoingEdges": { "type": "integer", "minimum": 0 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "outgoingEdges", "missingDescriptions", "graphId"],
+            "properties": {
+              "kind": { "const": "ai_route_missing_route_descriptions" },
+              "nodeId": { "type": "string", "minLength": 1 },
+              "outgoingEdges": { "type": "integer", "minimum": 1 },
+              "missingDescriptions": { "type": "integer", "minimum": 1 },
               "graphId": { "type": "string", "minLength": 1 }
             }
           }
@@ -323,9 +345,65 @@
           "graphId": { "type": "string", "minLength": 1 },
           "reason": {
             "type": "string",
-            "enum": ["condition_false"],
-            "description": "MVP: edge had a non-empty condition that evaluated to false (n8n/Dify-style explicit skipped branch)."
+            "enum": ["condition_false", "ai_route_not_selected"],
+            "description": "condition_false: edge condition false; ai_route_not_selected: another branch was chosen by ai_route."
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "ai_route_invoke" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "outgoingCount", "requestBytes"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "outgoingCount": { "type": "integer", "minimum": 0 },
+          "requestBytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "ai_route_decided" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "choiceIndex", "edgeId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "choiceIndex": { "type": "integer", "minimum": 1 },
+          "edgeId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "ai_route_failed" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "reason"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_outgoing_edges",
+              "empty_endpoint",
+              "request_too_large",
+              "http_error",
+              "invalid_response_json",
+              "choice_index_out_of_range",
+              "provider_exception"
+            ]
+          },
+          "detail": { "type": "string" }
         }
       }
     },

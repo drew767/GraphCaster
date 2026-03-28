@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "graphId": "fixture-ai-route-001",
+    "schemaVersion": 1,
+    "title": "ai_route fixture"
+  },
+  "nodes": [
+    { "id": "s", "type": "start", "position": { "x": 0, "y": 0 }, "data": {} },
+    {
+      "id": "r",
+      "type": "ai_route",
+      "position": { "x": 120, "y": 0 },
+      "data": {
+        "title": "Router",
+        "endpointUrl": "",
+        "providerKind": "http_json",
+        "timeoutSec": 30,
+        "maxRetries": 0,
+        "onFailure": "stop_run",
+        "fallbackChoiceIndex": 1
+      }
+    },
+    { "id": "x", "type": "exit", "position": { "x": 280, "y": -40 }, "data": {} },
+    { "id": "y", "type": "exit", "position": { "x": 280, "y": 40 }, "data": {} }
+  ],
+  "edges": [
+    { "id": "e0", "source": "s", "target": "r", "sourceHandle": "out_default", "targetHandle": "in_default" },
+    {
+      "id": "e1",
+      "source": "r",
+      "target": "x",
+      "sourceHandle": "out_default",
+      "targetHandle": "in_default",
+      "data": { "routeDescription": "Left exit" }
+    },
+    {
+      "id": "e2",
+      "source": "r",
+      "target": "y",
+      "sourceHandle": "out_default",
+      "targetHandle": "in_default",
+      "data": { "routeDescription": "Right exit" }
+    }
+  ]
+}

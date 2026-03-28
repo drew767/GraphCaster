@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphcaster.local/schemas/ai-route-wire.schema.json",
+  "title": "GraphCaster ai_route provider wire (v1)",
+  "description": "HTTP POST JSON body from runner to a routing endpoint; JSON response with 1-based choiceIndex.",
+  "oneOf": [
+    {
+      "title": "Request",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "graphId", "nodeId", "runId", "outgoing"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "graphId": { "type": "string", "minLength": 1 },
+        "nodeId": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string", "minLength": 1 },
+        "authorHint": { "type": "string" },
+        "lastNodeOutput": {},
+        "outgoing": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["index", "edgeId", "targetNodeId", "description"],
+            "properties": {
+              "index": { "type": "integer", "minimum": 1 },
+              "edgeId": { "type": "string", "minLength": 1 },
+              "targetNodeId": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "title": "Response",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["choiceIndex"],
+      "properties": {
+        "choiceIndex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based index into the outgoing list from the request."
+        },
+        "rationale": { "type": "string" }
+      }
+    }
+  ]
+}

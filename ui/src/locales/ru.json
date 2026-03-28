@@ -34,7 +34,8 @@
         "graph_ref": "Вложенный граф",
         "merge": "Слияние",
         "fork": "Разветвление",
-        "comment": "Комментарий (рамка)"
+        "comment": "Комментарий (рамка)",
+        "ai_route": "ИИ-маршрут"
       },
       "flowControls": {
         "panel": "Масштаб и вид полотна",
@@ -60,7 +61,9 @@
       "forkFewOutputs": "У fork {{id}} только {{count}} безусловных исходящих веток (нужно 2+ для fan-out).",
       "barrierMergeOutErrorIncoming": "У barrier-merge {{mergeId}} входящее ребро out_error {{edgeId}} (не поддерживается; для ошибок используйте passthrough merge).",
       "barrierMergeNoSuccessIncoming": "У barrier-merge {{id}} нет входящих рёбер успешного пути (out_default) от не-comment нод.",
-      "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки."
+      "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки.",
+      "aiRouteNoOutgoing": "У ноды ai_route {{id}} нет исходящих веток к исполняемым нодам (добавьте рёбра out_default).",
+      "aiRouteMissingDescriptions": "У ноды ai_route {{id}}: у {{missing}} из {{total}} исходящих веток нет data.routeDescription (качество маршрутизации может упасть)."
     },
     "inspector": {
       "heading": "Инспектор",
@@ -89,6 +92,9 @@
       "mergeModeBarrier": "Барьер (ждать все входящие ветки)",
       "mergeModeHint": "Барьер ждёт завершения каждого предка (как join в n8n). Для fan-out используйте ноду Fork. Ветки в одном процессе выполняются по очереди.",
       "applyEdgeCondition": "Применить условие",
+      "edgeRouteDescription": "Описание ветки (ai_route)",
+      "edgeRouteDescriptionHint": "Текст для модели маршрутизации (макс. 1024 символа). Если пусто, раннер подставит короткую метку с id целевой ноды.",
+      "applyEdgeRouteDescription": "Применить описание ветки",
       "openGraphRef": "Открыть вложенный граф",
       "runUntilThisNode": "Запуск до этой ноды",
       "runUntilThisNodeHint": "Старт от start; остановка после этой ноды, если она достигнута. Недостижимая цель или ошибка раньше → failed; нода exit → success; вложенный graph_ref выполняется целиком. partial только при фактической остановке на корневом пути (десктоп).",
@@ -221,6 +227,7 @@
         "invalid_edge_id": "edges[{{index}}].id должна быть непустая строка.",
         "invalid_edge_endpoints": "edges[{{index}}].source и .target должны быть строками.",
         "invalid_edge_empty": "edges[{{index}}].source и .target не должны быть пустыми.",
+        "invalid_edge_data": "edges[{{index}}].data должен быть JSON-объектом, если поле задано.",
         "invalid_graph_id_meta": "\"meta.graphId\" должна быть строка или число, если указано.",
         "invalid_graph_id_root": "Корневое \"graphId\" должно быть строка или число, если указано.",
         "schema_normalize_root": "Корневое \"schemaVersion\" не удалось привести к целому.",

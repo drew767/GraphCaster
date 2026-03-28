@@ -6,6 +6,7 @@
  */
 
 import {
+  GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
@@ -43,6 +44,7 @@ export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
       return SET_TASK_IO;
     case GRAPH_NODE_TYPE_MERGE:
     case GRAPH_NODE_TYPE_FORK:
+    case GRAPH_NODE_TYPE_AI_ROUTE:
       return SET_MERGE_IO;
     case GRAPH_NODE_TYPE_COMMENT:
       return EMPTY;
@@ -62,6 +64,7 @@ export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
       return SET_TASK_IN;
     case GRAPH_NODE_TYPE_MERGE:
     case GRAPH_NODE_TYPE_FORK:
+    case GRAPH_NODE_TYPE_AI_ROUTE:
       return SET_MERGE_IN;
     case GRAPH_NODE_TYPE_COMMENT:
       return EMPTY;

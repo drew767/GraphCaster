@@ -7,6 +7,8 @@ import { flowConnectionHandle } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson, GraphNodeJson } from "./types";
 import type { GcNodeData } from "./toReactFlow";
 
+const AI_ROUTE_EDGE_DESCRIPTION_MAX = 1024;
+
 function edgeLabelToCondition(label: Edge["label"]): string | null {
   if (label == null) {
     return null;
@@ -92,7 +94,9 @@ export function flowToDocument(
   const outEdges: GraphEdgeJson[] = edges.map((e) => {
     const sh = flowConnectionHandle(e.sourceHandle, "out_default");
     const th = flowConnectionHandle(e.targetHandle, "in_default");
-    return {
+    const ed = e.data as { routeDescription?: string } | undefined;
+    const rd = typeof ed?.routeDescription === "string" ? ed.routeDescription.trim() : "";
+    const row: GraphEdgeJson = {
       id: e.id,
       source: e.source,
       target: e.target,
@@ -100,6 +104,13 @@ export function flowToDocument(
       targetHandle: th,
       condition: edgeLabelToCondition(e.label),
     };
+    if (rd !== "") {
+      row.data = {
+        routeDescription:
+          rd.length > AI_ROUTE_EDGE_DESCRIPTION_MAX ? rd.slice(0, AI_ROUTE_EDGE_DESCRIPTION_MAX) : rd,
+      };
+    }
+    return row;
   });
 
   const meta = base.meta ?? {};

@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import {
+  GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
@@ -37,6 +38,20 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
       return { title: "Merge" };
     case GRAPH_NODE_TYPE_FORK:
       return { title: "Fork" };
+    case GRAPH_NODE_TYPE_AI_ROUTE:
+      return {
+        title: "AI route",
+        providerKind: "http_json",
+        endpointUrl: "",
+        envVarApiKey: "",
+        timeoutSec: 30,
+        maxRetries: 0,
+        retryBackoffSec: 1,
+        maxRequestJsonBytes: 65536,
+        authorHint: "",
+        onFailure: "stop_run",
+        fallbackChoiceIndex: 1,
+      };
     default:
       return {};
   }

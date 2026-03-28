@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.5)",
+  "title": "GraphCaster graph document (v1.6)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -61,7 +61,7 @@
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "Known kinds: start, exit, task, graph_ref, comment, merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner). Other values: unknown executable (task-like handles in validation)."
+          "description": "Known kinds: start, exit, task, graph_ref, ai_route (structured AI branch picker after upstream output), comment, merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner). Other values: unknown executable (task-like handles in validation)."
         },
         "position": {
           "type": "object",
@@ -84,6 +84,49 @@
         }
       }
     },
+    "edgeData": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "routeDescription": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Human-readable branch label for ai_route outgoing edges (sent to routing provider)."
+        }
+      }
+    },
+    "aiRouteNodeData": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "title": { "type": "string" },
+        "providerKind": {
+          "type": "string",
+          "enum": ["http_json"],
+          "default": "http_json",
+          "description": "MVP: POST JSON to endpointUrl; response must include choiceIndex (1-based)."
+        },
+        "endpointUrl": {
+          "type": "string",
+          "description": "HTTPS/HTTP URL for routing provider (POST body = ai-route request schema)."
+        },
+        "envVarApiKey": {
+          "type": "string",
+          "description": "Name of environment variable holding Bearer token (optional; omit for local/unauthenticated endpoints)."
+        },
+        "timeoutSec": { "type": "number", "minimum": 0.1, "default": 30 },
+        "maxRetries": { "type": "integer", "minimum": 0, "default": 0 },
+        "retryBackoffSec": { "type": "number", "minimum": 0, "default": 1 },
+        "maxRequestJsonBytes": { "type": "integer", "minimum": 256, "default": 65536 },
+        "authorHint": { "type": "string", "maxLength": 4096 },
+        "onFailure": {
+          "type": "string",
+          "enum": ["stop_run", "fallback"],
+          "default": "stop_run"
+        },
+        "fallbackChoiceIndex": { "type": "integer", "minimum": 1, "default": 1 }
+      }
+    },
     "edge": {
       "type": "object",
       "additionalProperties": false,
@@ -92,6 +135,7 @@
         "id": { "type": "string", "minLength": 1 },
         "source": { "type": "string", "minLength": 1 },
         "target": { "type": "string", "minLength": 1 },
+        "data": { "$ref": "#/$defs/edgeData" },
         "sourceHandle": {
           "type": "string",
           "description": "Source handle id: out_default (success path) or out_error (failure path after task/graph_ref failure; Dify FAIL_BRANCH-style). See python/README.md."

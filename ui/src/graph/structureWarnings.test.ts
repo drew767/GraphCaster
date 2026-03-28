@@ -69,6 +69,20 @@ describe("structureIssuesBlockRun", () => {
       ]),
     ).toBe(true);
   });
+
+  it("is false when only ai_route warnings", () => {
+    expect(
+      structureIssuesBlockRun([
+        { kind: "ai_route_no_outgoing", nodeId: "a", outgoingEdges: 0 },
+        {
+          kind: "ai_route_missing_route_descriptions",
+          nodeId: "b",
+          outgoingEdges: 2,
+          missingDescriptions: 1,
+        },
+      ]),
+    ).toBe(false);
+  });
 });
 
 describe("workspaceGraphRefCycleIssues", () => {
@@ -283,5 +297,84 @@ describe("findStructureIssues", () => {
     });
     const issues = findStructureIssues(g);
     expect(issues.some((i) => i.kind === "barrier_merge_no_success_incoming" && i.nodeId === "m1")).toBe(true);
+  });
+
+  it("flags ai_route without outgoing branches to executable nodes", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "ar", type: "ai_route", position: { x: 0, y: 0 }, data: {} },
+        { id: "e1", type: "exit", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "ar",
+          targetHandle: "in_default",
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "ai_route_no_outgoing" && i.nodeId === "ar")).toBe(true);
+  });
+
+  it("flags ai_route with multiple branches missing routeDescription", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "ar", type: "ai_route", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "a" } },
+        { id: "t2", type: "task", position: { x: 0, y: 0 }, data: { command: "b" } },
+        { id: "e1", type: "exit", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "ar",
+          targetHandle: "in_default",
+        },
+        {
+          id: "e1",
+          source: "ar",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+        },
+        {
+          id: "e2",
+          source: "ar",
+          sourceHandle: "out_default",
+          target: "t2",
+          targetHandle: "in_default",
+        },
+        {
+          id: "e3",
+          source: "t1",
+          sourceHandle: "out_default",
+          target: "e1",
+          targetHandle: "in_default",
+        },
+        {
+          id: "e4",
+          source: "t2",
+          sourceHandle: "out_default",
+          target: "e1",
+          targetHandle: "in_default",
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(
+      issues.some(
+        (i) =>
+          i.kind === "ai_route_missing_route_descriptions" &&
+          i.nodeId === "ar" &&
+          i.missingDescriptions >= 1,
+      ),
+    ).toBe(true);
   });
 });

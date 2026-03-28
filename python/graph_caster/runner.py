@@ -38,6 +38,7 @@ from graph_caster.gc_pin import (
     snapshot_for_pin_event,
 )
 from graph_caster.validate import (
+    find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
     find_fork_few_outputs_warnings,
     merge_mode,
@@ -46,6 +47,7 @@ from graph_caster.validate import (
 EventSink = Callable[[RunEventDict], None] | RunEventSink
 
 BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
+BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED = "ai_route_not_selected"
 
 EDGE_SOURCE_OUT_ERROR = "out_error"
 
@@ -337,6 +339,121 @@ class GraphRunner:
             )
         return True
 
+    def _follow_ai_route_from(self, node: Node, ctx: dict[str, Any], step_q: StepQueue) -> bool:
+        from graph_caster.ai_routing import (
+            build_ai_route_request,
+            encode_ai_route_wire_body,
+            resolve_ai_route_choice,
+            usable_ai_route_out_edges,
+        )
+
+        gid = self._doc.graph_id
+        rid = str(ctx.get("run_id") or self._run_id or "")
+        outgoing = usable_ai_route_out_edges(self._doc, node.id)
+        n_out = len(outgoing)
+        req_bytes = 0
+        preds = self._incoming_success_sources(node.id)
+        if n_out >= 2:
+            max_req = int(node.data.get("maxRequestJsonBytes") or 65536)
+            if max_req < 256:
+                max_req = 256
+            body, err = build_ai_route_request(
+                doc=self._doc,
+                node=node,
+                outgoing=outgoing,
+                ctx=ctx,
+                run_id=rid,
+                max_request_bytes=max_req,
+                preds=preds,
+            )
+            if body is not None:
+                req_bytes = len(encode_ai_route_wire_body(body))
+        self.emit(
+            "ai_route_invoke",
+            nodeId=node.id,
+            graphId=gid,
+            outgoingCount=n_out,
+            requestBytes=req_bytes,
+        )
+        prov = ctx.get("ai_route_provider")
+        override = prov if callable(prov) else None
+        outcome = resolve_ai_route_choice(
+            doc=self._doc,
+            node=node,
+            ctx=ctx,
+            run_id=rid,
+            preds=preds,
+            provider_override=override,
+        )
+        chosen = outcome.chosen
+        if chosen is None and outcome.error_reason:
+            self.emit(
+                "ai_route_failed",
+                nodeId=node.id,
+                graphId=gid,
+                reason=outcome.error_reason,
+                detail=outcome.error_detail,
+            )
+            on_fail = str(node.data.get("onFailure") or "stop_run").strip().lower()
+            if on_fail == "fallback" and n_out > 0:
+                fb = int(node.data.get("fallbackChoiceIndex") or 1)
+                if 1 <= fb <= n_out:
+                    chosen = outgoing[fb - 1]
+            if chosen is None:
+                self.emit(
+                    "error",
+                    nodeId=node.id,
+                    message=f"ai_route_failed:{outcome.error_reason}",
+                )
+                ctx["last_result"] = False
+                return False
+
+        assert chosen is not None
+        idx_1based = next((i for i, e in enumerate(outgoing, start=1) if e.id == chosen.id), None)
+        if idx_1based is None:
+            self.emit(
+                "error",
+                nodeId=node.id,
+                message="ai_route_internal:chosen_edge_not_in_outgoing",
+            )
+            ctx["last_result"] = False
+            return False
+        self.emit(
+            "ai_route_decided",
+            nodeId=node.id,
+            graphId=gid,
+            choiceIndex=idx_1based,
+            edgeId=chosen.id,
+        )
+        outs_map = ctx.setdefault("node_outputs", {})
+        entry = outs_map.get(node.id)
+        ar_meta = {"choiceIndex": idx_1based, "edgeId": chosen.id}
+        if isinstance(entry, dict):
+            entry["aiRoute"] = ar_meta
+        else:
+            outs_map[node.id] = {"nodeType": node.type, "data": dict(node.data), "aiRoute": ar_meta}
+        for e in outgoing:
+            if e.id == chosen.id:
+                continue
+            self.emit(
+                "branch_skipped",
+                edgeId=e.id,
+                fromNode=e.source,
+                toNode=e.target,
+                graphId=gid,
+                reason=BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED,
+            )
+        multi = n_out > 1
+        self._traverse_chosen_edge(
+            node.id,
+            chosen,
+            ctx,
+            step_q,
+            emit_branch_taken=multi,
+            error_route=False,
+        )
+        return True
+
     def _follow_edges_from(
         self,
         node_id: str,
@@ -476,6 +593,8 @@ class GraphRunner:
                     nodeId=w["nodeId"],
                     graphId=self._doc.graph_id,
                 )
+            for w in find_ai_route_structure_warnings(self._doc):
+                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             ctx["graph_rev"] = graph_document_revision(self._doc)
             step_q = StepQueue(start_node_id)
             visited_guard = 0
@@ -691,7 +810,8 @@ class GraphRunner:
                 }
                 if task_exit_used_pin:
                     ne["usedPin"] = True
-                self.emit("node_exit", **ne)
+                if node.type != "ai_route":
+                    self.emit("node_exit", **ne)
 
                 if node.type == "exit":
                     self.emit("run_success", nodeId=node.id, graphId=self._doc.graph_id)
@@ -708,6 +828,13 @@ class GraphRunner:
 
                 if node.type == "fork":
                     if not self._enqueue_fork_branches(node.id, ctx, step_q):
+                        break
+                    continue
+                if node.type == "ai_route":
+                    ctx["last_result"] = True
+                    ok_ai = self._follow_ai_route_from(node, ctx, step_q)
+                    self.emit("node_exit", **ne)
+                    if not ok_ai:
                         break
                     continue
                 if not self._follow_edges_from(node.id, ctx, error_route=False, step_q=step_q):

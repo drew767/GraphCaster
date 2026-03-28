@@ -1,10 +1,22 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { flowToDocument } from "./fromReactFlow";
 import type { GraphDocumentJson } from "./types";
 import { graphDocumentToFlow } from "./toReactFlow";
+
+const FIXTURE_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "schemas",
+  "test-fixtures",
+);
 
 describe("flowToDocument", () => {
   it("writes one schemaVersion from meta first then root (Python parity)", () => {
@@ -61,5 +73,15 @@ describe("graphDocumentToFlow", () => {
       edges: [],
     });
     expect(nodes[0]?.deletable).toBe(true);
+  });
+
+  it("roundtrips edge.data.routeDescription through flow export", () => {
+    const raw = JSON.parse(readFileSync(join(FIXTURE_DIR, "ai-route-simple.json"), "utf8")) as GraphDocumentJson;
+    const { nodes, edges } = graphDocumentToFlow(raw);
+    const back = flowToDocument(nodes, edges, raw);
+    const e1 = back.edges?.find((e) => e.id === "e1");
+    expect(e1?.data?.routeDescription).toBe("Left exit");
+    const e2 = back.edges?.find((e) => e.id === "e2");
+    expect(e2?.data?.routeDescription).toBe("Right exit");
   });
 });

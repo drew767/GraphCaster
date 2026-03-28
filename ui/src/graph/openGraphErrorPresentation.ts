@@ -50,6 +50,9 @@ function messageKeyForParseError(error: GraphDocumentParseError): string {
       if (error.reason === "endpoints") {
         return `${base}_endpoints`;
       }
+      if (error.reason === "data") {
+        return `${base}_data`;
+      }
       return `${base}_empty`;
     }
     case "invalid_graph_id":

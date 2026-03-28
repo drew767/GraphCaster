@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from graph_caster.ai_routing import edge_route_description, usable_ai_route_out_edges
 from graph_caster.handle_contract import find_handle_compatibility_violations
-from graph_caster.models import GraphDocument, Node
+from graph_caster.models import Edge, GraphDocument, Node
 
 _OUT_ERROR_HANDLE = "out_error"
 
@@ -137,6 +140,29 @@ def find_merge_incoming_warnings(doc: GraphDocument) -> list[dict[str, int | str
         cnt = incoming_non_comment.get(n.id, 0)
         if cnt < 2:
             out.append({"nodeId": n.id, "incomingEdges": cnt})
+    return out
+
+
+def find_ai_route_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "ai_route":
+            continue
+        usable = usable_ai_route_out_edges(doc, n.id)
+        if len(usable) == 0:
+            out.append({"kind": "ai_route_no_outgoing", "nodeId": n.id, "outgoingEdges": 0})
+            continue
+        if len(usable) > 1:
+            missing = sum(1 for e in usable if not str(edge_route_description(e)).strip())
+            if missing > 0:
+                out.append(
+                    {
+                        "kind": "ai_route_missing_route_descriptions",
+                        "nodeId": n.id,
+                        "outgoingEdges": len(usable),
+                        "missingDescriptions": missing,
+                    }
+                )
     return out
 
 

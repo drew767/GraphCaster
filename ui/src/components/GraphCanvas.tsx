@@ -65,6 +65,7 @@ export type GraphCanvasSelection =
       source: string;
       target: string;
       condition: string | null;
+      routeDescription: string;
     };
 
 /** @deprecated Prefer `GraphCanvasSelection` with `kind: "node"`. */
@@ -480,12 +481,15 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         }
         if (selEdges.length >= 1) {
           const edge = selEdges[0];
+          const ed = edge.data as { routeDescription?: string } | undefined;
+          const rd = typeof ed?.routeDescription === "string" ? ed.routeDescription : "";
           onSelect({
             kind: "edge",
             id: edge.id,
             source: edge.source,
             target: edge.target,
             condition: conditionFromEdgeLabel(edge.label),
+            routeDescription: rd,
           });
           return;
         }

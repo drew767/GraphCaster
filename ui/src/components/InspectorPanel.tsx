@@ -6,7 +6,11 @@ import { useTranslation } from "react-i18next";
 import type { GraphCanvasSelection } from "./GraphCanvas";
 import type { GraphDocumentJson, GraphDocumentSettingsPatch } from "../graph/types";
 import { graphIdFromDocument } from "../graph/parseDocument";
-import { GRAPH_NODE_TYPE_MERGE, GRAPH_NODE_TYPE_TASK } from "../graph/nodeKinds";
+import {
+  GRAPH_NODE_TYPE_AI_ROUTE,
+  GRAPH_NODE_TYPE_MERGE,
+  GRAPH_NODE_TYPE_TASK,
+} from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
 import {
   getStepCacheDirtySnapshot,
@@ -21,6 +25,7 @@ type Props = {
   onApplyGraphDocumentSettings: (patch: GraphDocumentSettingsPatch) => void;
   onApplyNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   onApplyEdgeCondition: (edgeId: string, condition: string | null) => void;
+  onApplyEdgeData?: (edgeId: string, patch: { routeDescription: string }) => void;
   onRemoveNodes?: (ids: readonly string[]) => void;
   workspaceLinked: boolean;
   onOpenNestedGraph?: (targetGraphId: string, graphRefNodeId?: string) => void;
@@ -88,6 +93,7 @@ export function InspectorPanel({
   onApplyGraphDocumentSettings,
   onApplyNodeData,
   onApplyEdgeCondition,
+  onApplyEdgeData,
   onRemoveNodes,
   workspaceLinked,
   onOpenNestedGraph,
@@ -100,6 +106,7 @@ export function InspectorPanel({
   const runSession = useRunSession();
   const [dataText, setDataText] = useState("{}");
   const [conditionText, setConditionText] = useState("");
+  const [edgeRouteDescriptionText, setEdgeRouteDescriptionText] = useState("");
 
   const [graphTitle, setGraphTitle] = useState("");
   const [graphAuthor, setGraphAuthor] = useState("");
@@ -123,11 +130,21 @@ export function InspectorPanel({
       setDataText(JSON.stringify(selection.raw, null, 2));
     } else if (selection?.kind === "edge") {
       setConditionText(selection.condition ?? "");
+      setEdgeRouteDescriptionText(selection.routeDescription ?? "");
     } else {
       setDataText("{}");
       setConditionText("");
+      setEdgeRouteDescriptionText("");
     }
   }, [selection]);
+
+  const edgeFromAiRoute = useMemo(() => {
+    if (selection?.kind !== "edge") {
+      return false;
+    }
+    const n = graphDocument.nodes?.find((x) => x.id === selection.source);
+    return n?.type === GRAPH_NODE_TYPE_AI_ROUTE;
+  }, [selection, graphDocument.nodes]);
 
   useEffect(() => {
     if (selection != null) {
@@ -174,6 +191,17 @@ export function InspectorPanel({
     }
     const trimmed = conditionText.trim();
     onApplyEdgeCondition(selection.id, trimmed === "" ? null : trimmed);
+  };
+
+  const onSubmitEdgeRouteDescription = (e: FormEvent) => {
+    e.preventDefault();
+    if (runLocked || onApplyEdgeData == null) {
+      return;
+    }
+    if (!selection || selection.kind !== "edge" || !edgeFromAiRoute) {
+      return;
+    }
+    onApplyEdgeData(selection.id, { routeDescription: edgeRouteDescriptionText });
   };
 
   const onSubmitGraph = (e: FormEvent) => {
@@ -565,6 +593,34 @@ export function InspectorPanel({
               {t("app.inspector.applyEdgeCondition")}
             </button>
           </form>
+          {edgeFromAiRoute && onApplyEdgeData != null ? (
+            <form className="gc-inspector-data-form" onSubmit={onSubmitEdgeRouteDescription}>
+              <label className="gc-inspector-data-label" htmlFor="gc-inspector-edge-route-desc">
+                {t("app.inspector.edgeRouteDescription")}
+              </label>
+              <textarea
+                id="gc-inspector-edge-route-desc"
+                className="gc-inspector-data-textarea"
+                value={edgeRouteDescriptionText}
+                onChange={(ev) => {
+                  setEdgeRouteDescriptionText(ev.target.value);
+                }}
+                readOnly={runLocked}
+                spellCheck
+                autoComplete="off"
+                rows={3}
+                maxLength={1024}
+              />
+              <p className="gc-inspector-edge-hint">{t("app.inspector.edgeRouteDescriptionHint")}</p>
+              <button
+                type="submit"
+                className="gc-btn gc-btn-primary gc-inspector-apply"
+                disabled={runLocked}
+              >
+                {t("app.inspector.applyEdgeRouteDescription")}
+              </button>
+            </form>
+          ) : null}
         </div>
       ) : (
         <div className="gc-inspector-detail">

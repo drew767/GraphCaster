@@ -16,7 +16,14 @@ export type StructureIssue =
   | { kind: "fork_few_outputs"; nodeId: string; unconditionalOutgoing: number }
   | { kind: "barrier_merge_out_error_incoming"; edgeId: string; mergeNodeId: string }
   | { kind: "barrier_merge_no_success_incoming"; nodeId: string }
-  | { kind: "graph_ref_workspace_cycle"; cycle: string[] };
+  | { kind: "graph_ref_workspace_cycle"; cycle: string[] }
+  | { kind: "ai_route_no_outgoing"; nodeId: string; outgoingEdges: number }
+  | {
+      kind: "ai_route_missing_route_descriptions";
+      nodeId: string;
+      outgoingEdges: number;
+      missingDescriptions: number;
+    };
 
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
   if (data == null || typeof data !== "object" || Array.isArray(data)) {
@@ -33,6 +40,14 @@ export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" 
 function edgeSourceHandle(e: GraphEdgeJson): string {
   const sh = e.sourceHandle ?? e.source_handle;
   return typeof sh === "string" && sh.trim() !== "" ? sh.trim() : "out_default";
+}
+
+function edgeRouteDescriptionText(e: GraphEdgeJson): string {
+  const d = e.data;
+  if (d != null && typeof d === "object" && !Array.isArray(d) && typeof d.routeDescription === "string") {
+    return d.routeDescription.trim();
+  }
+  return "";
 }
 
 function edgeConditionEmpty(c: unknown): boolean {
@@ -58,6 +73,9 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "start_has_incoming":
     case "graph_ref_workspace_cycle":
       return true;
+    case "ai_route_no_outgoing":
+    case "ai_route_missing_route_descriptions":
+      return false;
   }
 }
 
@@ -191,6 +209,38 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
     }
     if (!hasSuccess) {
       issues.push({ kind: "barrier_merge_no_success_incoming", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "ai_route") {
+      continue;
+    }
+    const usable: GraphEdgeJson[] = [];
+    for (const e of edges) {
+      if (e.source !== n.id) {
+        continue;
+      }
+      if (edgeSourceHandle(e) === SOURCE_OUT_ERROR) {
+        continue;
+      }
+      const tgt = byId.get(e.target);
+      if (!tgt || tgt.type === "comment") {
+        continue;
+      }
+      usable.push(e);
+    }
+    if (usable.length === 0) {
+      issues.push({ kind: "ai_route_no_outgoing", nodeId: n.id, outgoingEdges: 0 });
+    } else if (usable.length > 1) {
+      const missing = usable.filter((e) => edgeRouteDescriptionText(e) === "").length;
+      if (missing > 0) {
+        issues.push({
+          kind: "ai_route_missing_route_descriptions",
+          nodeId: n.id,
+          outgoingEdges: usable.length,
+          missingDescriptions: missing,
+        });
+      }
     }
   }
   return issues;

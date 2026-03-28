@@ -156,6 +156,10 @@ describe("findHandleCompatibilityIssues", () => {
     expect(findHandleCompatibilityIssues(loadFixture("handle-merge.json"))).toEqual([]);
   });
 
+  it("fixture ai-route-simple.json has no issues", () => {
+    expect(findHandleCompatibilityIssues(loadFixture("ai-route-simple.json"))).toEqual([]);
+  });
+
   it("flags merge node with out_error source handle", () => {
     const issues = findHandleCompatibilityIssues(loadFixture("handle-bad-merge-out-error.json"));
     expect(issues.some((i) => i.kind === "invalid_source_handle")).toBe(true);

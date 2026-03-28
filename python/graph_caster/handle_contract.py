@@ -15,6 +15,7 @@ _GRAPH_REF = "graph_ref"
 _COMMENT = "comment"
 _MERGE = "merge"
 _FORK = "fork"
+_AI_ROUTE = "ai_route"
 
 
 def _allowed_source_handles(node_type: str) -> frozenset[str]:
@@ -22,7 +23,7 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_OUT_DEFAULT})
     if node_type == _EXIT:
         return frozenset()
-    if node_type in (_MERGE, _FORK):
+    if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_OUT_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
@@ -36,7 +37,7 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         return frozenset()
     if node_type == _EXIT:
         return frozenset({HANDLE_IN_DEFAULT})
-    if node_type in (_MERGE, _FORK):
+    if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF):
         return frozenset({HANDLE_IN_DEFAULT})

@@ -79,7 +79,7 @@ export type GraphDocumentParseError =
   | {
       kind: "invalid_edge";
       index: number;
-      reason: "not_object" | "id" | "endpoints" | "endpoint_empty";
+      reason: "not_object" | "id" | "endpoints" | "endpoint_empty" | "data";
     }
   | { kind: "invalid_graph_id"; scope: "meta" | "root" }
   | { kind: "schema_normalize_failed"; scope: "root" | "meta" };
@@ -192,6 +192,11 @@ export function parseGraphDocumentJsonResult(raw: unknown): ParseGraphDocumentJs
     er.target = edge.target.trim();
     if ("condition" in er) {
       er.condition = normalizeEdgeConditionParsed(er.condition) ?? null;
+    }
+    if (er.data !== undefined) {
+      if (!isPlainObject(er.data)) {
+        return { ok: false, error: { kind: "invalid_edge", index: i, reason: "data" } };
+      }
     }
     const shRaw = pickEdgeHandleRaw(er, "sourceHandle", "source_handle");
     const thRaw = pickEdgeHandleRaw(er, "targetHandle", "target_handle");

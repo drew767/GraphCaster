@@ -12,6 +12,10 @@ import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_START } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
 export type GcNodeData = {
   graphNodeType: string;
   label: string;
@@ -108,6 +112,10 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
     };
     if (e.condition != null && String(e.condition).trim() !== "") {
       edge.label = String(e.condition);
+    }
+    const er = e as GraphEdgeJson;
+    if (isPlainRecord(er.data) && typeof er.data.routeDescription === "string") {
+      edge.data = { routeDescription: er.data.routeDescription };
     }
     return edge;
   });

@@ -18,6 +18,8 @@ export type GraphEdgeJson = {
   targetHandle?: string | null;
   target_handle?: string | null;
   condition?: string | null;
+  /** Optional per-edge metadata (e.g. routeDescription for ai_route branches). */
+  data?: { routeDescription?: string };
 };
 
 export type GraphDocumentJson = {

@@ -66,6 +66,7 @@ class Edge:
     target: str
     target_handle: str
     condition: str | None = None
+    data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -145,6 +146,13 @@ class GraphDocument:
                 raise ValueError(f"edges[{i}] must have a non-empty string 'source'")
             if not isinstance(tgt, str) or not tgt.strip():
                 raise ValueError(f"edges[{i}] must have a non-empty string 'target'")
+            ed_raw = e.get("data")
+            if ed_raw is None:
+                edge_extra: dict[str, Any] | None = None
+            elif isinstance(ed_raw, dict):
+                edge_extra = dict(ed_raw)
+            else:
+                raise ValueError(f"edges[{i}].data must be a JSON object if present")
             edges.append(
                 Edge(
                     id=eid.strip(),
@@ -153,6 +161,7 @@ class GraphDocument:
                     target=tgt.strip(),
                     target_handle=_edge_handle_from_edge(e, "targetHandle", "target_handle", "in_default"),
                     condition=_normalize_edge_condition(e.get("condition")),
+                    data=edge_extra,
                 )
             )
         schema_src: Any = meta.get("schemaVersion")

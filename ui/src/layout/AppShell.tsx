@@ -815,6 +815,38 @@ export function AppShell({ onLangChange }: Props) {
     });
   }, [commitHistorySnapshot, markStepCacheDirtyWithBubble]);
 
+  const onApplyEdgeData = useCallback(
+    (edgeId: string, patch: { routeDescription: string }) => {
+      const api = canvasRef.current;
+      if (!api) {
+        return;
+      }
+      commitHistorySnapshot();
+      const doc = api.exportDocument();
+      const edges = (doc.edges ?? []).map((e) => {
+        if (e.id !== edgeId) {
+          return e;
+        }
+        const t = patch.routeDescription.trim();
+        const next = { ...e };
+        if (t === "") {
+          delete next.data;
+        } else {
+          next.data = { routeDescription: t.slice(0, 1024) };
+        }
+        return next;
+      });
+      setGraphDocument({ ...doc, edges });
+      setSelection((prev) => {
+        if (!prev || prev.kind !== "edge" || prev.id !== edgeId) {
+          return prev;
+        }
+        return { ...prev, routeDescription: patch.routeDescription.trim().slice(0, 1024) };
+      });
+    },
+    [commitHistorySnapshot],
+  );
+
   const onConnectNewEdge = useCallback((edge: GraphEdgeJson) => {
     const api = canvasRef.current;
     if (!api) {
@@ -1025,10 +1057,17 @@ export function AppShell({ onLangChange }: Props) {
         return { kind: "multiNode", ids: alive, nodes: rows };
       }
       if (sel.kind === "edge") {
-        if (!edges.some((e) => e.id === sel.id)) {
+        const ej = edges.find((e) => e.id === sel.id);
+        if (!ej) {
           return null;
         }
-        return sel;
+        const d = ej.data;
+        const rd =
+          d != null && typeof d === "object" && !Array.isArray(d) && typeof d.routeDescription === "string"
+            ? d.routeDescription
+            : "";
+        const cond = ej.condition != null && String(ej.condition).trim() !== "" ? String(ej.condition) : null;
+        return { ...sel, condition: cond, routeDescription: rd };
       }
       return sel;
     });
@@ -1255,7 +1294,15 @@ export function AppShell({ onLangChange }: Props) {
                               ? t("app.structure.barrierMergeNoSuccessIncoming", {
                                   id: issue.nodeId,
                                 })
-                              : t("app.structure.startHasIncoming", { id: issue.startId })}
+                              : issue.kind === "ai_route_no_outgoing"
+                                ? t("app.structure.aiRouteNoOutgoing", { id: issue.nodeId })
+                                : issue.kind === "ai_route_missing_route_descriptions"
+                                  ? t("app.structure.aiRouteMissingDescriptions", {
+                                      id: issue.nodeId,
+                                      missing: issue.missingDescriptions,
+                                      total: issue.outgoingEdges,
+                                    })
+                                  : t("app.structure.startHasIncoming", { id: issue.startId })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (
@@ -1355,6 +1402,7 @@ export function AppShell({ onLangChange }: Props) {
           onApplyGraphDocumentSettings={onApplyGraphDocumentSettings}
           onApplyNodeData={onApplyNodeData}
           onApplyEdgeCondition={onApplyEdgeCondition}
+          onApplyEdgeData={onApplyEdgeData}
           onRemoveNodes={onRemoveCanvasNodes}
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
