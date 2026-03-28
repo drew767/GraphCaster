@@ -1180,7 +1180,7 @@
 | **Langflow** | SSE, asyncio queue (**§3.4**) | БД инстанса + логи API | **`TracingService`**, **`TelemetryService`**, LangChain callbacks | **`src/lfx/src/lfx/services/tracing`**, **`.../telemetry`** |
 | **n8n** | Editor / API по **`executionId`** | **`ExecutionRepository`**, полный **`IRunExecutionData`** | продуктовые / enterprise логи; не фокус строки | **`packages/cli/src/active-executions.ts`**, **`@n8n/db` Execution** |
 | **Vibe Workflow** | Ответ HTTP | Минимально | нет | `server/` |
-| **GraphCaster** | Консоль по событиям (**§3.7**); детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F13**, фаза 7) | **File-first:** **`events.ndjson`** + **`run-summary.json`** при **`--artifacts-base`**; список/чтение через Tauri и **`POST /persisted-runs/*`**; UI **History** — там же | **нет** | **`run_event_sink.py`**, **`artifacts.py`**, **`runner.py`**, **`run_broker/`**, **`run_bridge.rs`**, **`RunHistoryModal`**, **`schemas/run-event.schema.json`**, **`ConsolePanel`** |
+| **GraphCaster** | Консоль по событиям (**§3.7**), в т.ч. инкрементальный вывод **`task`** (**`process_output`** в NDJSON, как живые логи шага у n8n/см. Flowise по смыслу); детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F13**, фаза 7) | **File-first:** **`events.ndjson`** + **`run-summary.json`** при **`--artifacts-base`**; список/чтение через Tauri и **`POST /persisted-runs/*`**; UI **History** — там же | **нет** | **`run_event_sink.py`**, **`artifacts.py`**, **`runner.py`**, **`process_exec.py`**, **`run_broker/`**, **`run_bridge.rs`**, **`RunHistoryModal`**, **`schemas/run-event.schema.json`**, **`ConsolePanel`** |
 
 ### 17.2. Планирование для GC
 

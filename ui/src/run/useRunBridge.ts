@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { launchGcStartJob } from "./runCommands";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
+import { parseRunEventLine } from "./parseRunEventLine";
 import * as store from "./runSessionStore";
 import { isTauriRuntime } from "./tauriEnv";
 import { closeWebRunBrokerStream } from "./webRunBroker";
@@ -28,7 +29,17 @@ export function useRunBridge(): void {
         if (typeof p.runId !== "string" || typeof p.line !== "string") {
           return;
         }
-        const prefix = p.stream === "stderr" ? "[stderr] " : "";
+        let prefix = "";
+        if (p.stream === "stderr") {
+          const ev = parseRunEventLine(p.line);
+          const t =
+            ev != null && typeof ev === "object" && !Array.isArray(ev)
+              ? (ev as { type?: unknown }).type
+              : null;
+          if (t !== "process_output") {
+            prefix = "[stderr] ";
+          }
+        }
         store.runSessionAppendLineForRun(p.runId, `${prefix}${p.line}`);
         if (p.stream !== "stderr") {
           applyRunnerNdjsonSideEffects(p.line, p.runId);

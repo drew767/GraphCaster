@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import queue
 import shlex
 import subprocess
 import threading
@@ -16,6 +17,8 @@ EmitFn = Callable[..., None]
 _STDOUT_CAP = 256 * 1024
 _CANCEL_POLL_SEC = 0.25
 _CANCEL_JOIN_TIMEOUT_SEC = 120.0
+_STREAM_READER_JOIN_SEC = 5.0
+_MAX_READLINE_CHARS = 32768
 
 
 def _argv_from_data(data: dict[str, Any]) -> list[str] | None:
@@ -173,6 +176,136 @@ def _communicate_with_cancel(
         th.join(timeout=poll_sec)
 
 
+def _pipe_reader_lines_to_queue(
+    pipe: Any,
+    stream_label: str,
+    q: "queue.Queue[tuple[str, str, bool]]",
+) -> None:
+    if pipe is None:
+        return
+    try:
+        while True:
+            line = pipe.readline()
+            if line == "":
+                break
+            if len(line) > _MAX_READLINE_CHARS:
+                line = line[:_MAX_READLINE_CHARS]
+            eol = line.endswith("\n")
+            q.put((stream_label, line, eol))
+    except (BrokenPipeError, ValueError, OSError):
+        pass
+
+
+def _drain_process_output_queue(
+    q: "queue.Queue[tuple[str, str, bool]]",
+    out_parts: list[str],
+    err_parts: list[str],
+    emit: EmitFn,
+    *,
+    node_id: str,
+    graph_id: str,
+    attempt: int,
+    seq: dict[str, int],
+) -> None:
+    while True:
+        try:
+            name, text, eol = q.get_nowait()
+        except queue.Empty:
+            break
+        if name == "stdout":
+            out_parts.append(text)
+            sn = seq["stdout"]
+            emit(
+                "process_output",
+                nodeId=node_id,
+                graphId=graph_id,
+                stream="stdout",
+                text=text,
+                seq=sn,
+                attempt=attempt,
+                eol=eol,
+            )
+            seq["stdout"] = sn + 1
+        else:
+            err_parts.append(text)
+            sn = seq["stderr"]
+            emit(
+                "process_output",
+                nodeId=node_id,
+                graphId=graph_id,
+                stream="stderr",
+                text=text,
+                seq=sn,
+                attempt=attempt,
+                eol=eol,
+            )
+            seq["stderr"] = sn + 1
+
+
+def _communicate_with_streaming(
+    proc: subprocess.Popen[str],
+    emit: EmitFn,
+    *,
+    node_id: str,
+    graph_id: str,
+    attempt: int,
+    timeout: float | None,
+    should_cancel: Callable[[], bool] | None,
+) -> tuple[str, str, bool, bool]:
+    q: queue.Queue[tuple[str, str, bool]] = queue.Queue()
+    out_parts: list[str] = []
+    err_parts: list[str] = []
+    seq = {"stdout": 0, "stderr": 0}
+    t_out = threading.Thread(
+        target=_pipe_reader_lines_to_queue,
+        args=(proc.stdout, "stdout", q),
+        daemon=True,
+    )
+    t_err = threading.Thread(
+        target=_pipe_reader_lines_to_queue,
+        args=(proc.stderr, "stderr", q),
+        daemon=True,
+    )
+    t_out.start()
+    t_err.start()
+    timed_out = False
+    cancelled = False
+    deadline = time.monotonic() + timeout if timeout is not None else None
+
+    try:
+        while proc.poll() is None:
+            _drain_process_output_queue(
+                q, out_parts, err_parts, emit, node_id=node_id, graph_id=graph_id, attempt=attempt, seq=seq
+            )
+            if should_cancel is not None and should_cancel():
+                cancelled = True
+                proc.kill()
+                break
+            if deadline is not None and time.monotonic() >= deadline:
+                timed_out = True
+                proc.kill()
+                break
+            time.sleep(_CANCEL_POLL_SEC)
+    finally:
+        try:
+            proc.wait(timeout=_STREAM_READER_JOIN_SEC)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=_STREAM_READER_JOIN_SEC)
+            except subprocess.TimeoutExpired:
+                pass
+        t_out.join(timeout=_STREAM_READER_JOIN_SEC)
+        t_err.join(timeout=_STREAM_READER_JOIN_SEC)
+        _drain_process_output_queue(
+            q, out_parts, err_parts, emit, node_id=node_id, graph_id=graph_id, attempt=attempt, seq=seq
+        )
+
+    stdout = ("".join(out_parts))[:_STDOUT_CAP]
+    stderr = ("".join(err_parts))[:_STDOUT_CAP]
+    return (stdout, stderr, timed_out, cancelled)
+
+
 def _record_task_process_result(
     ctx: dict[str, Any],
     node_id: str,
@@ -273,24 +406,17 @@ def run_task_process(
             )
             return False
 
-        cancelled = False
-        timed_out = False
-        if should_cancel is not None:
-            out_b, err_b, timed_out, cancelled = _communicate_with_cancel(proc, timeout, should_cancel)
-        else:
-            try:
-                if timeout is not None:
-                    out_b, err_b = proc.communicate(timeout=timeout)
-                else:
-                    out_b, err_b = proc.communicate()
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                proc.kill()
-                out_b, err_b = proc.communicate()
+        stdout, stderr, timed_out, cancelled = _communicate_with_streaming(
+            proc,
+            emit,
+            node_id=node_id,
+            graph_id=graph_id,
+            attempt=attempt,
+            timeout=timeout,
+            should_cancel=should_cancel,
+        )
 
         rc = int(proc.returncode if proc.returncode is not None else -1)
-        stdout = (out_b or "")[:_STDOUT_CAP]
-        stderr = (err_b or "")[:_STDOUT_CAP]
 
         if cancelled:
             emit(

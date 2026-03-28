@@ -174,7 +174,7 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Хост видит активные исполнения по стабильному id | `RunSessionRegistry`: `run_id` → `RunSession` (статус, `started_at` / `finished_at`, `cancel_event`) |
-| Запрос остановки снаружи процесса обхода | `request_cancel(run_id)` → `threading.Event`; раннер проверяет между шагами (включая **`nesting_depth > 0`**); для `task` — опрос + **`proc.kill()`** в фоновом **`communicate`**; до **`process_spawn`** — без событий **`process_*`** |
+| Запрос остановки снаружи процесса обхода | `request_cancel(run_id)` → `threading.Event`; раннер проверяет между шагами (включая **`nesting_depth > 0`**); для `task` — опрос + **`proc.kill()`** во время стриминга stdout/stderr (см. **`process_output`** ниже); до **`process_spawn`** — без событий **`process_*`** |
 | Один процесс, несколько клиентов UI / потоков | `get_default_run_registry()` — ленивый синглтон; CLI: `run --track-session` |
 | Канал команд в тот же процесс (аналог Dify `CommandChannel` / in-memory) | CLI: **`run --control-stdin`** (с **`--track-session`**) — строки NDJSON: `{"type":"cancel_run","runId":"<uuid>"}`; опционально **`--run-id`**; отладка JSON: **`GC_CONTROL_STDIN_DEBUG=1`** |
 | Синглтон реестра | **`reset_default_run_registry()`** для тестов / сброса процесса |
@@ -201,6 +201,19 @@
 
 ---
 
+## Инкрементальный вывод подпроцесса **`task`** (**`process_output`**, n8n/Flowise-style)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Живые логи шага (stdout/stderr) в UI до завершения команды | NDJSON **`type`:** **`process_output`**: **`stream`** **`stdout`** \| **`stderr`**, **`text`**, монотонный **`seq`** по потоку, опц. **`eol`**, **`attempt`**; на каждой строке **`runId`** (как у прочих событий корня) |
+| Захват без блокирующего **`communicate()`** до конца | **`python/graph_caster/process_exec.py`**: потоки **`readline`** → **`queue.Queue`**, основной цикл с **`poll`**, таймаутом и **`should_cancel`**; после выхода — прежний потолок **`_STDOUT_CAP`** для хвостов **`process_complete`** и **`node_outputs`** |
+| Контракт | **`schemas/run-event.schema.json`** (ветка **`process_output`**) |
+| Консоль UI | Сырые строки NDJSON в сторе; отображение: **`buildConsoleLineMeta`** (`ui/src/run/consoleLineMeta.ts`) — читаемые строки **`[nodeId] …`** и префикс **`[stderr]`** для потока stderr |
+
+Код/тесты: `process_exec.py`, `test_run_event_schema.py`, **`python/tests/test_process_exec_streaming.py`**, Vitest **`consoleLineMeta.test.ts`**.
+
+---
+
 ## Десктоп (Tauri): мост UI ↔ Python Run (фаза 8, паттерн как у Flowise/n8n — один канал на прогон)
 
 | Идея конкурента | Реализация GC |
@@ -209,7 +222,7 @@
 | Остановка с хоста | **Cancel:** запись строки NDJSON в **stdin** процесса (`--control-stdin`): `{"type":"cancel_run","runId":"…"}` — см. раздел про реестр выше |
 | Редактор запускает раннер локально | **Tauri 2:** `ui/src-tauri/src/run_bridge.rs` — `get_run_environment_info`, `gc_start_run`, `gc_cancel_run`, **`gc_list_persisted_runs`**, **`gc_read_persisted_events`**, **`gc_read_persisted_run_summary`**; временный JSON документа (уникальное имя в `%TEMP%` / `$TMPDIR`), argv: `-d`, `--track-session`, `--control-stdin`, `--run-id`, опционально `-g`, `--artifacts-base`, **`--no-persist-run-events`**, **`--until-node`**, **`--context-json`** |
 | Стрим в UI | События **`gc-run-event`** (`runId`, `line`, `stream`: stdout \| stderr), **`gc-run-exit`** (`runId`, `code`); на фронте маршрутизация по **`runId`**, фокус влияет на консоль и побочные эффекты канваса |
-| Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне или очереди), подсветка ноды по `node_enter` / `node_execute` для сфокусированного прогона |
+| Консоль и полотно | `ui/src/run/*` (`useRunBridge`, `runSessionStore`, `parseRunEventLine`, `runCommands`, `consoleLineMeta` для **`process_output`**), `ConsolePanel`, `AppShell` (Run/Stop, блокировка структуры при прогоне или очереди), подсветка ноды по `node_enter` / `node_execute` для сфокусированного прогона |
 | Окружение | **`GC_PYTHON`**, **`GC_GRAPH_CASTER_PACKAGE_ROOT`** → `PYTHONPATH`; **`GC_TAURI_MAX_RUNS`** (1–32, по умолчанию **2**) — лимит одновременных дочерних `run` в Tauri; проверка `import graph_caster` при старте UI (кэш сессии + `invalidateRunEnvironmentInfoCache` в `runCommands.ts`) |
 | Веб без Tauri | **`python -m graph_caster serve`** (опц. **`[broker]`**): **Flowise/n8n-стиль** — **SSE** `text/event-stream`, один канал на **`runId`**; Vite **`/gc-run-broker`** → брокер; UI: `webRunBroker.ts`, `runCommands.ts`, прокси в `vite.config.ts`; опц. **`GC_RUN_BROKER_TOKEN`** / **`VITE_GC_RUN_BROKER_TOKEN`** (заголовок и **`?token=`** для **`EventSource`**); **`GC_RUN_BROKER_MAX_RUNS`** (1–32, по умолчанию **2**) — лимит одновременных дочерних процессов на брокере; Python: `graph_caster/run_broker/`; см. `ui/README.md`, `python/README.md`; тесты: `python/tests/test_run_broker.py`, `test_run_broker_registry.py` |
 

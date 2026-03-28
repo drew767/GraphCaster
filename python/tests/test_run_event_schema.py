@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 from graph_caster.models import GraphDocument
 from graph_caster.runner import GraphRunner
 
@@ -78,6 +79,27 @@ def test_process_like_events_validate() -> None:
             "reason": "spawn_error",
             "message": "enoent",
             "attempt": 0,
+        },
+        {
+            "type": "process_output",
+            "runId": "550e8400-e29b-41d4-a716-422039440000",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "stream": "stdout",
+            "text": "hello\n",
+            "seq": 0,
+            "attempt": 0,
+            "eol": True,
+        },
+        {
+            "type": "process_output",
+            "runId": "550e8400-e29b-41d4-a716-422039440000",
+            "nodeId": "t1",
+            "graphId": "g1",
+            "stream": "stderr",
+            "text": "warn\n",
+            "seq": 0,
+            "eol": True,
         },
         {
             "type": "structure_warning",
@@ -215,3 +237,17 @@ def test_process_like_events_validate() -> None:
         },
     ):
         validator.validate(ev)
+
+
+def test_process_output_schema_requires_seq() -> None:
+    validator = _validator()
+    bad = {
+        "type": "process_output",
+        "runId": "550e8400-e29b-41d4-a716-422039440001",
+        "nodeId": "t1",
+        "graphId": "g1",
+        "stream": "stdout",
+        "text": "x",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(bad)

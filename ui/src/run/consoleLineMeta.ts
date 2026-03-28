@@ -79,7 +79,7 @@ function isErrorLikeFromParsed(ev: unknown, isStderr: boolean, rawLine: string):
 }
 
 export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
-  const { isStderr, payload } = splitStderrPrefix(rawLine);
+  const { isStderr: prefixedStderr, payload } = splitStderrPrefix(rawLine);
   const ev = parseRunEventLine(payload);
   let parsedType: string | null = null;
   let nodeId: string | null = null;
@@ -99,6 +99,33 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
       }
     }
   }
+
+  if (parsedType === "process_output" && ev && typeof ev === "object" && ev !== null && !Array.isArray(ev)) {
+    const o = ev as Record<string, unknown>;
+    const stream = o.stream;
+    const text = typeof o.text === "string" ? o.text : "";
+    const nid =
+      typeof o.nodeId === "string" && o.nodeId.trim() !== ""
+        ? o.nodeId.trim()
+        : nodeId != null
+          ? nodeId
+          : "?";
+    const fromSubprocStderr = stream === "stderr";
+    const isStderr = prefixedStderr || fromSubprocStderr;
+    const body = `[${nid}] ${text}`;
+    const displayLine = fromSubprocStderr ? `${STDERR_PREFIX}${body}` : body;
+    const isErrorLike = isErrorLikeFromParsed(ev, isStderr, rawLine);
+    return {
+      rawLine,
+      displayLine,
+      isStderr,
+      parsedType,
+      nodeId: nid,
+      isErrorLike,
+    };
+  }
+
+  const isStderr = prefixedStderr;
   const isErrorLike = isErrorLikeFromParsed(ev, isStderr, rawLine);
   return {
     rawLine,

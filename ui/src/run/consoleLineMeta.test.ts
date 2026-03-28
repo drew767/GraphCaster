@@ -66,6 +66,22 @@ describe("buildConsoleLineMeta", () => {
     expect(m.nodeId).toBe("t");
   });
 
+  it("formats process_output stdout for display", () => {
+    const line = `{"type":"process_output","runId":"r","nodeId":"t1","graphId":"g","stream":"stdout","text":"hi\\n","seq":0,"eol":true}`;
+    const m = buildConsoleLineMeta(line);
+    expect(m.displayLine).toBe("[t1] hi\n");
+    expect(m.isStderr).toBe(false);
+    expect(m.parsedType).toBe("process_output");
+  });
+
+  it("formats process_output stderr for display", () => {
+    const line = `{"type":"process_output","runId":"r","nodeId":"t1","graphId":"g","stream":"stderr","text":"w\\n","seq":0}`;
+    const m = buildConsoleLineMeta(line);
+    expect(m.displayLine).toBe(`${STDERR_PREFIX}[t1] w\n`);
+    expect(m.isStderr).toBe(true);
+    expect(passesConsoleFilter(m, "stderr")).toBe(true);
+  });
+
   it("marks error event", () => {
     const m = buildConsoleLineMeta(`{"type":"error","nodeId":"x","message":"bad"}`);
     expect(m.isErrorLike).toBe(true);

@@ -27,6 +27,7 @@
         "process_spawn",
         "process_complete",
         "process_failed",
+        "process_output",
         "process_retry",
         "structure_warning",
         "node_cache_hit",
@@ -435,6 +436,28 @@
           },
           "stdoutTail": { "type": "string" },
           "stderrTail": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "process_output" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "nodeId", "graphId", "stream", "text", "seq"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "stream": { "type": "string", "enum": ["stdout", "stderr"] },
+          "text": { "type": "string" },
+          "seq": { "type": "integer", "minimum": 0 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "eol": {
+            "type": "boolean",
+            "description": "True when this chunk ends with a newline (hint for renderers)."
+          }
         }
       }
     },
