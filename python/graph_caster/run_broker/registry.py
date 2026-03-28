@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -55,11 +56,13 @@ class RegisteredRun:
         proc: subprocess.Popen[str],
         broadcaster: RunBroadcaster,
         temp_paths: list[Path],
+        viewer_token: str,
     ) -> None:
         self.run_id = run_id
         self.proc = proc
         self.broadcaster = broadcaster
         self.temp_paths = temp_paths
+        self.viewer_token = viewer_token
 
 
 class RunBrokerRegistry:
@@ -126,6 +129,7 @@ class RunBrokerRegistry:
                 run_id=run_id,
                 config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
             )
+            viewer_token = secrets.token_urlsafe(24)
             cmd = [sys.executable, "-m", "graph_caster", *argv]
             proc = subprocess.Popen(
                 cmd,
@@ -160,7 +164,7 @@ class RunBrokerRegistry:
                     proc.wait(timeout=5.0)
                 self._cleanup_temp(temp_paths)
                 raise ValueError("max concurrent runs reached")
-            self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths)
+            self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths, viewer_token)
 
         tracker = new_run_stdout_tracker()
 

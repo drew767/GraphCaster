@@ -55,8 +55,10 @@ def test_run_broker_stream_minimal_graph() -> None:
     }
     r = client.post("/runs", json=payload)
     assert r.status_code == 200, r.text
-    rid = r.json()["runId"]
+    j = r.json()
+    rid = j["runId"]
     assert rid == payload["runId"]
+    assert isinstance(j.get("viewerToken"), str) and len(j["viewerToken"]) >= 8
 
     buf = ""
     with client.stream("GET", f"/runs/{rid}/stream") as response:
@@ -224,6 +226,102 @@ def test_run_broker_stream_accepts_token_query(monkeypatch: pytest.MonkeyPatch) 
             if "run_finished" in buf:
                 break
     assert "run_started" in buf
+
+
+def test_run_broker_ws_minimal_graph() -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "99999999-9999-4999-8999-999999999999"
+    payload = {
+        "documentJson": json.dumps(_minimal_valid_doc(gid)),
+        "runId": "88888888-8888-4888-8888-888888888888",
+    }
+    r = client.post("/runs", json=payload)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    rid = j["runId"]
+    vt = j["viewerToken"]
+    lines: list[str] = []
+    exit_code: int | None = None
+    with client.websocket_connect(f"/runs/{rid}/ws?viewerToken={vt}") as ws:
+        while True:
+            msg = ws.receive_json()
+            assert msg.get("runId") == rid
+            ch = msg.get("channel")
+            if ch == "stdout" and isinstance(msg.get("line"), str):
+                lines.append(msg["line"])
+            elif ch == "exit":
+                exit_code = msg.get("code")
+                break
+    blob = "\n".join(lines)
+    assert "run_started" in blob
+    assert "run_finished" in blob
+    assert isinstance(exit_code, int)
+
+
+def test_run_broker_ws_rejects_bad_viewer_token() -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "77777777-7777-4777-8777-777777777777"
+    payload = {
+        "documentJson": json.dumps(_minimal_valid_doc(gid)),
+        "runId": "66666666-6666-4666-8666-666666666666",
+    }
+    r = client.post("/runs", json=payload)
+    assert r.status_code == 200, r.text
+    rid = r.json()["runId"]
+    with pytest.raises(Exception):
+        with client.websocket_connect(f"/runs/{rid}/ws?viewerToken=nope"):
+            ws.receive_json()
+
+
+def test_run_broker_ws_accepts_broker_dev_token_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GC_RUN_BROKER_TOKEN", "wsdev")
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "44444444-4444-4444-8444-444444444444"
+    payload = {
+        "documentJson": json.dumps(_minimal_valid_doc(gid)),
+        "runId": "33333333-3333-4333-8333-333333333333",
+    }
+    r = client.post("/runs", json=payload, headers={"X-GC-Dev-Token": "wsdev"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    rid = j["runId"]
+    vt = j["viewerToken"]
+    got_exit = False
+    with client.websocket_connect(
+        f"/runs/{rid}/ws?viewerToken={vt}&token=wsdev",
+    ) as ws:
+        while True:
+            msg = ws.receive_json()
+            if msg.get("channel") == "exit":
+                got_exit = True
+                break
+    assert got_exit
+
+
+def test_run_broker_ws_accepts_push_ref_alias() -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "55555555-5555-4555-8555-555555555555"
+    payload = {
+        "documentJson": json.dumps(_minimal_valid_doc(gid)),
+        "runId": "44444444-4444-4444-8444-444444444444",
+    }
+    r = client.post("/runs", json=payload)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    rid = j["runId"]
+    vt = j["viewerToken"]
+    got_exit = False
+    with client.websocket_connect(f"/runs/{rid}/ws?pushRef={vt}") as ws:
+        while True:
+            msg = ws.receive_json()
+            if msg.get("channel") == "exit":
+                got_exit = True
+                break
+    assert got_exit
 
 
 def test_broadcaster_splits_newlines_in_sse_out() -> None:

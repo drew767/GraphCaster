@@ -37,7 +37,7 @@ pip install -e ".[broker]"
 python -m graph_caster serve
 ```
 
-Тот же контракт событий, что у CLI (SSE вместо сырого stdout). При остановленном брокере в консоли показывается подсказка (i18n **`app.run.brokerMissing`**). Если заданы **`GC_RUN_BROKER_TOKEN`** и **`VITE_GC_RUN_BROKER_TOKEN`**, `fetch` идёт с заголовком **`X-GC-Dev-Token`**, а **`EventSource`** (без кастомных заголовков) получает тот же секрет в query **`?token=...`** на **`/health`** и **`/runs/.../stream`**.
+Тот же контракт событий, что у CLI: по умолчанию **SSE** (**`EventSource`**) вместо сырого stdout; опционально **WebSocket** — **`VITE_GC_RUN_TRANSPORT=ws`** в **`.env`** (кадры и **`viewerToken`** — **`doc/RUN_EVENT_TRANSPORT.md`**). При остановленном брокере в консоли показывается подсказка (i18n **`app.run.brokerMissing`**). Если заданы **`GC_RUN_BROKER_TOKEN`** и **`VITE_GC_RUN_BROKER_TOKEN`**, `fetch` идёт с заголовком **`X-GC-Dev-Token`**, а **SSE** / **WS** (без кастомных заголовков на **`EventSource`**) получают тот же секрет в query **`?token=...`** на **`/health`**, **`/runs/.../stream`** и **`/runs/.../ws`**.
 
 Переменные окружения при разработке (опционально):
 

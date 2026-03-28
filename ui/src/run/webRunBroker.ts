@@ -2,6 +2,7 @@
 
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
+import { dispatchBrokerWebSocketJson } from "./webRunBrokerDispatch";
 
 const DEFAULT_PREFIX = "/gc-run-broker";
 
@@ -24,12 +25,91 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
 }
 
 const brokerStreams = new Map<string, EventSource>();
+const brokerSockets = new Map<string, WebSocket>();
+
+function scheduleLaunchAfterRunExit(rid: string, code: number | null): void {
+  void import("./runCommands").then(({ launchGcStartJob }) => {
+    const next = store.runSessionOnRunProcessExited(rid, code);
+    if (next != null) {
+      void launchGcStartJob(next).catch(() => {});
+    }
+  });
+}
+
+function runTransportIsWebSocket(): boolean {
+  const v = import.meta.env.VITE_GC_RUN_TRANSPORT;
+  return String(v ?? "").trim().toLowerCase() === "ws";
+}
+
+export function runBrokerWebSocketUrl(runId: string, viewerToken: string): string {
+  const base = getRunBrokerBasePath();
+  const path = `${base}/runs/${encodeURIComponent(runId)}/ws`;
+  const qp = new URLSearchParams();
+  qp.set("viewerToken", viewerToken);
+  const token = import.meta.env.VITE_GC_RUN_BROKER_TOKEN as string | undefined;
+  const t = token != null ? String(token).trim() : "";
+  if (t !== "") {
+    qp.set("token", t);
+  }
+  const loc = window.location;
+  const scheme = loc.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${loc.host}${path}?${qp.toString()}`;
+}
+
+function attachWebBrokerWebSocket(rid: string, viewerToken: string): void {
+  let exitReceived = false;
+  const url = runBrokerWebSocketUrl(rid, viewerToken);
+  const ws = new WebSocket(url);
+  brokerSockets.set(rid, ws);
+
+  ws.onmessage = (ev: MessageEvent<string>) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(ev.data) as unknown;
+    } catch {
+      return;
+    }
+    dispatchBrokerWebSocketJson(rid, parsed, {
+      appendLine: (line) => {
+        store.runSessionAppendLineForRun(rid, line);
+      },
+      applyNdjson: (line, runId) => {
+        applyRunnerNdjsonSideEffects(line, runId);
+      },
+      onExit: (code) => {
+        exitReceived = true;
+        closeWebRunBrokerStreamForRun(rid);
+        scheduleLaunchAfterRunExit(rid, code);
+      },
+    });
+  };
+
+  ws.onerror = () => {
+    if (!brokerSockets.has(rid)) {
+      return;
+    }
+    closeWebRunBrokerStreamForRun(rid);
+    if (exitReceived) {
+      return;
+    }
+    exitReceived = true;
+    scheduleLaunchAfterRunExit(rid, null);
+  };
+}
 
 export function closeWebRunBrokerStream(): void {
   for (const es of brokerStreams.values()) {
     es.close();
   }
   brokerStreams.clear();
+  for (const w of brokerSockets.values()) {
+    try {
+      w.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  brokerSockets.clear();
 }
 
 export function closeWebRunBrokerStreamForRun(runId: string): void {
@@ -37,6 +117,15 @@ export function closeWebRunBrokerStreamForRun(runId: string): void {
   if (es != null) {
     es.close();
     brokerStreams.delete(runId);
+  }
+  const w = brokerSockets.get(runId);
+  if (w != null) {
+    try {
+      w.close();
+    } catch {
+      /* ignore */
+    }
+    brokerSockets.delete(runId);
   }
 }
 
@@ -100,13 +189,18 @@ export async function startWebBrokerRun(args: {
     const t = await r.text();
     throw new Error(t || `HTTP ${r.status}`);
   }
-  const j = (await r.json()) as { runId?: string };
+  const j = (await r.json()) as { runId?: string; viewerToken?: string };
   const rid = typeof j.runId === "string" ? j.runId : args.runId;
+  const viewerToken = typeof j.viewerToken === "string" ? j.viewerToken : "";
 
-  const existing = brokerStreams.get(rid);
-  if (existing != null) {
-    existing.close();
-    brokerStreams.delete(rid);
+  closeWebRunBrokerStreamForRun(rid);
+
+  if (runTransportIsWebSocket()) {
+    if (viewerToken === "") {
+      throw new Error("broker response missing viewerToken");
+    }
+    attachWebBrokerWebSocket(rid, viewerToken);
+    return;
   }
 
   let exitReceived = false;
@@ -144,14 +238,7 @@ export async function startWebBrokerRun(args: {
       /* ignore */
     }
     closeWebRunBrokerStreamForRun(rid);
-    void import("./runCommands").then(({ launchGcStartJob }) => {
-      const next = store.runSessionOnRunProcessExited(rid, code);
-      if (next != null) {
-        void launchGcStartJob(next).catch(() => {
-          /* host lines in launchGcStartJob */
-        });
-      }
-    });
+    scheduleLaunchAfterRunExit(rid, code);
   });
 
   es.onerror = () => {
@@ -163,16 +250,19 @@ export async function startWebBrokerRun(args: {
       return;
     }
     exitReceived = true;
-    void import("./runCommands").then(({ launchGcStartJob }) => {
-      const next = store.runSessionOnRunProcessExited(rid, null);
-      if (next != null) {
-        void launchGcStartJob(next).catch(() => {});
-      }
-    });
+    scheduleLaunchAfterRunExit(rid, null);
   };
 }
 
 export async function cancelWebBrokerRun(runId: string): Promise<void> {
+  const w = brokerSockets.get(runId);
+  if (w != null && w.readyState === WebSocket.OPEN) {
+    try {
+      w.send(JSON.stringify({ type: "cancel_run", runId }));
+    } catch {
+      /* ignore */
+    }
+  }
   const base = getRunBrokerBasePath();
   await fetch(`${base}/runs/${encodeURIComponent(runId)}/cancel`, {
     method: "POST",
