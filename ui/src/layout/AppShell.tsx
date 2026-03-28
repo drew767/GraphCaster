@@ -10,7 +10,7 @@ import { GraphCanvas } from "../components/GraphCanvas";
 import { NodeSearchPalette } from "../components/NodeSearchPalette";
 import { ConsolePanel } from "../components/ConsolePanel";
 import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
-import { GraphSaveModal } from "../components/GraphSaveModal";
+import { GraphSaveModal, type GraphSaveToWorkspaceResult } from "../components/GraphSaveModal";
 import { RunHistoryModal } from "../components/RunHistoryModal";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { TopBar } from "../components/TopBar";
@@ -37,8 +37,6 @@ import {
   presentationForJsonSyntaxError,
   presentationForParseError,
   presentationForReadFailure,
-  presentationForWorkspaceDuplicateGraphId,
-  presentationForWorkspaceWriteFailed,
 } from "../graph/openGraphErrorPresentation";
 import { buildCanvasNodeSearchRows } from "../graph/canvasNodeSearch";
 import {
@@ -579,16 +577,15 @@ export function AppShell({ onLangChange }: Props) {
   );
 
   const saveDocumentToWorkspace = useCallback(
-    async (doc: GraphDocumentJson, targetFileName: string): Promise<boolean> => {
+    async (doc: GraphDocumentJson, targetFileName: string): Promise<GraphSaveToWorkspaceResult> => {
       if (!workspaceGraphsDir) {
-        return false;
+        return { ok: false, reason: "no_workspace" };
       }
       const gid = graphIdFromDocument(doc) ?? "";
       const safeTarget = sanitizeWorkspaceGraphFileName(targetFileName);
       const conflict = findWorkspaceGraphIdConflict(workspaceIndex, gid, safeTarget);
       if (conflict) {
-        setAppMessageModal(presentationForWorkspaceDuplicateGraphId(t, conflict));
-        return false;
+        return { ok: false, reason: "duplicate_graph_id", conflictingFile: conflict };
       }
       try {
         await writeJsonFileToDir(workspaceGraphsDir, safeTarget, doc);
@@ -596,13 +593,14 @@ export function AppShell({ onLangChange }: Props) {
         setActiveWorkspaceFile(safeTarget);
         setAutosaveFailed(false);
         await rescanWorkspace(workspaceGraphsDir);
-        return true;
+        return { ok: true };
       } catch (e) {
-        setAppMessageModal(presentationForWorkspaceWriteFailed(t, e));
-        return false;
+        const raw = e instanceof Error ? e.message : String(e);
+        const d = raw.trim();
+        return { ok: false, reason: "write_failed", detail: d === "" ? null : d };
       }
     },
-    [rescanWorkspace, setAppMessageModal, t, workspaceGraphsDir, workspaceIndex],
+    [rescanWorkspace, workspaceGraphsDir, workspaceIndex],
   );
 
   const openSaveModal = useCallback(() => {

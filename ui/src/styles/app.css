@@ -1165,6 +1165,14 @@ body {
   word-break: break-word;
 }
 
+.gc-save-modal-error-block {
+  margin: 0 0 1rem;
+}
+
+.gc-save-modal-error-block .gc-modal-hint {
+  margin-bottom: 0.5rem;
+}
+
 .gc-modal-detail {
   margin: 0 0 1rem;
   padding: 0.55rem 0.65rem;

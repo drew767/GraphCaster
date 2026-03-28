@@ -2,12 +2,24 @@
 
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import type { GraphDocumentJson } from "../graph/types";
 import { saveJsonWithFilePickerOrDownload } from "../lib/saveToDisk";
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 
-type SaveFieldIssue = { kind: "empty_name" } | { kind: "write_failed"; detail: string | null };
+export type GraphSaveToWorkspaceResult =
+  | { ok: true }
+  | { ok: false; reason: "no_workspace" }
+  | { ok: false; reason: "duplicate_graph_id"; conflictingFile: string }
+  | { ok: false; reason: "write_failed"; detail: string | null };
+
+type SaveFieldIssue =
+  | { kind: "empty_name" }
+  | { kind: "write_failed"; detail: string | null }
+  | { kind: "duplicate_graph_id"; conflictingFile: string }
+  | { kind: "workspace_write_failed"; detail: string | null }
+  | { kind: "workspace_unavailable" };
 
 type Props = {
   open: boolean;
@@ -15,7 +27,7 @@ type Props = {
   workspaceLinked: boolean;
   workspaceEntries: WorkspaceGraphEntry[];
   getDocument: () => GraphDocumentJson | null;
-  onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<boolean>;
+  onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<GraphSaveToWorkspaceResult>;
   onClose: () => void;
 };
 
@@ -31,6 +43,8 @@ export function GraphSaveModal({
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
   const [saveIssue, setSaveIssue] = useState<SaveFieldIssue | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -38,6 +52,10 @@ export function GraphSaveModal({
       setSaveIssue(null);
     }
   }, [open, suggestedFileName]);
+
+  useEffect(() => {
+    setCopyDone(false);
+  }, [saveIssue]);
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +81,15 @@ export function GraphSaveModal({
     [onClose],
   );
 
+  const handleCopyIssue = useCallback(async () => {
+    if (saveIssue == null) {
+      return;
+    }
+    const text = formatSaveIssueMessage(saveIssue, t);
+    const ok = await writeTextToClipboard(text);
+    setCopyDone(ok);
+  }, [saveIssue, t]);
+
   const handleSave = useCallback(async () => {
     const doc = getDocument();
     if (!doc) {
@@ -73,23 +100,41 @@ export function GraphSaveModal({
       setSaveIssue({ kind: "empty_name" });
       return;
     }
-    if (workspaceLinked) {
-      const ok = await onSaveToWorkspace(trimmed, doc);
-      if (ok) {
-        onClose();
-      }
-      return;
-    }
+    setIsSaving(true);
     try {
-      await saveJsonWithFilePickerOrDownload(trimmed, doc);
-      onClose();
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
+      if (workspaceLinked) {
+        const result = await onSaveToWorkspace(trimmed, doc);
+        if (result.ok) {
+          onClose();
+          return;
+        }
+        if (result.reason === "duplicate_graph_id") {
+          setSaveIssue({ kind: "duplicate_graph_id", conflictingFile: result.conflictingFile });
+          return;
+        }
+        if (result.reason === "write_failed") {
+          setSaveIssue({ kind: "workspace_write_failed", detail: result.detail });
+          return;
+        }
+        if (result.reason === "no_workspace") {
+          setSaveIssue({ kind: "workspace_unavailable" });
+          return;
+        }
         return;
       }
-      const raw = e instanceof Error ? e.message : String(e);
-      const d = raw.trim();
-      setSaveIssue({ kind: "write_failed", detail: d === "" ? null : d });
+      try {
+        await saveJsonWithFilePickerOrDownload(trimmed, doc);
+        onClose();
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") {
+          return;
+        }
+        const raw = e instanceof Error ? e.message : String(e);
+        const d = raw.trim();
+        setSaveIssue({ kind: "write_failed", detail: d === "" ? null : d });
+      }
+    } finally {
+      setIsSaving(false);
     }
   }, [fileName, getDocument, onClose, onSaveToWorkspace, workspaceLinked]);
 
@@ -108,6 +153,7 @@ export function GraphSaveModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="gc-save-modal-title"
+        aria-busy={isSaving}
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -129,6 +175,7 @@ export function GraphSaveModal({
                       key={e.fileName}
                       type="button"
                       className={`gc-save-card${selected ? " gc-save-card--selected" : ""}${e.duplicateGraphId ? " gc-save-card--warn" : ""}`}
+                      disabled={isSaving}
                       onClick={() => {
                         setFileName(e.fileName);
                         setSaveIssue(null);
@@ -157,6 +204,7 @@ export function GraphSaveModal({
           className="gc-modal-input"
           type="text"
           value={fileName}
+          disabled={isSaving}
           aria-invalid={saveIssue?.kind === "empty_name"}
           aria-describedby={saveIssue != null ? "gc-save-modal-error" : undefined}
           onChange={(ev) => {
@@ -167,27 +215,90 @@ export function GraphSaveModal({
           autoComplete="off"
         />
         {saveIssue != null ? (
-          <p
-            id="gc-save-modal-error"
-            className="gc-modal-hint gc-modal-hint--error gc-modal-hint--prewrap"
-            role="alert"
-          >
-            {saveIssue.kind === "empty_name"
-              ? t("app.saveModal.emptyName")
-              : saveIssue.detail != null
-                ? `${t("app.saveModal.writeFailed")}\n\n${saveIssue.detail}`
-                : t("app.saveModal.writeFailed")}
-          </p>
+          <div className="gc-save-modal-error-block">
+            <p
+              id="gc-save-modal-error"
+              className="gc-modal-hint gc-modal-hint--error gc-modal-hint--prewrap"
+              role="alert"
+            >
+              {formatSaveIssueMessage(saveIssue, t)}
+            </p>
+            <button
+              type="button"
+              className="gc-btn gc-btn-small"
+              disabled={isSaving}
+              onClick={() => void handleCopyIssue()}
+            >
+              {copyDone ? t("app.errors.openModal.copied") : t("app.errors.openModal.copy")}
+            </button>
+          </div>
         ) : null}
         <div className="gc-modal-actions">
           <button type="button" className="gc-btn" onClick={onClose}>
             {t("app.saveModal.cancel")}
           </button>
-          <button type="button" className="gc-btn gc-btn-primary" onClick={() => void handleSave()}>
+          <button
+            type="button"
+            className="gc-btn gc-btn-primary"
+            disabled={isSaving}
+            onClick={() => void handleSave()}
+          >
             {t("app.saveModal.save")}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+function formatSaveIssueMessage(issue: SaveFieldIssue, t: TFunction): string {
+  switch (issue.kind) {
+    case "empty_name":
+      return t("app.saveModal.emptyName");
+    case "duplicate_graph_id":
+      return t("app.workspace.duplicateGraphId", { file: issue.conflictingFile });
+    case "workspace_write_failed":
+      return issue.detail != null
+        ? `${t("app.workspace.writeFailed")}\n\n${issue.detail}`
+        : t("app.workspace.writeFailed");
+    case "workspace_unavailable":
+      return t("app.saveModal.workspaceUnavailable");
+    case "write_failed":
+      return issue.detail != null
+        ? `${t("app.saveModal.writeFailed")}\n\n${issue.detail}`
+        : t("app.saveModal.writeFailed");
+  }
+}
+
+async function writeTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          if (ok) {
+            resolve();
+          } else {
+            reject(new Error("execCommand"));
+          }
+        } catch (e) {
+          document.body.removeChild(ta);
+          reject(e);
+        }
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }

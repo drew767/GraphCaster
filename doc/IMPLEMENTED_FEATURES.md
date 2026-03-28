@@ -28,15 +28,16 @@
 
 ---
 
-## Открытие графа: ошибки JSON и парсера (P1, как n8n/Dify — явная причина отказа)
+## Открытие графа, инспектор и Save: ошибки (P1, как n8n/Dify — явная причина отказа)
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Не показывать безликий alert при битом workflow | **Файл → Открыть** и **Открыть из graphs/…**: при ошибке чтения, синтаксиса JSON или **`parseGraphDocumentJsonResult`** — модалка **`OpenGraphErrorModal`** с i18n-текстом по виду ошибки (**`nodes` не массив**, невалидный **`schemaVersion`**, индекс битой ноды/ребра и т.д.) |
 | Понять, какой файл ломается | Заголовок **`titleWithFile`** с **`fileName`** (локальный pick и файл воркспейса); детали для копирования — JSON ошибки парсера или текст **`JSON.parse`** / read |
-| Те же паттерны в инспекторе и Save, что у n8n/Dify (явная ошибка вместо «голого» alert) | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — модалка **`OpenGraphErrorModal`** через **`onUserMessage`** (`presentationForInspector*`); пустое имя файла и сбой записи в **`GraphSaveModal`** — **`presentationForSave*`**; конфликт **`graphId`** при записи в **`graphs/`** и ошибка **`writeJsonFileToDir`** из **`saveDocumentToWorkspace`** — **`presentationForWorkspace*`**; тип полезной нагрузки модалки — **`AppMessagePresentation`**; общее состояние **`appMessageModal`** в **`AppShell`** |
+| Инспектор: явная ошибка вместо «голого» alert | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — **`OpenGraphErrorModal`** через **`onUserMessage`** (**`presentationForInspector*`**); тип **`AppMessagePresentation`**, состояние **`appMessageModal`** в **`AppShell`** |
+| Save / workspace: одна модалка, полевые ошибки без второй модалки поверх диалога | **`GraphSaveModal`**: под полем имени — **`SaveFieldIssue`** (пустое имя; сбой **`saveJsonWithFilePickerOrDownload`**; конфликт **`graphId`** с другим файлом в **`graphs/`**; сбой **`writeJsonFileToDir`**; потеря привязки папки — **`app.saveModal.workspaceUnavailable`**); **`onSaveToWorkspace`** → **`Promise<GraphSaveToWorkspaceResult>`**; **`saveDocumentToWorkspace`** возвращает структурированный результат и **не** открывает **`AppMessageModal`** для duplicate **`graphId`** / ошибки записи на этом пути; **`role="alert"`**, **`aria-describedby`**, **`aria-busy`** на диалоге при сохранении; кнопка копирования текста ошибки (те же ключи **`app.errors.openModal.copy`** / **`copied`**, что у **`OpenGraphErrorModal`**); **`isSaving`** — блокировка повторного Save, поля имени и плиток workspace |
 
-Код: **`ui/src/graph/openGraphErrorPresentation.ts`**, **`ui/src/components/OpenGraphErrorModal.tsx`**, **`ui/src/layout/AppShell.tsx`**, **`InspectorPanel.tsx`**, **`GraphSaveModal.tsx`**; Vitest **`ui/src/graph/openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 помечен как **закрытый**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
+Код: **`ui/src/graph/openGraphErrorPresentation.ts`** (в т.ч. **`presentationForSave*`** / **`presentationForWorkspace*`** для Vitest и прочих вызовов; путь Save из **`GraphSaveModal`** их не использует), **`OpenGraphErrorModal.tsx`**, **`AppShell.tsx`**, **`InspectorPanel.tsx`**, **`GraphSaveModal.tsx`**; Vitest **`openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 по открытию — **закрыт**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
 
 ---
 
