@@ -34,6 +34,7 @@
       "addNodeNestedEmptyWorkspace": "No graphs in the linked workspace folder — link graphs/ or pick another category.",
       "onlyOneStart": "This graph already has a start node.",
       "addNodeGraphsHeading": "Graphs in folder",
+      "addNodeCursorAgent": "Cursor Agent (task preset)",
       "nodeContextMenuTitle": "Node",
       "deleteNode": "Delete node",
       "nodeTypes": {
@@ -132,7 +133,24 @@
       "stepCacheHeading": "Step cache (F17)",
       "stepCacheEnabled": "Eligible for cross-run disk cache (requires Run bar + workspace root)",
       "stepCacheMarkDirty": "Mark dirty for next run",
-      "stepCacheHint": "Like n8n dirtyNodeNames: the next successful desktop run start sends every affected task id in --step-cache-dirty (transitive downstream along success edges, not out_error). Editing node data does the same. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate."
+      "stepCacheHint": "Like n8n dirtyNodeNames: the next successful desktop run start sends every affected task id in --step-cache-dirty (transitive downstream along success edges, not out_error). Editing node data does the same. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate.",
+      "cursorAgentHeading": "Cursor Agent",
+      "cursorAgentEnabled": "Use gcCursorAgent preset (leave command/argv empty)",
+      "cursorAgentPrompt": "Prompt (inline)",
+      "cursorAgentPromptFile": "Prompt file (relative to cwd base, UTF-8)",
+      "cursorAgentCwdBase": "Working directory base",
+      "cursorAgentCwdWorkspace": "Workspace root (parent of graphs/ if folder is named graphs)",
+      "cursorAgentCwdGraphs": "graphs/ directory",
+      "cursorAgentCwdArtifact": "Root run artifact directory",
+      "cursorAgentCwdRelative": "Subpath under base (no ..)",
+      "cursorAgentModel": "Model (--model), optional",
+      "cursorAgentOutputFormat": "Output format (--output-format), optional",
+      "cursorAgentExtraArgs": "Extra args (JSON array of strings, before prompt)",
+      "cursorAgentPrintMode": "Print mode (-p)",
+      "cursorAgentApplyFiles": "Allow file changes (--force with print mode)",
+      "cursorAgentHint": "command/argv on the same task overrides this preset. Placeholders: {{out:NODE_ID.processResult.stdout}} or .stderr. Install agent CLI or set GC_CURSOR_AGENT; do not put API keys in the graph.",
+      "cursorAgentNeedPrompt": "Set a non-empty prompt or prompt file.",
+      "cursorAgentExtraArgsInvalid": "Extra args must be a JSON array of strings, e.g. [\"--flag\"]."
     },
     "editor": {
       "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}.",

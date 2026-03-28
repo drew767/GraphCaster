@@ -12,6 +12,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Callable
 
+from graph_caster.cursor_agent_argv import MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN
+
 EmitFn = Callable[..., None]
 
 _STDOUT_CAP = 256 * 1024
@@ -20,6 +22,14 @@ _CANCEL_JOIN_TIMEOUT_SEC = 120.0
 _STREAM_READER_JOIN_SEC = 5.0
 _MAX_READLINE_CHARS = 32768
 _STREAM_QUEUE_MAX = 8192
+
+
+def _truncate_for_process_result_storage(s: str, max_len: int) -> str:
+    if len(s) <= max_len:
+        return s
+    if max_len <= 3:
+        return s[:max_len]
+    return s[: max_len - 3] + "..."
 
 
 def _argv_from_data(data: dict[str, Any]) -> list[str] | None:
@@ -34,6 +44,37 @@ def _argv_from_data(data: dict[str, Any]) -> list[str] | None:
         posix = os.name != "nt"
         return [str(x) for x in shlex.split(raw, posix=posix)]
     return None
+
+
+def _resolve_argv_and_optional_preset_cwd(
+    data: dict[str, Any], ctx: dict[str, Any]
+) -> tuple[list[str] | None, Path | None, str | None]:
+    """
+    Returns ``(argv, preset_cwd, error)``.
+    ``error`` is set when ``gcCursorAgent`` is present but invalid or the CLI is missing.
+    """
+    argv = _argv_from_data(data)
+    if argv:
+        return argv, None, None
+    if "gcCursorAgent" not in data:
+        return None, None, None
+    gca = data.get("gcCursorAgent")
+    if not isinstance(gca, dict):
+        return None, None, "gcCursorAgent must be an object"
+    from graph_caster.cursor_agent_argv import (
+        CursorAgentPresetError,
+        build_argv_and_cwd_for_gc_cursor_agent,
+        validate_gc_cursor_agent_errors,
+    )
+
+    errs = validate_gc_cursor_agent_errors(data)
+    if errs:
+        return None, None, "; ".join(errs)
+    try:
+        built, cwd_b = build_argv_and_cwd_for_gc_cursor_agent(data, ctx)
+        return built, cwd_b, None
+    except CursorAgentPresetError as e:
+        return None, None, str(e)
 
 
 def _resolve_cwd(data: dict[str, Any], ctx: dict[str, Any]) -> Path:
@@ -367,6 +408,12 @@ def _record_task_process_result(
             "cancelled": cancelled,
             "stdoutChars": len(stdout),
             "stderrChars": len(stderr),
+            "stdout": _truncate_for_process_result_storage(
+                stdout, MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN
+            ),
+            "stderr": _truncate_for_process_result_storage(
+                stderr, MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN
+            ),
         }
 
 
@@ -379,11 +426,39 @@ def run_task_process(
     emit: EmitFn,
     should_cancel: Callable[[], bool] | None = None,
 ) -> bool:
-    argv = _argv_from_data(data)
+    argv, preset_cwd, preset_err = _resolve_argv_and_optional_preset_cwd(data, ctx)
+    if preset_err:
+        emit(
+            "process_failed",
+            nodeId=node_id,
+            graphId=graph_id,
+            reason="spawn_error",
+            message=preset_err,
+            attempt=0,
+        )
+        ctx["last_result"] = False
+        _record_task_process_result(
+            ctx,
+            node_id,
+            exit_code=-1,
+            success=False,
+            timed_out=False,
+            stdout="",
+            stderr="",
+            cancelled=False,
+        )
+        return False
     if not argv:
         return True
 
-    cwd = _resolve_cwd(data, ctx)
+    raw_cwd = data.get("cwd")
+    explicit_cwd = isinstance(raw_cwd, str) and raw_cwd.strip() != ""
+    if explicit_cwd:
+        cwd = _resolve_cwd(data, ctx)
+    elif preset_cwd is not None:
+        cwd = preset_cwd
+    else:
+        cwd = _resolve_cwd(data, ctx)
     try:
         cwd.mkdir(parents=True, exist_ok=True)
     except OSError:

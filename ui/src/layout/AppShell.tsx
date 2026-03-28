@@ -30,8 +30,17 @@ import type {
 } from "../graph/types";
 import { findBranchAmbiguities } from "../graph/branchWarnings";
 import { pickCommentParentId } from "../graph/flowHierarchy";
-import { defaultDataForNodeType, newGraphEdgeId, newGraphNodeId } from "../graph/nodePalette";
-import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
+import {
+  defaultCursorAgentTaskData,
+  defaultDataForNodeType,
+  newGraphEdgeId,
+  newGraphNodeId,
+} from "../graph/nodePalette";
+import {
+  GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GRAPH_REF,
+  GRAPH_NODE_TYPE_TASK,
+} from "../graph/nodeKinds";
 import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
 import {
   presentationForJsonSyntaxError,
@@ -956,6 +965,20 @@ export function AppShell({ onLangChange }: Props) {
       }
       const doc = api.exportDocument();
       const nodes = doc.nodes ?? [];
+      if (pick.kind === "task_cursor_agent") {
+        const id = newGraphNodeId();
+        const parentId = pickCommentParentId(nodes, flowPosition.x, flowPosition.y);
+        const newNode = {
+          id,
+          type: GRAPH_NODE_TYPE_TASK,
+          position: { x: flowPosition.x, y: flowPosition.y },
+          data: defaultCursorAgentTaskData(),
+          ...(parentId ? { parentId } : {}),
+        };
+        commitHistorySnapshot();
+        setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
+        return;
+      }
       if (pick.kind === "primitive") {
         if (pick.nodeType === "start" && nodes.some((n) => n.type === "start")) {
           window.alert(t("app.canvas.onlyOneStart"));

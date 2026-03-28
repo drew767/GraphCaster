@@ -101,6 +101,23 @@
 
 ---
 
+## Пресет Cursor Agent CLI (фаза 9, как n8n **Execute Command** + явный argv)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Явный список аргументов и cwd, секреты вне JSON | Нода **`task`** с **`data.gcCursorAgent`** (`presetVersion` **1**): рантайм собирает **`argv`** для **`agent -p`** (опц. **`--force`**, **`--model`**, **`--output-format`**, **`extraArgs`**); исполняемый файл из **`GC_CURSOR_AGENT`**, **`PATH`**, или Windows **`%LOCALAPPDATA%\cursor-agent\agent.cmd`** |
+| **`command`/`argv` важнее пресета** | Если заданы **`command`** или **`argv`**, пресет не используется (**`process_exec._argv_from_data`** первым) |
+| База cwd и вложенные графы | **`GraphRunner.run_from`** кладёт **`_gc_graphs_root`** в контекст; **`cwdBase`**: **`workspace_root`** / **`graphs_root`** / **`artifact_dir`** + **`cwdRelative`** (без **`..`**); явное **`data.cwd`** перекрывает базу пресета; ключ **`gcCursorAgent`** в **`data`** (даже **`{}`**) планирует **`task`** в **`process_exec`**, чтобы валидация/ошибка не были «тихими» |
+| Плейсхолдеры промпта | **`{{out:<nodeId>.processResult.stdout}}`** / **`.stderr`** в **`cursor_agent_argv.expand_prompt_placeholders`** (лимит **`MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN`**); в **`node_outputs`** — то же усечение в **`process_exec._record_task_process_result`** |
+| UI | ПКМ → **Cursor Agent (task preset)**; инспектор **`task`**: блок полей **`gcCursorAgent`** + **Apply data**; **`ui/src/graph/cursorAgentPreset.ts`**, **`defaultCursorAgentTaskData`** в **`nodePalette.ts`** |
+| Контракт и пример | **`schemas/graph-document.schema.json`** (**`$defs.gcCursorAgent`**), фикстура **`schemas/test-fixtures/cursor-agent-linear.json`** |
+
+Код: **`python/graph_caster/cursor_agent_argv.py`**, **`process_exec.py`** (**`_resolve_argv_and_optional_preset_cwd`**), **`runner.py`** (**`_task_has_process_command`**, **`_gc_graphs_root`**). Тесты: **`python/tests/test_cursor_agent_preset.py`**.
+
+**Конкурентный контекст (фаза 9):** сравнение с **n8n Execute Command**, headless **Langflow `lfx run`**, вынесение секретов из JSON (**F8**) сведено в таблицу выше; в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) остаются обзорные таблицы по продуктам (**§4 F7**, **§7**, **§11**, **§27**) и эталоны для будущих расширений **F7**, без дублирования контракта **`gcCursorAgent`**.
+
+---
+
 ## Статическая достижимость из **start** (F3, как n8n/Dify структурные проверки)
 
 Пункт **§31.2** п.1 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) перенесён сюда как **закрытый** срез; в competitive остаются «открытые» темы (циклы, полная рантайм-связность с симуляцией **F4**, OS-параллелизм **F6**) — см. строку **GraphCaster** в таблице F3 там же.

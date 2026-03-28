@@ -67,6 +67,7 @@ pytest -q
 - **Pin вывода task (`gcPin`):** в `task.data` опционально `gcPin` (n8n pinData-style) — см. `$defs.gcPin` в схеме графа и `python/README.md`.
 - **Кэш шагов task (F17):** `task.data.stepCache` и десктопная панель Run (чекбокс «Step cache», очередь **dirty** → `--step-cache` / `--step-cache-dirty`) — `doc/IMPLEMENTED_FEATURES.md`.
 - **Несколько исходящих рёбер из одной ноды:** раннер выбирает **первое** ребро с пустым условием или с условием, оценённым как истина. Для **параллельного fan-out** в одном процессе используйте ноду **`fork`** (все безусловные исходы ставятся в очередь), затем **`merge`** с **`data.mode`** **`barrier`** для join (ожидание всех веток), см. `python/README.md` и `doc/IMPLEMENTED_FEATURES.md`.
+- **Cursor Agent CLI (фаза 9):** на ноде **`task`** можно задать **`data.gcCursorAgent`** вместо ручного **`command`/`argv`** — раннер вызовет headless **`agent -p "…"`** (см. `python/README.md`, переменная **`GC_CURSOR_AGENT`**, пример **`schemas/test-fixtures/cursor-agent-linear.json`**). В UI: ПКМ на полотне → **Cursor Agent (task preset)**.
 
 Актуальные продуктовые решения (Start/Exit, папка **`graphs/`** + **`runs/`**, уникальный `graphId`, артефакты корневого Run, Cursor CLI как цель MVP) — в [`doc/PRODUCT_DESIGNE.md`](doc/PRODUCT_DESIGNE.md).
 

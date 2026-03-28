@@ -70,11 +70,28 @@ export function CanvasAddNodeMenu({
     });
   }, [category, filter, hasStartNode, t, workspaceGraphs]);
 
+  const showCursorAgentRow = useMemo(() => {
+    if (category !== "all" && category !== "steps") {
+      return false;
+    }
+    const q = filter.trim().toLowerCase();
+    if (q === "") {
+      return true;
+    }
+    const lbl = t("app.canvas.addNodeCursorAgent").toLowerCase();
+    return (
+      lbl.includes(q) ||
+      "cursor".includes(q) ||
+      "agent".includes(q) ||
+      lbl.split(/\s+/).some((w) => w.startsWith(q))
+    );
+  }, [category, filter, t]);
+
   if (!open) {
     return null;
   }
 
-  const totalCount = primitiveOptions.length + graphOptions.length;
+  const totalCount = primitiveOptions.length + graphOptions.length + (showCursorAgentRow ? 1 : 0);
   const nestedEmptyWorkspace =
     category === "nested" && workspaceGraphs.length === 0 && filter.trim() === "";
 
@@ -139,6 +156,22 @@ export function CanvasAddNodeMenu({
                 </button>
               </li>
             ))}
+            {showCursorAgentRow ? (
+              <li key="__gc_cursor_agent">
+                <button
+                  type="button"
+                  className="gc-ctx-menu__btn"
+                  role="menuitem"
+                  onClick={() => {
+                    onPick({ kind: "task_cursor_agent" }, flowPos);
+                    onClose();
+                  }}
+                >
+                  <span className="gc-ctx-menu__ty">task</span>
+                  <span className="gc-ctx-menu__lbl">{t("app.canvas.addNodeCursorAgent")}</span>
+                </button>
+              </li>
+            ) : null}
             {graphOptions.length > 0 ? (
               <>
                 {primitiveOptions.length > 0 ? (

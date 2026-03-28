@@ -13,6 +13,8 @@ namespace AgentQueueMonitor;
 
 public partial class MainWindow : Window
 {
+    private const string FixedCursorAgentExe = "agent";
+
     private string _agentQueueDir = "";
     private string _repoRoot = "";
     private Process? _process;
@@ -58,18 +60,14 @@ public partial class MainWindow : Window
 
         _stallTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _stallTimer.Tick += (_, _) => UpdateStallDisplay();
-        CmbAgentExe.LostFocus += (_, _) => MaybeRefreshModelsForAgent();
-        CmbAgentExe.DropDownClosed += (_, _) => MaybeRefreshModelsForAgent();
         Loaded += (_, _) =>
         {
-            CmbAgentExe.Text = "agent";
             RefreshPromptFiles();
             RefreshModelList();
             AppendLog("Монитор готов. События приложения и статус agent-queue — ниже; вывод Cursor Agent — в отдельном окне консоли. Текст в этом окне очищается только при выходе; файл agent-queue-stall-debug.log рядом с exe очищается при каждом запуске очереди (Старт).");
             AppendStallDebugLogLine("Monitor UI ready; stall/file log: " + _stallDebugLogPath);
             ParamsStackPanel.SizeChanged += (_, _) => SyncLogHeightToParams();
             ParamsScrollViewer.SizeChanged += (_, _) => SyncLogHeightToParams();
-            LeftAboveLog.SizeChanged += (_, _) => SyncLogHeightToParams();
             SizeChanged += (_, _) => SyncLogHeightToParams();
             ContentRendered += (_, _) => ScheduleSyncLogHeight();
             ScheduleSyncLogHeight();
@@ -85,12 +83,12 @@ public partial class MainWindow : Window
 
     private void SyncLogHeightToParams()
     {
-        if (ParamsStackPanel == null || LeftAboveLog == null || TxtLog == null)
+        if (ParamsStackPanel == null || TxtLog == null)
         {
             return;
         }
 
-        if (ParamsStackPanel.ActualHeight < 1 || LeftAboveLog.ActualHeight < 1)
+        if (ParamsStackPanel.ActualHeight < 1)
         {
             if (_logHeightSyncDeferrals < 12)
             {
@@ -103,15 +101,10 @@ public partial class MainWindow : Window
 
         _logHeightSyncDeferrals = 0;
 
-        var h = ParamsStackPanel.ActualHeight - LeftAboveLog.ActualHeight;
+        var h = Math.Max(72, ParamsStackPanel.ActualHeight);
         if (double.IsNaN(h) || double.IsInfinity(h))
         {
             return;
-        }
-
-        if (h < 72)
-        {
-            h = 72;
         }
 
         var current = TxtLog.Height;
@@ -124,26 +117,6 @@ public partial class MainWindow : Window
     }
 
     private string FinishFlagPath => Path.Combine(_agentQueueDir, "agent-queue.finish-after-cycle.flag");
-
-    private static PromptStepOrderMode ParseStepOrderTag(ComboBoxItem? item)
-    {
-        if (item?.Tag is string s)
-        {
-            return s switch
-            {
-                "Pipeline" => PromptStepOrderMode.Pipeline,
-                "Sequential" => PromptStepOrderMode.Sequential,
-                _ => PromptStepOrderMode.Auto
-            };
-        }
-
-        return PromptStepOrderMode.Auto;
-    }
-
-    private PromptStepOrderMode GetSelectedStepOrderMode()
-    {
-        return ParseStepOrderTag(CmbStepOrder.SelectedItem as ComboBoxItem);
-    }
 
     private void RefreshPromptFiles()
     {
@@ -169,29 +142,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void MaybeRefreshModelsForAgent()
-    {
-        var key = CmbAgentExe.Text.Trim();
-        if (key.Length == 0)
-        {
-            key = "agent";
-        }
-
-        if (_modelsAgentKey != null && string.Equals(key, _modelsAgentKey, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        RefreshModelList();
-    }
-
     private void RefreshModelList()
     {
-        var exe = CmbAgentExe.Text.Trim();
-        if (exe.Length == 0)
-        {
-            exe = "agent";
-        }
+        var exe = FixedCursorAgentExe;
 
         var prev = (CmbModel.SelectedItem as string)?.Trim();
         if (string.IsNullOrEmpty(prev))
@@ -332,8 +285,8 @@ public partial class MainWindow : Window
         psiInner.Environment["AGENT_QUEUE_DEBUG_LOG_PATH"] = _stallDebugLogPath;
         psiInner.Environment["AGENT_QUEUE_DEBUG_LOG_NO_RESET"] = "1";
         psiInner.Environment["AGENT_QUEUE_STALL_ALLOW_MANUAL"] = "1";
-        psiInner.Environment["AGENT_QUEUE_HIDE_THINKING"] = ChkHideThinking.IsChecked == true ? "1" : "0";
-        psiInner.Environment["AGENT_QUEUE_ASSISTANT_STREAM_DELTA"] = ChkAssistantStreamDelta.IsChecked == true ? "1" : "0";
+        psiInner.Environment["AGENT_QUEUE_HIDE_THINKING"] = "0";
+        psiInner.Environment["AGENT_QUEUE_ASSISTANT_STREAM_DELTA"] = "1";
 
         const int defaultStallRestartSeconds = 800;
         const int maxStallRestartSeconds = 604800;
@@ -355,12 +308,8 @@ public partial class MainWindow : Window
         psiInner.ArgumentList.Add("-Workspace");
         psiInner.ArgumentList.Add(TxtWorkspace.Text.Trim());
 
-        var agentExe = CmbAgentExe.Text.Trim();
-        if (agentExe.Length > 0)
-        {
-            psiInner.ArgumentList.Add("-AgentExe");
-            psiInner.ArgumentList.Add(agentExe);
-        }
+        psiInner.ArgumentList.Add("-AgentExe");
+        psiInner.ArgumentList.Add(FixedCursorAgentExe);
 
         var model = (CmbModel.SelectedItem as string)?.Trim() ?? "";
         if (model.Length > 0)
@@ -376,33 +325,6 @@ public partial class MainWindow : Window
             psiInner.ArgumentList.Add(mode);
         }
 
-        var fmt = (CmbOutputFormat.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "stream-json";
-        if (fmt != "stream-json")
-        {
-            psiInner.ArgumentList.Add("-OutputFormat");
-            psiInner.ArgumentList.Add(fmt);
-        }
-
-        if (ChkTrust.IsChecked != true)
-        {
-            psiInner.ArgumentList.Add("-NoTrust");
-        }
-
-        if (ChkForce.IsChecked != true)
-        {
-            psiInner.ArgumentList.Add("-NoForce");
-        }
-
-        switch (GetSelectedStepOrderMode())
-        {
-            case PromptStepOrderMode.Pipeline:
-                psiInner.ArgumentList.Add("-PipelineOrder");
-                break;
-            case PromptStepOrderMode.Sequential:
-                psiInner.ArgumentList.Add("-Sequential");
-                break;
-        }
-
         if (int.TryParse(TxtCycles.Text.Trim(), out var cycles) && cycles > 0)
         {
             psiInner.ArgumentList.Add("-Cycles");
@@ -414,11 +336,7 @@ public partial class MainWindow : Window
         psiInner.ArgumentList.Add("-StreamBufferChars");
         psiInner.ArgumentList.Add("512");
 
-        if (int.TryParse(TxtStreamBufferIdleMs.Text.Trim(), out var sbim) && sbim >= 0)
-        {
-            psiInner.ArgumentList.Add("-StreamBufferIdleMs");
-            psiInner.ArgumentList.Add(sbim.ToString());
-        }
+        psiInner.ArgumentList.Add("-AssistantStreamDelta");
 
         if (int.TryParse(TxtStartFromPrompt.Text.Trim(), out var sfp) && sfp >= 1)
         {
@@ -549,21 +467,12 @@ public partial class MainWindow : Window
         var ws = TxtWorkspace.Text.Trim();
         AppendLog("Запуск очереди agent-queue.ps1 (отдельное окно консоли для вывода агента).");
         AppendLog("Промпт: «" + promptFileName + "» · Workspace: " + ws);
-        var agent = CmbAgentExe.Text.Trim();
         var model = (CmbModel.SelectedItem as string)?.Trim() ?? "";
         var mode = (CmbMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "agent";
-        var fmt = (CmbOutputFormat.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "stream-json";
-        var order = GetSelectedStepOrderMode();
-        var orderRu = order switch
-        {
-            PromptStepOrderMode.Pipeline => "Pipeline",
-            PromptStepOrderMode.Sequential => "Sequential",
-            _ => "Авто (по имени файла)"
-        };
-        AppendLog("AgentExe: " + agent + " · Model: " + model + " · Mode: " + mode + " · OutputFormat: " + fmt + " · Порядок шагов: " + orderRu);
-        AppendLog("Trust: " + (ChkTrust.IsChecked == true ? "да" : "нет") + " · Force: " + (ChkForce.IsChecked == true ? "да" : "нет"));
+        AppendLog("AgentExe: " + FixedCursorAgentExe + " · Model: " + model + " · Mode: " + mode + " · OutputFormat: stream-json (по умолчанию) · порядок шагов: авто (без -PipelineOrder/-Sequential)");
+        AppendLog("Trust и Force: включены (без -NoTrust/-NoForce) · стрим дельт ответа: -AssistantStreamDelta + AGENT_QUEUE_ASSISTANT_STREAM_DELTA=1 · размышления не скрываются (AGENT_QUEUE_HIDE_THINKING=0)");
         AppendLog("Cycles: " + TxtCycles.Text.Trim() + " · CyclesPerChat: " + TxtCyclesPerChat.Text.Trim() + " · StartFromPrompt: " + TxtStartFromPrompt.Text.Trim() + " · Первый промпт: " + (ChkStartNewChat.IsChecked == true ? "новый чат" : "--ContinueFirstPrompt"));
-        AppendLog("StreamBufferIdleMs: " + TxtStreamBufferIdleMs.Text.Trim() + " · Таймер автоперезапуска, с: " + TxtStallRestartSeconds.Text.Trim() + " · HideThinking: " + (ChkHideThinking.IsChecked == true) + " · AssistantStreamDelta: " + (ChkAssistantStreamDelta.IsChecked == true));
+        AppendLog("Таймер автоперезапуска, с: " + TxtStallRestartSeconds.Text.Trim() + " · -StreamBufferIdleMs не передаётся (0 по умолчанию в скрипте)");
         AppendLog("MonitorStatus: " + _monitorStatusPath);
         if (!int.TryParse(TxtStallRestartSeconds?.Text?.Trim() ?? "", out var stallLaunch) || stallLaunch <= 0)
         {

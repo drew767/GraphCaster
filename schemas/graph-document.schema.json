@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.6)",
+  "title": "GraphCaster graph document (v1.7)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -52,6 +52,32 @@
         }
       }
     },
+    "gcCursorAgent": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Cursor Agent CLI preset for task nodes (phase 9). Builds argv for headless `agent -p` style runs; executable from GC_CURSOR_AGENT, PATH `agent`, or Windows %LOCALAPPDATA%\\\\cursor-agent\\\\agent.cmd. Do not store API keys in the graph — use host environment.",
+      "properties": {
+        "presetVersion": { "type": "integer", "const": 1 },
+        "prompt": { "type": "string", "description": "Inline prompt text; optional if promptFile is set. Supports placeholders {{out:<nodeId>.processResult.stdout}} and .stderr (truncated)." },
+        "promptFile": { "type": "string", "description": "Relative path from cwd base (no ..); read as UTF-8 when prompt is empty." },
+        "cwdBase": {
+          "type": "string",
+          "enum": ["workspace_root", "graphs_root", "artifact_dir"],
+          "default": "workspace_root",
+          "description": "workspace_root: parent of graphs/ if folder is named graphs, else graphs root; graphs_root: workspace graphs directory; artifact_dir: root run artifact directory."
+        },
+        "cwdRelative": { "type": "string", "description": "Optional subdirectory under cwdBase (no ..)." },
+        "printMode": { "type": "boolean", "default": true, "description": "When true, pass -p (--print) for headless output." },
+        "applyFileChanges": { "type": "boolean", "default": false, "description": "When true with printMode, pass --force so the agent may modify files." },
+        "model": { "type": "string", "description": "Optional --model argument." },
+        "outputFormat": { "type": "string", "description": "Optional --output-format (e.g. text, json, stream-json)." },
+        "extraArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra argv tokens inserted before the final prompt positional argument."
+        }
+      }
+    },
     "node": {
       "type": "object",
       "additionalProperties": false,
@@ -75,7 +101,7 @@
         "data": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json. Task nodes may set stepCache: true to opt into cross-run disk step cache (F17) when the host passes --step-cache and --artifacts-base."
+          "description": "Node settings. Task nodes may include gcPin (see $defs.gcPin): n8n-style pinned output / pinData for dev reruns; runner merges payload into node_outputs unless that id is already set in --context-json. Task nodes may set stepCache: true to opt into cross-run disk step cache (F17) when the host passes --step-cache and --artifacts-base. Task nodes may set gcCursorAgent ($defs.gcCursorAgent) to run Cursor Agent CLI without hand-authored argv (command/argv still take precedence when set)."
         },
         "parentId": {
           "type": "string",

@@ -24,6 +24,22 @@ export function newGraphEdgeId(): string {
   return `e-${Date.now()}`;
 }
 
+/** Preset task.data for Cursor Agent CLI (`gcCursorAgent`); see python/graph_caster/cursor_agent_argv.py */
+export function defaultCursorAgentTaskData(): Record<string, unknown> {
+  return {
+    title: "Cursor Agent",
+    gcCursorAgent: {
+      presetVersion: 1,
+      prompt: "",
+      cwdBase: "workspace_root",
+      printMode: true,
+      applyFileChanges: false,
+    },
+    timeoutSec: 600,
+    successMode: "exit_code",
+  };
+}
+
 export function defaultDataForNodeType(type: string): Record<string, unknown> {
   switch (type) {
     case GRAPH_NODE_TYPE_GRAPH_REF:

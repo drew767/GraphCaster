@@ -24,7 +24,8 @@ export type AddMenuPrimitiveType = (typeof ADD_MENU_PRIMITIVE_ORDER)[number];
 
 export type AddNodeMenuPick =
   | { kind: "primitive"; nodeType: AddMenuPrimitiveType }
-  | { kind: "graph_ref"; targetGraphId: string };
+  | { kind: "graph_ref"; targetGraphId: string }
+  | { kind: "task_cursor_agent" };
 
 export type WorkspaceGraphAddMenuRow = {
   fileName: string;

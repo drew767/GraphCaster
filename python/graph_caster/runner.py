@@ -97,7 +97,10 @@ def _evaluate_next_edge(edges: list[Edge], context: dict[str, Any]) -> tuple[Edg
 
 def _task_has_process_command(node: Node) -> bool:
     d = node.data
-    return d.get("command") is not None or d.get("argv") is not None
+    if d.get("command") is not None or d.get("argv") is not None:
+        return True
+    # Key present (even {} or invalid value): run process_exec so validation / spawn_error surfaces.
+    return "gcCursorAgent" in d
 
 
 def _node_wants_step_cache(node: Node) -> bool:
@@ -501,6 +504,9 @@ class GraphRunner:
 
     def run_from(self, start_node_id: str, context: dict[str, Any] | None = None) -> None:
         ctx = _prepare_context(context)
+        gr = self._host.graphs_root
+        if gr is not None:
+            ctx["_gc_graphs_root"] = str(gr.resolve())
         apply_gc_pins_to_document_context(self._doc, ctx)
         ctx["_run_success"] = False
         ctx.pop("_run_partial_stop", None)

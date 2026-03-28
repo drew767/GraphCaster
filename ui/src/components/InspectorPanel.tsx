@@ -23,6 +23,12 @@ import {
   presentationForInspectorSimple,
 } from "../graph/openGraphErrorPresentation";
 import { safeExternalHttpUrl } from "../lib/safeExternalUrl";
+import {
+  buildGcCursorAgentPayload,
+  cursorAgentUiValidationKey,
+  parseExtraArgsJson,
+  type GcCursorAgentCwdBase,
+} from "../graph/cursorAgentPreset";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -116,6 +122,17 @@ export function InspectorPanel({
   const [conditionText, setConditionText] = useState("");
   const [edgeRouteDescriptionText, setEdgeRouteDescriptionText] = useState("");
 
+  const [caEnabled, setCaEnabled] = useState(false);
+  const [caPrompt, setCaPrompt] = useState("");
+  const [caPromptFile, setCaPromptFile] = useState("");
+  const [caCwdBase, setCaCwdBase] = useState<GcCursorAgentCwdBase>("workspace_root");
+  const [caCwdRelative, setCaCwdRelative] = useState("");
+  const [caModel, setCaModel] = useState("");
+  const [caOutputFormat, setCaOutputFormat] = useState("");
+  const [caExtraArgsJson, setCaExtraArgsJson] = useState("");
+  const [caPrintMode, setCaPrintMode] = useState(true);
+  const [caApplyFileChanges, setCaApplyFileChanges] = useState(false);
+
   const [graphTitle, setGraphTitle] = useState("");
   const [graphAuthor, setGraphAuthor] = useState("");
   const [graphSchemaVersion, setGraphSchemaVersion] = useState("1");
@@ -134,6 +151,34 @@ export function InspectorPanel({
   }, [graphDocument]);
 
   useEffect(() => {
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_TASK) {
+      const gca = isPlainObject(selection.raw.gcCursorAgent) ? selection.raw.gcCursorAgent : null;
+      setCaEnabled(gca != null);
+      if (gca != null) {
+        setCaPrompt(typeof gca.prompt === "string" ? gca.prompt : "");
+        setCaPromptFile(typeof gca.promptFile === "string" ? gca.promptFile : "");
+        const cb = gca.cwdBase;
+        setCaCwdBase(
+          cb === "graphs_root" || cb === "artifact_dir" ? (cb as GcCursorAgentCwdBase) : "workspace_root",
+        );
+        setCaCwdRelative(typeof gca.cwdRelative === "string" ? gca.cwdRelative : "");
+        setCaModel(typeof gca.model === "string" ? gca.model : "");
+        setCaOutputFormat(typeof gca.outputFormat === "string" ? gca.outputFormat : "");
+        setCaExtraArgsJson(Array.isArray(gca.extraArgs) ? JSON.stringify(gca.extraArgs) : "");
+        setCaPrintMode(gca.printMode !== false);
+        setCaApplyFileChanges(gca.applyFileChanges === true);
+      } else {
+        setCaPrompt("");
+        setCaPromptFile("");
+        setCaCwdBase("workspace_root");
+        setCaCwdRelative("");
+        setCaModel("");
+        setCaOutputFormat("");
+        setCaExtraArgsJson("");
+        setCaPrintMode(true);
+        setCaApplyFileChanges(false);
+      }
+    }
     if (selection?.kind === "node") {
       setDataText(JSON.stringify(selection.raw, null, 2));
     } else if (selection?.kind === "edge") {
@@ -216,7 +261,43 @@ export function InspectorPanel({
       );
       return;
     }
-    onApplyNodeData(selection.id, parsed);
+    let nextData: Record<string, unknown> = { ...parsed };
+    if (selection.graphNodeType === GRAPH_NODE_TYPE_TASK) {
+      if (caEnabled) {
+        const vKey = cursorAgentUiValidationKey({ prompt: caPrompt, promptFile: caPromptFile });
+        if (vKey != null) {
+          showInspectorError(presentationForInspectorSimple(t, vKey), vKey);
+          return;
+        }
+        try {
+          parseExtraArgsJson(caExtraArgsJson);
+        } catch {
+          showInspectorError(
+            presentationForInspectorSimple(t, "app.inspector.cursorAgentExtraArgsInvalid"),
+            "app.inspector.cursorAgentExtraArgsInvalid",
+          );
+          return;
+        }
+        nextData = {
+          ...nextData,
+          gcCursorAgent: buildGcCursorAgentPayload({
+            prompt: caPrompt,
+            promptFile: caPromptFile,
+            cwdBase: caCwdBase,
+            cwdRelative: caCwdRelative,
+            model: caModel,
+            outputFormat: caOutputFormat,
+            extraArgsJson: caExtraArgsJson,
+            printMode: caPrintMode,
+            applyFileChanges: caApplyFileChanges,
+          }),
+        };
+      } else {
+        const { gcCursorAgent: _rm, ...rest } = nextData;
+        nextData = { ...rest };
+      }
+    }
+    onApplyNodeData(selection.id, nextData);
   };
 
   const onSubmitEdge = (e: FormEvent) => {
@@ -505,6 +586,164 @@ export function InspectorPanel({
                 </button>
               </div>
               <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
+            </div>
+            <div className="gc-inspector-pin">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <span className="gc-inspector-k">{t("app.inspector.cursorAgentHeading")}</span>
+                <label className="gc-inspector-pin-toggle">
+                  <input
+                    type="checkbox"
+                    disabled={runLocked}
+                    checked={caEnabled}
+                    onChange={(ev) => {
+                      setCaEnabled(ev.target.checked);
+                    }}
+                  />
+                  <span>{t("app.inspector.cursorAgentEnabled")}</span>
+                </label>
+              </div>
+              {caEnabled ? (
+                <>
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-prompt">
+                    {t("app.inspector.cursorAgentPrompt")}
+                  </label>
+                  <textarea
+                    id="gc-ca-prompt"
+                    className="gc-inspector-data-textarea"
+                    rows={4}
+                    disabled={runLocked}
+                    spellCheck
+                    autoComplete="off"
+                    value={caPrompt}
+                    onChange={(ev) => {
+                      setCaPrompt(ev.target.value);
+                    }}
+                  />
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-prompt-file">
+                    {t("app.inspector.cursorAgentPromptFile")}
+                  </label>
+                  <input
+                    id="gc-ca-prompt-file"
+                    className="gc-inspector-condition-input"
+                    type="text"
+                    disabled={runLocked}
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={caPromptFile}
+                    onChange={(ev) => {
+                      setCaPromptFile(ev.target.value);
+                    }}
+                  />
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-cwd-base">
+                    {t("app.inspector.cursorAgentCwdBase")}
+                  </label>
+                  <select
+                    id="gc-ca-cwd-base"
+                    className="gc-inspector-condition-input"
+                    disabled={runLocked}
+                    value={caCwdBase}
+                    onChange={(ev) => {
+                      const v = ev.target.value;
+                      setCaCwdBase(
+                        v === "graphs_root" || v === "artifact_dir" ? v : "workspace_root",
+                      );
+                    }}
+                  >
+                    <option value="workspace_root">{t("app.inspector.cursorAgentCwdWorkspace")}</option>
+                    <option value="graphs_root">{t("app.inspector.cursorAgentCwdGraphs")}</option>
+                    <option value="artifact_dir">{t("app.inspector.cursorAgentCwdArtifact")}</option>
+                  </select>
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-cwd-rel">
+                    {t("app.inspector.cursorAgentCwdRelative")}
+                  </label>
+                  <input
+                    id="gc-ca-cwd-rel"
+                    className="gc-inspector-condition-input"
+                    type="text"
+                    disabled={runLocked}
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={caCwdRelative}
+                    onChange={(ev) => {
+                      setCaCwdRelative(ev.target.value);
+                    }}
+                  />
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-model">
+                    {t("app.inspector.cursorAgentModel")}
+                  </label>
+                  <input
+                    id="gc-ca-model"
+                    className="gc-inspector-condition-input"
+                    type="text"
+                    disabled={runLocked}
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={caModel}
+                    onChange={(ev) => {
+                      setCaModel(ev.target.value);
+                    }}
+                  />
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-out-fmt">
+                    {t("app.inspector.cursorAgentOutputFormat")}
+                  </label>
+                  <input
+                    id="gc-ca-out-fmt"
+                    className="gc-inspector-condition-input"
+                    type="text"
+                    disabled={runLocked}
+                    spellCheck={false}
+                    autoComplete="off"
+                    placeholder="text"
+                    value={caOutputFormat}
+                    onChange={(ev) => {
+                      setCaOutputFormat(ev.target.value);
+                    }}
+                  />
+                  <label className="gc-inspector-data-label" htmlFor="gc-ca-extra">
+                    {t("app.inspector.cursorAgentExtraArgs")}
+                  </label>
+                  <textarea
+                    id="gc-ca-extra"
+                    className="gc-inspector-data-textarea"
+                    rows={2}
+                    disabled={runLocked}
+                    spellCheck={false}
+                    autoComplete="off"
+                    placeholder='["--stream-partial-output"]'
+                    value={caExtraArgsJson}
+                    onChange={(ev) => {
+                      setCaExtraArgsJson(ev.target.value);
+                    }}
+                  />
+                  <div className="gc-inspector-row gc-inspector-row--field">
+                    <label className="gc-inspector-pin-toggle">
+                      <input
+                        type="checkbox"
+                        disabled={runLocked}
+                        checked={caPrintMode}
+                        onChange={(ev) => {
+                          setCaPrintMode(ev.target.checked);
+                        }}
+                      />
+                      <span>{t("app.inspector.cursorAgentPrintMode")}</span>
+                    </label>
+                  </div>
+                  <div className="gc-inspector-row gc-inspector-row--field">
+                    <label className="gc-inspector-pin-toggle">
+                      <input
+                        type="checkbox"
+                        disabled={runLocked}
+                        checked={caApplyFileChanges}
+                        onChange={(ev) => {
+                          setCaApplyFileChanges(ev.target.checked);
+                        }}
+                      />
+                      <span>{t("app.inspector.cursorAgentApplyFiles")}</span>
+                    </label>
+                  </div>
+                  <p className="gc-inspector-edge-hint">{t("app.inspector.cursorAgentHint")}</p>
+                </>
+              ) : null}
             </div>
             </>
           ) : null}

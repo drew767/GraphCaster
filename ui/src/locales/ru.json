@@ -34,6 +34,7 @@
       "addNodeNestedEmptyWorkspace": "В привязанной папке graphs/ нет графов — привяжите workspace или выберите другую категорию.",
       "onlyOneStart": "В графе уже есть нода start.",
       "addNodeGraphsHeading": "Графы в папке",
+      "addNodeCursorAgent": "Cursor Agent (пресет task)",
       "nodeContextMenuTitle": "Нода",
       "deleteNode": "Удалить ноду",
       "nodeTypes": {
@@ -132,7 +133,24 @@
       "stepCacheHeading": "Кэш шагов (F17)",
       "stepCacheEnabled": "Участвует в межпрогонном кэше на диске (нужны панель Run и корень воркспейса)",
       "stepCacheMarkDirty": "Пометить dirty на следующий запуск",
-      "stepCacheHint": "Как n8n dirtyNodeNames: при успешном старте run все затронутые task id уходят в --step-cache-dirty (транзитивно вниз по успешным рёбрам, не out_error). Правка data ноды в инспекторе делает то же. Id без запятой (CSV). «Step cache» в Run и корень воркспейса (runs/). Участвуют только task с data.stepCache."
+      "stepCacheHint": "Как n8n dirtyNodeNames: при успешном старте run все затронутые task id уходят в --step-cache-dirty (транзитивно вниз по успешным рёбрам, не out_error). Правка data ноды в инспекторе делает то же. Id без запятой (CSV). «Step cache» в Run и корень воркспейса (runs/). Участвуют только task с data.stepCache.",
+      "cursorAgentHeading": "Cursor Agent",
+      "cursorAgentEnabled": "Пресет gcCursorAgent (оставьте command/argv пустыми)",
+      "cursorAgentPrompt": "Промпт (текст)",
+      "cursorAgentPromptFile": "Файл промпта (относительно базы cwd, UTF-8)",
+      "cursorAgentCwdBase": "База рабочего каталога",
+      "cursorAgentCwdWorkspace": "Корень workspace (родитель graphs/, если папка называется graphs)",
+      "cursorAgentCwdGraphs": "Каталог graphs/",
+      "cursorAgentCwdArtifact": "Каталог артефактов корневого run",
+      "cursorAgentCwdRelative": "Подпуть от базы (без ..)",
+      "cursorAgentModel": "Модель (--model), необязательно",
+      "cursorAgentOutputFormat": "Формат вывода (--output-format), необязательно",
+      "cursorAgentExtraArgs": "Доп. аргументы (JSON-массив строк, перед промптом)",
+      "cursorAgentPrintMode": "Режим печати (-p)",
+      "cursorAgentApplyFiles": "Разрешить правки файлов (--force вместе с print)",
+      "cursorAgentHint": "command/argv на той же ноде перекрывают пресет. Плейсхолдеры: {{out:NODE_ID.processResult.stdout}} или .stderr. Установите agent CLI или задайте GC_CURSOR_AGENT; ключи API не храните в графе.",
+      "cursorAgentNeedPrompt": "Задайте непустой промпт или файл промпта.",
+      "cursorAgentExtraArgsInvalid": "Доп. аргументы — JSON-массив строк, например [\"--flag\"]."
     },
     "editor": {
       "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}.",

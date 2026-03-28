@@ -48,6 +48,8 @@
 
                 <RowDefinition Height="Auto"/>
 
+                <RowDefinition Height="Auto"/>
+
             </Grid.RowDefinitions>
 
             <Grid.ColumnDefinitions>
@@ -144,37 +146,21 @@
 
 
 
-            <Grid Grid.Row="1" Grid.Column="0" VerticalAlignment="Top">
+            <DockPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0" MinHeight="120"
 
-                <Grid.RowDefinitions>
+                       Height="{Binding ElementName=ParamsScrollViewer, Path=ActualHeight, Mode=OneWay}">
 
-                    <RowDefinition Height="Auto"/>
+                <TextBlock DockPanel.Dock="Top" FontWeight="Bold" Margin="0,0,0,4" Text="Файл промптов"/>
 
-                    <RowDefinition Height="Auto"/>
+                <ListBox Name="PromptFilesList" SelectionChanged="PromptFilesList_OnSelectionChanged"/>
 
-                </Grid.RowDefinitions>
-
-                <StackPanel Name="LeftAboveLog" Grid.Row="0">
-
-                    <TextBlock FontWeight="Bold" Margin="0,0,0,4" Text="Файл промптов"/>
-
-                    <ListBox Name="PromptFilesList" Height="88" SelectionChanged="PromptFilesList_OnSelectionChanged"/>
-
-                    <TextBlock FontWeight="Bold" Margin="0,10,0,6" Text="Лог событий монитора"/>
-
-                </StackPanel>
-
-                <TextBox Grid.Row="1" Name="TxtLog" MinHeight="72" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
-
-                         TextWrapping="Wrap" FontFamily="Consolas" FontSize="11"/>
-
-            </Grid>
+            </DockPanel>
 
 
 
             <ScrollViewer Name="ParamsScrollViewer" Grid.Row="1" Grid.Column="1" VerticalAlignment="Top"
 
-                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="12,0,0,0">
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,0">
 
                 <StackPanel Name="ParamsStackPanel">
 
@@ -208,22 +194,6 @@
 
                             <RowDefinition Height="Auto"/>
 
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
-                            <RowDefinition Height="Auto"/>
-
                         </Grid.RowDefinitions>
 
 
@@ -234,31 +204,17 @@
 
 
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Исполняемый файл CLI"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Модель"/>
 
-                        <ComboBox Name="CmbAgentExe" Grid.Row="1" Grid.Column="1" Margin="0,2" IsEditable="True"
+                        <ComboBox Name="CmbModel" Grid.Row="1" Grid.Column="1" Margin="0,2" IsEditable="False"
 
-                                  ToolTip="Команда Cursor Agent в PATH, чаще всего «agent».">
-
-                            <ComboBoxItem Content="agent"/>
-
-                            <ComboBoxItem Content="cursor-agent"/>
-
-                        </ComboBox>
+                                  ToolTip="Имя модели для --model. Список из Cursor CLI: agent models."/>
 
 
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Модель"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Режим CLI (Mode)"/>
 
-                        <ComboBox Name="CmbModel" Grid.Row="2" Grid.Column="1" Margin="0,2" IsEditable="False"
-
-                                  ToolTip="Имя модели для --model. Список заполняется из Cursor CLI (agent models) для выбранного исполняемого файла."/>
-
-
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Режим CLI (Mode)"/>
-
-                        <ComboBox Name="CmbMode" Grid.Row="3" Grid.Column="1" Margin="0,2"
+                        <ComboBox Name="CmbMode" Grid.Row="2" Grid.Column="1" Margin="0,2"
 
                                  ToolTip="agent — правки; plan/ask — без записи (см. справку скрипта).">
 
@@ -272,77 +228,31 @@
 
 
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Формат вывода (OutputFormat)"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Количество циклов к выполнению"/>
 
-                        <ComboBox Name="CmbOutputFormat" Grid.Row="4" Grid.Column="1" Margin="0,2">
-
-                            <ComboBoxItem Content="stream-json" IsSelected="True"/>
-
-                            <ComboBoxItem Content="text"/>
-
-                            <ComboBoxItem Content="json"/>
-
-                        </ComboBox>
-
-
-
-                        <CheckBox Name="ChkTrust" Grid.Row="5" Grid.Column="1" Margin="0,4" IsChecked="True"
-
-                                  ToolTip="CLI: разрешить работу в каталоге workspace без лишних запросов (--trust).">
-
-                            <TextBlock TextWrapping="Wrap" Text="Доверять каталогу workspace (--trust)"/>
-
-                        </CheckBox>
-
-                        <CheckBox Name="ChkForce" Grid.Row="6" Grid.Column="1" Margin="0,4" IsChecked="True"
-
-                                  ToolTip="CLI: перезаписывать файлы и не ждать подтверждений (--force).">
-
-                            <TextBlock TextWrapping="Wrap" Text="Перезапись файлов без запросов (--force)"/>
-
-                        </CheckBox>
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" Text="Порядок шагов" TextWrapping="NoWrap"/>
-
-                        <ComboBox Name="CmbStepOrder" Grid.Row="7" Grid.Column="1" Margin="0,2"
-
-                                  ToolTip="Авто: по имени файла. Pipeline: -PipelineOrder. Линейно: -Sequential.">
-
-                            <ComboBoxItem Tag="Auto" Content="Авто" IsSelected="True" ToolTip="По имени файла (pipeline для agent-queue.pipeline.prompts.txt, autotests и general)."/>
-
-                            <ComboBoxItem Tag="Pipeline" Content="Pipeline" ToolTip="-PipelineOrder: встроенный порядок шагов pipeline."/>
-
-                            <ComboBoxItem Tag="Sequential" Content="Линейно" ToolTip="-Sequential: блоки по порядку в файле."/>
-
-                        </ComboBox>
-
-
-
-                        <TextBlock Grid.Row="8" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Количество циклов к выполнению"/>
-
-                        <TextBox Name="TxtCycles" Grid.Row="8" Grid.Column="1" Margin="0,2" Text="1"
+                        <TextBox Name="TxtCycles" Grid.Row="3" Grid.Column="1" Margin="0,2" Text="100"
 
                                  ToolTip="-Cycles"/>
 
 
 
-                        <TextBlock Grid.Row="9" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Начать с блока №"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Начать с блока №"/>
 
-                        <TextBox Name="TxtStartFromPrompt" Grid.Row="9" Grid.Column="1" Margin="0,2" Text="1"
+                        <TextBox Name="TxtStartFromPrompt" Grid.Row="4" Grid.Column="1" Margin="0,2" Text="1"
 
                                  ToolTip="-StartFromPrompt: номер блока (1-based)."/>
 
 
 
-                        <TextBlock Grid.Row="10" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Циклов на один чат"/>
+                        <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Циклов на один чат"/>
 
-                        <TextBox Name="TxtCyclesPerChat" Grid.Row="10" Grid.Column="1" Margin="0,2" Text="0"
+                        <TextBox Name="TxtCyclesPerChat" Grid.Row="5" Grid.Column="1" Margin="0,2" Text="3"
 
                                  ToolTip="-CyclesPerChat"/>
 
 
 
-                        <CheckBox Name="ChkStartNewChat" Grid.Row="11" Grid.Column="1" Margin="0,4" IsChecked="True"
+                        <CheckBox Name="ChkStartNewChat" Grid.Row="6" Grid.Column="1" Margin="0,4" IsChecked="True"
 
                                   ToolTip="Включено: первый промпт — новый чат (без --continue). Снять: первый промпт с --continue — продолжить последний чат Cursor для этого workspace.">
 
@@ -352,35 +262,9 @@
 
 
 
-                        <CheckBox Name="ChkHideThinking" Grid.Row="12" Grid.Column="1" Margin="0,4" IsChecked="False"
+                        <TextBlock Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Таймер автоперезапуска, с"/>
 
-                                  ToolTip="Не выводить в консоль блоки размышления (stream-json: type thinking или reasoning). Если модель не шлёт эти события, галочка ничего не меняет.">
-
-                            <TextBlock TextWrapping="Wrap" Text="Скрыть вывод «размышления» (-HideThinking)"/>
-
-                        </CheckBox>
-
-                        <CheckBox Name="ChkAssistantStreamDelta" Grid.Row="13" Grid.Column="1" Margin="0,4" IsChecked="False"
-
-                                  ToolTip="Включено: печатать дельты ответа assistant по мере прихода. Выключено: накапливать и выводить итог (как в agent-queue.ps1 по умолчанию).">
-
-                            <TextBlock TextWrapping="Wrap" Text="Стримить текст ответа по частям (-AssistantStreamDelta)"/>
-
-                        </CheckBox>
-
-
-
-                        <TextBlock Grid.Row="14" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Порог простоя буфера, мс"/>
-
-                        <TextBox Name="TxtStreamBufferIdleMs" Grid.Row="14" Grid.Column="1" Margin="0,2" Text="0"
-
-                                 ToolTip="-StreamBufferIdleMs"/>
-
-
-
-                        <TextBlock Grid.Row="15" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Таймер автоперезапуска, с"/>
-
-                        <TextBox Name="TxtStallRestartSeconds" Grid.Row="15" Grid.Column="1" Margin="0,2" Text="800"
+                        <TextBox Name="TxtStallRestartSeconds" Grid.Row="7" Grid.Column="1" Margin="0,2" Text="800"
 
                                  ToolTip="Полная длительность таймера в секундах: если agent-queue.monitor-status.json не обновлялся дольше этого времени — создаётся флаг перезапуска шага (как у кнопки). 0 = только ручной перезапуск. По умолчанию 800."/>
 
@@ -390,9 +274,20 @@
 
             </ScrollViewer>
 
+
+
+            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0">
+
+                <TextBlock FontWeight="Bold" Margin="0,0,0,4" Text="Лог событий монитора"/>
+
+                <TextBox Name="TxtLog" MinHeight="72" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+
+                         TextWrapping="Wrap" FontFamily="Consolas" FontSize="11"/>
+
+            </StackPanel>
+
         </Grid>
 
     </DockPanel>
 
 </Window>
-
