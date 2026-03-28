@@ -41,9 +41,7 @@ export function useRunBridge(): void {
           }
         }
         store.runSessionAppendLineForRun(p.runId, `${prefix}${p.line}`);
-        if (p.stream !== "stderr") {
-          applyRunnerNdjsonSideEffects(p.line, p.runId);
-        }
+        applyRunnerNdjsonSideEffects(p.line, p.runId);
       });
       unlistenEx = await listen<{ runId?: string; code?: number }>("gc-run-exit", (e) => {
         const p = e.payload;

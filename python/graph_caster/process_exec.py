@@ -19,6 +19,7 @@ _CANCEL_POLL_SEC = 0.25
 _CANCEL_JOIN_TIMEOUT_SEC = 120.0
 _STREAM_READER_JOIN_SEC = 5.0
 _MAX_READLINE_CHARS = 32768
+_STREAM_QUEUE_MAX = 8192
 
 
 def _argv_from_data(data: dict[str, Any]) -> list[str] | None:
@@ -196,6 +197,49 @@ def _pipe_reader_lines_to_queue(
         pass
 
 
+def _emit_one_process_output(
+    name: str,
+    text: str,
+    eol: bool,
+    out_parts: list[str],
+    err_parts: list[str],
+    emit: EmitFn,
+    *,
+    node_id: str,
+    graph_id: str,
+    attempt: int,
+    seq: dict[str, int],
+) -> None:
+    if name == "stdout":
+        out_parts.append(text)
+        sn = seq["stdout"]
+        emit(
+            "process_output",
+            nodeId=node_id,
+            graphId=graph_id,
+            stream="stdout",
+            text=text,
+            seq=sn,
+            attempt=attempt,
+            eol=eol,
+        )
+        seq["stdout"] = sn + 1
+    else:
+        err_parts.append(text)
+        sn = seq["stderr"]
+        emit(
+            "process_output",
+            nodeId=node_id,
+            graphId=graph_id,
+            stream="stderr",
+            text=text,
+            seq=sn,
+            attempt=attempt,
+            eol=eol,
+        )
+        seq["stderr"] = sn + 1
+
+
 def _drain_process_output_queue(
     q: "queue.Queue[tuple[str, str, bool]]",
     out_parts: list[str],
@@ -212,34 +256,18 @@ def _drain_process_output_queue(
             name, text, eol = q.get_nowait()
         except queue.Empty:
             break
-        if name == "stdout":
-            out_parts.append(text)
-            sn = seq["stdout"]
-            emit(
-                "process_output",
-                nodeId=node_id,
-                graphId=graph_id,
-                stream="stdout",
-                text=text,
-                seq=sn,
-                attempt=attempt,
-                eol=eol,
-            )
-            seq["stdout"] = sn + 1
-        else:
-            err_parts.append(text)
-            sn = seq["stderr"]
-            emit(
-                "process_output",
-                nodeId=node_id,
-                graphId=graph_id,
-                stream="stderr",
-                text=text,
-                seq=sn,
-                attempt=attempt,
-                eol=eol,
-            )
-            seq["stderr"] = sn + 1
+        _emit_one_process_output(
+            name,
+            text,
+            eol,
+            out_parts,
+            err_parts,
+            emit,
+            node_id=node_id,
+            graph_id=graph_id,
+            attempt=attempt,
+            seq=seq,
+        )
 
 
 def _communicate_with_streaming(
@@ -252,7 +280,7 @@ def _communicate_with_streaming(
     timeout: float | None,
     should_cancel: Callable[[], bool] | None,
 ) -> tuple[str, str, bool, bool]:
-    q: queue.Queue[tuple[str, str, bool]] = queue.Queue()
+    q: queue.Queue[tuple[str, str, bool]] = queue.Queue(maxsize=_STREAM_QUEUE_MAX)
     out_parts: list[str] = []
     err_parts: list[str] = []
     seq = {"stdout": 0, "stderr": 0}
@@ -274,18 +302,30 @@ def _communicate_with_streaming(
 
     try:
         while proc.poll() is None:
-            _drain_process_output_queue(
-                q, out_parts, err_parts, emit, node_id=node_id, graph_id=graph_id, attempt=attempt, seq=seq
+            try:
+                name, text, eol = q.get(timeout=_CANCEL_POLL_SEC)
+            except queue.Empty:
+                if should_cancel is not None and should_cancel():
+                    cancelled = True
+                    proc.kill()
+                    break
+                if deadline is not None and time.monotonic() >= deadline:
+                    timed_out = True
+                    proc.kill()
+                    break
+                continue
+            _emit_one_process_output(
+                name,
+                text,
+                eol,
+                out_parts,
+                err_parts,
+                emit,
+                node_id=node_id,
+                graph_id=graph_id,
+                attempt=attempt,
+                seq=seq,
             )
-            if should_cancel is not None and should_cancel():
-                cancelled = True
-                proc.kill()
-                break
-            if deadline is not None and time.monotonic() >= deadline:
-                timed_out = True
-                proc.kill()
-                break
-            time.sleep(_CANCEL_POLL_SEC)
     finally:
         try:
             proc.wait(timeout=_STREAM_READER_JOIN_SEC)
