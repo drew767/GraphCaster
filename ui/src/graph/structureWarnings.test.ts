@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 import {
+  edgeIdsForStructureIssueHighlights,
   findStructureIssues,
   structureIssuesBlockRun,
   workspaceGraphRefCycleIssues,
@@ -416,5 +417,96 @@ describe("findStructureIssues", () => {
           i.missingDescriptions >= 1,
       ),
     ).toBe(true);
+  });
+});
+
+describe("edgeIdsForStructureIssueHighlights", () => {
+  it("marks incoming edges to start", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "bad",
+          source: "t1",
+          sourceHandle: "out_default",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect([...edgeIdsForStructureIssueHighlights(g, issues)]).toEqual(["bad"]);
+  });
+
+  it("marks out_error edge into barrier merge", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "x" } },
+        {
+          id: "m1",
+          type: "merge",
+          position: { x: 0, y: 0 },
+          data: { mode: "barrier" },
+        },
+      ],
+      edges: [
+        {
+          id: "ok",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "errIn",
+          source: "t1",
+          sourceHandle: "out_error",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "barrier_merge_out_error_incoming")).toBe(true);
+    expect([...edgeIdsForStructureIssueHighlights(g, issues)]).toContain("errIn");
+  });
+
+  it("marks ai_route usable edges without route description", () => {
+    const g = doc({
+      nodes: [
+        { id: "ar", type: "ai_route", position: { x: 0, y: 0 }, data: {} },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "a" } },
+        { id: "t2", type: "task", position: { x: 0, y: 0 }, data: { command: "b" } },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source: "ar",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+        },
+        {
+          id: "e2",
+          source: "ar",
+          sourceHandle: "out_default",
+          target: "t2",
+          targetHandle: "in_default",
+          data: { routeDescription: "ok" },
+        },
+      ],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "ai_route_missing_route_descriptions")).toBe(true);
+    const ids = edgeIdsForStructureIssueHighlights(g, issues);
+    expect(ids.has("e1")).toBe(true);
+    expect(ids.has("e2")).toBe(false);
   });
 });

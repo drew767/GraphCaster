@@ -7,7 +7,7 @@ import type { GraphDocumentJson } from "../graph/types";
 import { saveJsonWithFilePickerOrDownload } from "../lib/saveToDisk";
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 import {
-  type OpenGraphErrorPresentation,
+  type AppMessagePresentation,
   presentationForSaveEmptyName,
   presentationForSaveWriteFailed,
 } from "../graph/openGraphErrorPresentation";
@@ -20,7 +20,7 @@ type Props = {
   getDocument: () => GraphDocumentJson | null;
   onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<boolean>;
   onClose: () => void;
-  onUserMessage?: (presentation: OpenGraphErrorPresentation) => void;
+  onUserMessage?: (presentation: AppMessagePresentation) => void;
 };
 
 export function GraphSaveModal({
@@ -35,6 +35,17 @@ export function GraphSaveModal({
 }: Props) {
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
+
+  const showSaveError = useCallback(
+    (presentation: AppMessagePresentation, legacyAlertKey: string) => {
+      if (onUserMessage) {
+        onUserMessage(presentation);
+      } else {
+        window.alert(t(legacyAlertKey));
+      }
+    },
+    [onUserMessage, t],
+  );
 
   useEffect(() => {
     if (open) {
@@ -73,12 +84,7 @@ export function GraphSaveModal({
     }
     const trimmed = fileName.trim();
     if (trimmed === "") {
-      const p = presentationForSaveEmptyName(t);
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.saveModal.emptyName"));
-      }
+      showSaveError(presentationForSaveEmptyName(t), "app.saveModal.emptyName");
       return;
     }
     if (workspaceLinked) {
@@ -95,14 +101,9 @@ export function GraphSaveModal({
       if (e instanceof DOMException && e.name === "AbortError") {
         return;
       }
-      const p = presentationForSaveWriteFailed(t, e);
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.saveModal.writeFailed"));
-      }
+      showSaveError(presentationForSaveWriteFailed(t, e), "app.saveModal.writeFailed");
     }
-  }, [fileName, getDocument, onClose, onSaveToWorkspace, onUserMessage, t, workspaceLinked]);
+  }, [fileName, getDocument, onClose, onSaveToWorkspace, showSaveError, t, workspaceLinked]);
 
   if (!open) {
     return null;

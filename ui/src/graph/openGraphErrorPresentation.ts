@@ -4,7 +4,7 @@ import type { TFunction } from "i18next";
 
 import type { GraphDocumentParseError } from "./parseDocument";
 
-export type OpenGraphErrorPresentation = {
+export type AppMessagePresentation = {
   title: string;
   message: string;
   copyText: string;
@@ -70,11 +70,11 @@ function messageKeyForParseError(error: GraphDocumentParseError): string {
   }
 }
 
-export type OpenGraphErrorPresentationOptions = {
+export type AppMessagePresentationOptions = {
   fileName?: string;
 };
 
-function titleForOpenError(t: TFunction, opts?: OpenGraphErrorPresentationOptions): string {
+function titleForOpenError(t: TFunction, opts?: AppMessagePresentationOptions): string {
   const fn = opts?.fileName?.trim();
   if (fn) {
     return t("app.errors.openModal.titleWithFile", { fileName: fn });
@@ -85,8 +85,8 @@ function titleForOpenError(t: TFunction, opts?: OpenGraphErrorPresentationOption
 export function presentationForParseError(
   t: TFunction,
   error: GraphDocumentParseError,
-  presentationOpts?: OpenGraphErrorPresentationOptions,
-): OpenGraphErrorPresentation {
+  presentationOpts?: AppMessagePresentationOptions,
+): AppMessagePresentation {
   const key = messageKeyForParseError(error);
   const opts =
     error.kind === "invalid_node" || error.kind === "invalid_edge" ? { index: error.index } : undefined;
@@ -101,8 +101,8 @@ export function presentationForParseError(
 export function presentationForJsonSyntaxError(
   t: TFunction,
   err: unknown,
-  presentationOpts?: OpenGraphErrorPresentationOptions,
-): OpenGraphErrorPresentation {
+  presentationOpts?: AppMessagePresentationOptions,
+): AppMessagePresentation {
   const title = titleForOpenError(t, presentationOpts);
   const rawMsg = err instanceof Error ? err.message : String(err);
   const prefix = t("app.errors.openModal.json_invalid_prefix");
@@ -115,8 +115,8 @@ export function presentationForJsonSyntaxError(
 
 export function presentationForReadFailure(
   t: TFunction,
-  presentationOpts?: OpenGraphErrorPresentationOptions,
-): OpenGraphErrorPresentation {
+  presentationOpts?: AppMessagePresentationOptions,
+): AppMessagePresentation {
   const title = titleForOpenError(t, presentationOpts);
   const message = t("app.errors.openModal.read_failed");
   const fn = presentationOpts?.fileName?.trim();
@@ -127,7 +127,7 @@ export function presentationForReadFailure(
 export function presentationForInspectorSimple(
   t: TFunction,
   messageKey: string,
-): OpenGraphErrorPresentation {
+): AppMessagePresentation {
   const title = t("app.errors.inspectorModal.title");
   const message = t(messageKey);
   return { title, message, copyText: message };
@@ -136,7 +136,7 @@ export function presentationForInspectorSimple(
 export function presentationForInspectorJsonSyntaxError(
   t: TFunction,
   err: unknown,
-): OpenGraphErrorPresentation {
+): AppMessagePresentation {
   const title = t("app.errors.inspectorModal.title");
   const rawMsg = err instanceof Error ? err.message : String(err);
   const message = t("app.inspector.dataParseError");
@@ -144,16 +144,36 @@ export function presentationForInspectorJsonSyntaxError(
   return { title, message, copyText };
 }
 
-export function presentationForSaveEmptyName(t: TFunction): OpenGraphErrorPresentation {
+export function presentationForSaveEmptyName(t: TFunction): AppMessagePresentation {
   const title = t("app.errors.saveError.title");
   const message = t("app.saveModal.emptyName");
   return { title, message, copyText: message };
 }
 
-export function presentationForSaveWriteFailed(t: TFunction, err: unknown): OpenGraphErrorPresentation {
+export function presentationForSaveWriteFailed(t: TFunction, err: unknown): AppMessagePresentation {
   const title = t("app.errors.saveError.title");
   const message = t("app.saveModal.writeFailed");
   const raw = err instanceof Error ? err.message : String(err);
   const copyText = `${message}\n\n${raw}`;
+  return { title, message, copyText };
+}
+
+export function presentationForWorkspaceDuplicateGraphId(
+  t: TFunction,
+  conflictFile: string,
+): AppMessagePresentation {
+  const title = t("app.errors.saveError.title");
+  const message = t("app.workspace.duplicateGraphId", { file: conflictFile });
+  return { title, message, copyText: message };
+}
+
+export function presentationForWorkspaceWriteFailed(t: TFunction, err?: unknown): AppMessagePresentation {
+  const title = t("app.errors.saveError.title");
+  const message = t("app.workspace.writeFailed");
+  if (err == null) {
+    return { title, message, copyText: message };
+  }
+  const raw = err instanceof Error ? err.message : String(err);
+  const copyText = raw.trim() === "" ? message : `${message}\n\n${raw}`;
   return { title, message, copyText };
 }

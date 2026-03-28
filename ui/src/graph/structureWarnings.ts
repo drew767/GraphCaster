@@ -252,3 +252,44 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
   }
   return issues;
 }
+
+export function edgeIdsForStructureIssueHighlights(
+  doc: GraphDocumentJson,
+  issues: StructureIssue[],
+): Set<string> {
+  const out = new Set<string>();
+  const edges = doc.edges ?? [];
+  const byId = new Map((doc.nodes ?? []).map((n) => [n.id, n]));
+  for (const i of issues) {
+    if (i.kind === "barrier_merge_out_error_incoming") {
+      out.add(i.edgeId);
+      continue;
+    }
+    if (i.kind === "start_has_incoming") {
+      for (const e of edges) {
+        if (e.target === i.startId) {
+          out.add(e.id);
+        }
+      }
+      continue;
+    }
+    if (i.kind === "ai_route_missing_route_descriptions") {
+      for (const e of edges) {
+        if (e.source !== i.nodeId) {
+          continue;
+        }
+        if (edgeSourceHandle(e) === SOURCE_OUT_ERROR) {
+          continue;
+        }
+        const tgt = byId.get(e.target);
+        if (!tgt || tgt.type === "comment") {
+          continue;
+        }
+        if (edgeRouteDescriptionText(e) === "") {
+          out.add(e.id);
+        }
+      }
+    }
+  }
+  return out;
+}

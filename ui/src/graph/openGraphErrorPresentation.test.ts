@@ -12,6 +12,8 @@ import {
   presentationForReadFailure,
   presentationForSaveEmptyName,
   presentationForSaveWriteFailed,
+  presentationForWorkspaceDuplicateGraphId,
+  presentationForWorkspaceWriteFailed,
 } from "./openGraphErrorPresentation";
 
 function mockT(): TFunction {
@@ -51,6 +53,12 @@ function mockT(): TFunction {
     }
     if (key === "app.saveModal.writeFailed") {
       return "WRITE_FAIL";
+    }
+    if (key === "app.workspace.duplicateGraphId") {
+      return `DUP:${opts?.file ?? ""}`;
+    }
+    if (key === "app.workspace.writeFailed") {
+      return "WS_WRITE";
     }
     return key;
   }) as TFunction;
@@ -142,5 +150,28 @@ describe("presentationForSaveWriteFailed", () => {
     expect(p.title).toBe("SAVE_TITLE");
     expect(p.message).toBe("WRITE_FAIL");
     expect(p.copyText).toContain("disk");
+  });
+});
+
+describe("presentationForWorkspaceDuplicateGraphId", () => {
+  it("interpolates conflicting file", () => {
+    const p = presentationForWorkspaceDuplicateGraphId(mockT(), "other.json");
+    expect(p.title).toBe("SAVE_TITLE");
+    expect(p.message).toBe("DUP:other.json");
+  });
+});
+
+describe("presentationForWorkspaceWriteFailed", () => {
+  it("uses workspace write message", () => {
+    const p = presentationForWorkspaceWriteFailed(mockT());
+    expect(p.title).toBe("SAVE_TITLE");
+    expect(p.message).toBe("WS_WRITE");
+    expect(p.copyText).toBe("WS_WRITE");
+  });
+
+  it("appends error to copyText when err provided", () => {
+    const p = presentationForWorkspaceWriteFailed(mockT(), new Error("eacces"));
+    expect(p.message).toBe("WS_WRITE");
+    expect(p.copyText).toContain("eacces");
   });
 });

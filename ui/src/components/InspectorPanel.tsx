@@ -18,7 +18,7 @@ import {
 } from "../run/stepCacheDirtyStore";
 import { mergeModeFromNodeData } from "../graph/structureWarnings";
 import {
-  type OpenGraphErrorPresentation,
+  type AppMessagePresentation,
   presentationForInspectorJsonSyntaxError,
   presentationForInspectorSimple,
 } from "../graph/openGraphErrorPresentation";
@@ -38,7 +38,7 @@ type Props = {
   runLocked?: boolean;
   onRunUntilThisNode?: () => void;
   runUntilThisNodeEnabled?: boolean;
-  onUserMessage?: (presentation: OpenGraphErrorPresentation) => void;
+  onUserMessage?: (presentation: AppMessagePresentation) => void;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -153,6 +153,14 @@ export function InspectorPanel({
     return n?.type === GRAPH_NODE_TYPE_AI_ROUTE;
   }, [selection, graphDocument.nodes]);
 
+  const showInspectorError = (presentation: AppMessagePresentation, legacyAlertKey: string) => {
+    if (onUserMessage) {
+      onUserMessage(presentation);
+    } else {
+      window.alert(t(legacyAlertKey));
+    }
+  };
+
   useEffect(() => {
     if (selection != null) {
       return;
@@ -178,21 +186,17 @@ export function InspectorPanel({
     try {
       parsed = JSON.parse(dataText);
     } catch (err) {
-      const p = presentationForInspectorJsonSyntaxError(t, err);
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.inspector.dataParseError"));
-      }
+      showInspectorError(
+        presentationForInspectorJsonSyntaxError(t, err),
+        "app.inspector.dataParseError",
+      );
       return;
     }
     if (!isPlainObject(parsed)) {
-      const p = presentationForInspectorSimple(t, "app.inspector.invalidDataJson");
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.inspector.invalidDataJson"));
-      }
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.invalidDataJson"),
+        "app.inspector.invalidDataJson",
+      );
       return;
     }
     onApplyNodeData(selection.id, parsed);
@@ -234,12 +238,10 @@ export function InspectorPanel({
       try {
         inputsParsed = JSON.parse(graphInputsText);
       } catch (err) {
-        const p = presentationForInspectorJsonSyntaxError(t, err);
-        if (onUserMessage) {
-          onUserMessage(p);
-        } else {
-          window.alert(t("app.inspector.dataParseError"));
-        }
+        showInspectorError(
+          presentationForInspectorJsonSyntaxError(t, err),
+          "app.inspector.dataParseError",
+        );
         return;
       }
     }
@@ -249,12 +251,10 @@ export function InspectorPanel({
       try {
         outputsParsed = JSON.parse(graphOutputsText);
       } catch (err) {
-        const p = presentationForInspectorJsonSyntaxError(t, err);
-        if (onUserMessage) {
-          onUserMessage(p);
-        } else {
-          window.alert(t("app.inspector.dataParseError"));
-        }
+        showInspectorError(
+          presentationForInspectorJsonSyntaxError(t, err),
+          "app.inspector.dataParseError",
+        );
         return;
       }
     }
@@ -263,12 +263,10 @@ export function InspectorPanel({
       !Array.isArray(inputsParsed) &&
       !isPlainObject(inputsParsed)
     ) {
-      const p = presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson");
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.inspector.graphParamsInvalidJson"));
-      }
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson"),
+        "app.inspector.graphParamsInvalidJson",
+      );
       return;
     }
     if (
@@ -276,12 +274,10 @@ export function InspectorPanel({
       !Array.isArray(outputsParsed) &&
       !isPlainObject(outputsParsed)
     ) {
-      const p = presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson");
-      if (onUserMessage) {
-        onUserMessage(p);
-      } else {
-        window.alert(t("app.inspector.graphParamsInvalidJson"));
-      }
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson"),
+        "app.inspector.graphParamsInvalidJson",
+      );
       return;
     }
     const svRaw = graphSchemaVersion.trim();
@@ -291,12 +287,10 @@ export function InspectorPanel({
     } else {
       const n = Number.parseInt(svRaw, 10);
       if (!Number.isFinite(n)) {
-        const p = presentationForInspectorSimple(t, "app.inspector.graphSchemaInvalid");
-        if (onUserMessage) {
-          onUserMessage(p);
-        } else {
-          window.alert(t("app.inspector.graphSchemaInvalid"));
-        }
+        showInspectorError(
+          presentationForInspectorSimple(t, "app.inspector.graphSchemaInvalid"),
+          "app.inspector.graphSchemaInvalid",
+        );
         return;
       }
       schemaVersion = n;

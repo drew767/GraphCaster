@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OpenGraphErrorPresentation } from "../graph/openGraphErrorPresentation";
+import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
 
 type Props = {
   open: boolean;
-  presentation: OpenGraphErrorPresentation | null;
+  presentation: AppMessagePresentation | null;
   onClose: () => void;
 };
 

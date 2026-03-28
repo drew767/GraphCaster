@@ -34,7 +34,7 @@
 |-----------------|---------------|
 | Не показывать безликий alert при битом workflow | **Файл → Открыть** и **Открыть из graphs/…**: при ошибке чтения, синтаксиса JSON или **`parseGraphDocumentJsonResult`** — модалка **`OpenGraphErrorModal`** с i18n-текстом по виду ошибки (**`nodes` не массив**, невалидный **`schemaVersion`**, индекс битой ноды/ребра и т.д.) |
 | Понять, какой файл ломается | Заголовок **`titleWithFile`** с **`fileName`** (локальный pick и файл воркспейса); детали для копирования — JSON ошибки парсера или текст **`JSON.parse`** / read |
-| Те же паттерны в инспекторе и Save, что у n8n/Dify (явная ошибка вместо «голого» alert) | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — модалка **`OpenGraphErrorModal`** через **`onUserMessage`** (`presentationForInspector*`); пустое имя файла и сбой записи в **`GraphSaveModal`** — **`presentationForSave*`**; общее состояние **`appMessageModal`** в **`AppShell`** |
+| Те же паттерны в инспекторе и Save, что у n8n/Dify (явная ошибка вместо «голого» alert) | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — модалка **`OpenGraphErrorModal`** через **`onUserMessage`** (`presentationForInspector*`); пустое имя файла и сбой записи в **`GraphSaveModal`** — **`presentationForSave*`**; конфликт **`graphId`** при записи в **`graphs/`** и ошибка **`writeJsonFileToDir`** из **`saveDocumentToWorkspace`** — **`presentationForWorkspace*`**; тип полезной нагрузки модалки — **`AppMessagePresentation`**; общее состояние **`appMessageModal`** в **`AppShell`** |
 
 Код: **`ui/src/graph/openGraphErrorPresentation.ts`**, **`ui/src/components/OpenGraphErrorModal.tsx`**, **`ui/src/layout/AppShell.tsx`**, **`InspectorPanel.tsx`**, **`GraphSaveModal.tsx`**; Vitest **`ui/src/graph/openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 помечен как **закрытый**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
 
@@ -61,7 +61,7 @@
 | Выражения к данным шага без небезопасного eval | Подмножество **JSON Logic** в строке **`edge.condition`** (JSON-объект с одной корневой операцией); **шаблоны** **`{{path}}`** (truthiness) и **`{{path}} <op> <literal>`** (`op` ∈ `==`, `!=`, `<`, `<=`, `>`, `>=`; кавычки для строковых литералов; для **`==`/`!=`** — числовое приведение строки и числа как **`_coerce_num`**; литерал сравнения **без** многострочного «растягивания» regex); корень пути — зарезервированные **`$json`**, **`$node`** (см. «Контекст предиката») или прежние **dotted** корни (**`node_outputs`**, …); иначе legacy-литеры **`true`**/**`false`**/…; иначе не-JSON-строка без `{{` → **`bool(context["last_result"])`**. Реализация: **`graph_caster/edge_conditions.py`**, статический разбор в UI: **`edgeConditionTemplates.ts`** / предупреждения в **`branchWarnings.ts`** и **`AppShell`** (в т.ч. **`too_long`** при превышении **`MAX_EDGE_CONDITION_CHARS`**, см. `python/README.md`) |
 | Контекст предиката | **`last_result`**, **`node_outputs`**, пути **`var`** через **`.`** (напр. **`node_outputs.t1.processResult.exitCode`** — для **UUID** в **id** наивный **`node_outputs.<uuid>…`** по точкам не годится); **синтетический корень** **`$json`** = **`last_result`** если **`dict`**, иначе **`{"value": last_result}`**; **синтетический корень** **`$node`** = **алиас** того же **`node_outputs`**, что уже в данных предиката (**`$node["…"]`**, **`$node['…']`**, **`$node.shortId`** — см. **`python/README.md`**). Ключи **`$json`** / **`$node`** из **`context`** при оценке перезаписываются. Полный **n8n Expression** / JS sandbox **не** используются. Скрыты только **корневые** ключи **`context`** с префиксом **`_`**; вложенные поля под **`node_outputs`** не маскируются |
 | Связь с **task** | **`node_outputs[id].processResult`**: `exitCode`, `success`, `timedOut`, `cancelled`, объёмы stdout/stderr — после каждого **`process_complete`** и при **`spawn_error`** (`exitCode` **`-1`**, `python/graph_caster/process_exec.py`) |
-| Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc) |
+| Статические предупреждения в UI (не заменяют раннер) | **`findBranchAmbiguities`** / **`branchWarnings`** — два безусловных исхода, дубликаты строки условия (`ui/`, **§32.1** competitive doc); затронутые рёбра — на canvas (**`edgeIdsForBranchAmbiguities`**, **`gc-edge--warning`**) |
 | Событие выбранной ветки | **`edge_traverse`** (совместимость); перед ним при ветвлении — **`branch_skipped`** (`reason`: **`condition_false`**) для оценённых ложных условий, **`branch_taken`** (с **`graphId`**) если исходящих больше одного или были skip (**`runner.py`**, **`schemas/run-event.schema.json`**) |
 | **`$node`** в условиях (срез n8n **`$node[…]`** без Expression VM) | Рантайм: **`python/graph_caster/edge_conditions.py`** (**`_predicate_data`**, **`_get_path`**, regex шаблонов). Паритет статического разбора в UI: **`ui/src/graph/edgeConditionTemplates.ts`**. Тесты: **`python/tests/test_edge_conditions.py`**, **`test_edge_condition_templates.py`**, **`ui/src/graph/edgeConditionTemplates.test.ts`**. Поведение и ограничения (кавычки в id и т.д.): **`python/README.md`** |
 
@@ -132,7 +132,7 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Жёсткая проверка пинов до исполнения | **`validate_graph_structure`** вызывает **`find_handle_compatibility_violations`** (`python/graph_caster/handle_contract.py`); первая ошибка → **`GraphStructureError`** |
-| Мягкое предупреждение в редакторе | UI: **`findHandleCompatibilityIssues`** (`ui/src/graph/handleCompatibility.ts`), контракт пинов **`handleContract.ts`**, жёлтая полоса в **`AppShell`** (не входит в **`structureIssuesBlockRun`**) |
+| Мягкое предупреждение в редакторе | UI: **`findHandleCompatibilityIssues`** (`ui/src/graph/handleCompatibility.ts`), контракт пинов **`handleContract.ts`**, жёлтая полоса в **`AppShell`** (не входит в **`structureIssuesBlockRun`**). Рёбра с теми же и родственными статическими проблемами подсвечиваются на canvas (**`collectCanvasWarningEdgeIds`**, **`warningEdges.ts`**, класс **`gc-edge--warning`** в **`app.css`**) — вместе с ветвлением (**`edgeIdsForBranchAmbiguities`**) и частью структуры (**`edgeIdsForStructureIssueHighlights`**: вход в **start**, **out_error** в barrier **merge**, **ai_route** без **`routeDescription`**) |
 | Паритет TS/Python | Фикстуры **`schemas/test-fixtures/handle-*.json`**; тесты **`python/tests/test_handle_compatibility.py`**, **`ui/src/graph/handleCompatibility.test.ts`** |
 
 **Правила (MVP):** **`start`** — только **`out_default`**; **`exit`** — только **`in_default`**, без исходящих как источник; **`task`** / **`graph_ref`** — **`out_default`** \| **`out_error`** в исход, **`in_default`** в приём; **`merge`** — только **`in_default`** / **`out_default`**; **`comment`** — рёбра к комментарию не проверяются.
@@ -364,9 +364,21 @@
 
 ---
 
+## MiniMap и панель управления полотном (навигация, @xyflow)
+
+Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): факт реализации — здесь; в competitive остаётся только **открытая** тема виртуализации / lazy-подграфов на очень больших графах.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** / **Dify** / **Langflow** — обзорная миникарта и кнопки масштаба | Виджеты **`MiniMap`** (**`pannable`**, **`zoomable`**) и **`Controls`** (**zoom in/out**, **fit view**, переключатель интерактивности) из **@xyflow/react** на **`GraphCanvas`** (`ui/src/components/GraphCanvas.tsx`); подписи **`aria-*`** через **`reactFlowTranslations`** и **`app.canvas.flowControls.*`** (локали **en/ru**) |
+
+Код: `GraphCanvas.tsx`, `app.css` (классы полотна при необходимости), локали **`app.canvas.flowControls`**.
+
+---
+
 ## Поиск и переход к ноде на canvas (n8n «Add node» palette / Langflow поиск компонентов)
 
-Снятие пункта «поиск ноды на полотне» из **открытого** плана в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28.2** (п.4 «Мини-карта / навигация»): факт реализации только здесь, без дублирования таблиц в competitive.
+Пункт **§28.2** п.4 «поиск на полотне» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): факт реализации только здесь, без дублирования таблиц в competitive (рядом — раздел **«MiniMap и панель управления полотном»** выше).
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|

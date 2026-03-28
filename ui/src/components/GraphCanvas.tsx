@@ -46,6 +46,23 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
 
+const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
+
+const GC_EDGE_WARN_CLASS = "gc-edge--warning";
+
+function mergeEdgeWarningHighlight(edges: Edge[], warnIds: ReadonlySet<string>): Edge[] {
+  return edges.map((e) => {
+    const want = warnIds.has(e.id);
+    const strip = (e.className ?? "").replace(/\bgc-edge--warning\b/g, "").trim();
+    const className = want
+      ? strip
+        ? `${strip} ${GC_EDGE_WARN_CLASS}`
+        : GC_EDGE_WARN_CLASS
+      : strip || undefined;
+    return { ...e, className };
+  });
+}
+
 export type GraphCanvasSelection =
   | {
       kind: "node";
@@ -116,6 +133,8 @@ type Props = {
   runHighlightNodeId?: string | null;
   /** Called when export drops edges with missing endpoint nodes (sanitize). */
   onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
+  /** Edge ids with branch/handle/structure warnings — yellow stroke on canvas. */
+  warningEdgeIds?: ReadonlySet<string>;
 };
 
 const nodeTypes = {
@@ -248,6 +267,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       structureLocked = false,
       runHighlightNodeId = null,
       onExportRemovedDanglingEdges,
+      warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
     },
     ref,
   ) {
@@ -446,8 +466,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         return { ...n, className };
       });
       setNodes(nodesWithHl);
-      setEdges(base.edges);
-    }, [graphDocument, runHighlightNodeId, setNodes, setEdges]);
+      setEdges(mergeEdgeWarningHighlight(base.edges, warningEdgeIds));
+    }, [graphDocument, runHighlightNodeId, warningEdgeIds, setNodes, setEdges]);
 
     const onSelectionChange = useCallback(
       ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {

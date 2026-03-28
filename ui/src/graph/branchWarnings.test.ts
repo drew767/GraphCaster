@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MAX_EDGE_CONDITION_CHARS } from "./edgeConditionTemplates";
-import { findBranchAmbiguities } from "./branchWarnings";
+import { edgeIdsForBranchAmbiguities, findBranchAmbiguities } from "./branchWarnings";
 import type { GraphDocumentJson } from "./types";
 
 describe("findBranchAmbiguities", () => {
@@ -37,6 +37,7 @@ describe("findBranchAmbiguities", () => {
     };
     const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
     expect(issues.map((x) => x.sourceId).sort()).toEqual(["s1", "t0"]);
+    expect([...edgeIdsForBranchAmbiguities(doc, issues)].sort()).toEqual(["e1", "e2"]);
   });
 
   it("does not flag out_error from graph_ref", () => {
@@ -139,5 +140,25 @@ describe("findBranchAmbiguities", () => {
     };
     const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "template_condition_invalid");
     expect(issues).toHaveLength(0);
+  });
+
+  it("edgeIdsForBranchAmbiguities lists all unconditional edges when multiple_unconditional", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "ffffffff-ffff-4fff-8fff-ffffffffffff", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "a", type: "task", position: { x: 0, y: 0 }, data: { command: "x" } },
+        { id: "b", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+      ],
+      edges: [
+        { id: "e1", source: "s1", target: "a", condition: null },
+        { id: "e2", source: "s1", target: "b", condition: "  " },
+      ],
+    };
+    const amb = findBranchAmbiguities(doc);
+    expect(amb.some((x) => x.kind === "multiple_unconditional")).toBe(true);
+    expect([...edgeIdsForBranchAmbiguities(doc, amb)].sort()).toEqual(["e1", "e2"]);
   });
 });

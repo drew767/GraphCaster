@@ -32,11 +32,13 @@ import { findBranchAmbiguities } from "../graph/branchWarnings";
 import { pickCommentParentId } from "../graph/flowHierarchy";
 import { defaultDataForNodeType, newGraphEdgeId, newGraphNodeId } from "../graph/nodePalette";
 import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
-import type { OpenGraphErrorPresentation } from "../graph/openGraphErrorPresentation";
+import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
 import {
   presentationForJsonSyntaxError,
   presentationForParseError,
   presentationForReadFailure,
+  presentationForWorkspaceDuplicateGraphId,
+  presentationForWorkspaceWriteFailed,
 } from "../graph/openGraphErrorPresentation";
 import { buildCanvasNodeSearchRows } from "../graph/canvasNodeSearch";
 import {
@@ -52,6 +54,7 @@ import {
   structureIssuesBlockRun,
   workspaceGraphRefCycleIssues,
 } from "../graph/structureWarnings";
+import { collectCanvasWarningEdgeIds } from "../graph/warningEdges";
 import { nodeLabel } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
@@ -158,13 +161,17 @@ export function AppShell({ onLangChange }: Props) {
     }
     return [...base, ...workspaceGraphRefCycleIssues(workspaceIndex)];
   }, [graphDocument, workspaceGraphsDir, workspaceIndex]);
+  const canvasWarningEdgeIds = useMemo(
+    () => collectCanvasWarningEdgeIds(graphDocument, structureIssues),
+    [graphDocument, structureIssues],
+  );
   const [activeWorkspaceFile, setActiveWorkspaceFile] = useState<string | null>(null);
   const [layoutDirtyEpoch, setLayoutDirtyEpoch] = useState(0);
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
-  const [appMessageModal, setAppMessageModal] = useState<OpenGraphErrorPresentation | null>(null);
+  const [appMessageModal, setAppMessageModal] = useState<AppMessagePresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
   const [autosaveFailed, setAutosaveFailed] = useState(false);
@@ -580,7 +587,7 @@ export function AppShell({ onLangChange }: Props) {
       const safeTarget = sanitizeWorkspaceGraphFileName(targetFileName);
       const conflict = findWorkspaceGraphIdConflict(workspaceIndex, gid, safeTarget);
       if (conflict) {
-        window.alert(t("app.workspace.duplicateGraphId", { file: conflict }));
+        setAppMessageModal(presentationForWorkspaceDuplicateGraphId(t, conflict));
         return false;
       }
       try {
@@ -590,12 +597,12 @@ export function AppShell({ onLangChange }: Props) {
         setAutosaveFailed(false);
         await rescanWorkspace(workspaceGraphsDir);
         return true;
-      } catch {
-        window.alert(t("app.workspace.writeFailed"));
+      } catch (e) {
+        setAppMessageModal(presentationForWorkspaceWriteFailed(t, e));
         return false;
       }
     },
-    [rescanWorkspace, t, workspaceGraphsDir, workspaceIndex],
+    [rescanWorkspace, setAppMessageModal, t, workspaceGraphsDir, workspaceIndex],
   );
 
   const openSaveModal = useCallback(() => {
@@ -1421,6 +1428,7 @@ export function AppShell({ onLangChange }: Props) {
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={runSessionBlocking}
               runHighlightNodeId={runSession.activeNodeId}
+              warningEdgeIds={canvasWarningEdgeIds}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);
               }}

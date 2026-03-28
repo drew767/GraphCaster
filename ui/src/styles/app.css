@@ -448,6 +448,15 @@ body {
   gap: 0.35rem;
 }
 
+.gc-flow-wrap .react-flow__edge.gc-edge--warning .react-flow__edge-path {
+  stroke: color-mix(in srgb, #d68910 78%, var(--gc-text-primary));
+  stroke-width: 2.5px;
+}
+
+.gc-flow-wrap .react-flow__edge.gc-edge--warning.selected .react-flow__edge-path {
+  stroke: color-mix(in srgb, #f5b041 72%, var(--gc-accent));
+}
+
 .gc-flow-wrap .react-flow {
   --xy-minimap-background-color-props: var(--gc-surface-2);
   --xy-controls-button-background-color: var(--gc-surface-1);

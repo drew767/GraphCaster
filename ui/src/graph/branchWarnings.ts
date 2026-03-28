@@ -131,3 +131,39 @@ export function findBranchAmbiguities(doc: GraphDocumentJson): BranchAmbiguity[]
   result.push(...unreachableErr);
   return [...templateIssues, ...result];
 }
+
+export function edgeIdsForBranchAmbiguities(
+  doc: GraphDocumentJson,
+  ambiguities: BranchAmbiguity[],
+): Set<string> {
+  const out = new Set<string>();
+  const edges = doc.edges ?? [];
+  for (const a of ambiguities) {
+    if (typeof a.edgeId === "string" && a.edgeId.trim() !== "") {
+      out.add(a.edgeId);
+    }
+    const fanoutEdges = edges.filter(
+      (e) => e.source === a.sourceId && isErrorFanoutEdge(e) === (a.handleFanout === "error"),
+    );
+    if (a.kind === "multiple_unconditional") {
+      for (const e of fanoutEdges) {
+        if (isUnconditional(e.condition)) {
+          out.add(e.id);
+        }
+      }
+    } else if (a.kind === "duplicate_condition") {
+      const d = (a.detail ?? "").trim();
+      for (const e of fanoutEdges) {
+        const c = e.condition == null ? "" : String(e.condition).trim();
+        if (c === d) {
+          out.add(e.id);
+        }
+      }
+    } else if (a.kind === "out_error_unreachable") {
+      for (const e of fanoutEdges) {
+        out.add(e.id);
+      }
+    }
+  }
+  return out;
+}
