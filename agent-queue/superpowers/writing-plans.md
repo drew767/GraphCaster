@@ -8,7 +8,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Path convention
 
-Use paths **relative to the workspace root** (Cursor `--workspace` / `agent-queue.ps1 -Workspace`; default for this tree is the **graph-caster** repo root: parent of `agent-queue/`). Prefer forward slashes in prose. Examples: `python/tests/test_x.py`, `ui/src/run/foo.ts`, `doc/plans/YYYY-MM-DD-feature.md`, `agent-queue/prompts/agent-queue.pipeline.prompts.txt`.
+Use paths **relative to the workspace root** (Cursor `--workspace` / `agent-queue.ps1 -Workspace`; default for this tree is the **graph-caster** repo root: parent of `agent-queue/`). Prefer forward slashes in prose. Examples: `python/tests/test_x.py`, `ui/src/run/foo.ts`, `doc/plans/YYYY-MM-DD-feature.md`, `agent-queue/prompts/agent-queue.general.pipeline.prompts.txt`.
 
 ## Overview
 

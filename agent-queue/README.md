@@ -10,7 +10,7 @@
 
 **Не входят в эту реализацию** (в документации и инструментах на них не ориентироваться): отдельный **`agent-queue-2.ps1`**, NDJSON **CLI deep log** (`agent-queue-cli-deep-*.log`), **`-AgentQueueDebug`**, **`AGENT_QUEUE_DEBUG`**, **`AGENT_QUEUE_CLI_DEEP_*`**, отдельный **`agent-queue-watchdog-*.log`**, параметры **`-StreamFirstLineHeartbeatSeconds`** / **`-MaxMinutesWithoutFirstStdout`** и автоматическое «восстановление» по отсутствию stdout.
 
-**После правок `agent-queue.ps1`:** см. [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md) §4.5.1 (smoke) и §4.5.2; обязательный ручной прогон с реальным **`agent`** — **`_diag-run-agent-queue-step.ps1`** (нужны CLI и сессия).
+**После правок `agent-queue.ps1`:** быстрый smoke без реального **`agent`** — **`agent-queue.ps1 -DryRun`** с однострочным **`-PromptFile`** (в выводе есть **`Would run:`**) и/или **`-AgentQueueSmokeTest -PromptFile .../agent-queue.prompts.example.txt`** (long-prompt path); обязательный ручной прогон с реальным **`agent`** — **`_diag-run-agent-queue-step.ps1`** (нужны CLI и сессия). Это **не** [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md) / **AT-xxx** мессенджера.
 
 **Корень для Cursor (`-Workspace`, `--workspace`):** по умолчанию это каталог **рядом с `agent-queue/`**, в котором есть **`python/`** и **`ui/`** (корень **graph-caster**), а не «два уровня вверх» от `agent-queue` (иначе из `third_party/graph-caster/agent-queue` получался бы неверный `third_party`). Устаревшая схема **`scripts/agent-queue`**: если родитель папки `agent-queue` называется **`scripts`**, умолчание — **на два уровня вверх** (корень монорепозитория). Монитор выставляет то же правило в поле workspace.
 
@@ -20,19 +20,19 @@
 
 Если **`agent login`** в PowerShell падает с **PSSecurityException / running scripts is disabled**, запустите из `monitor/` **`cursor-agent-login.bat`** (один раз обходит политику для этого процесса, `RemoteSigned` для профиля не обязателен).
 
-Пример пост-задачи (после фичи): см. [FEATURE_VERIFICATION_TEST_PROJECT.md §14](../../docs/FEATURE_VERIFICATION_TEST_PROJECT.md).
+Пост-задача и нормы коммита: [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc).
 
 ## Папка `prompts/`
 
 Здесь только **действующие** файлы очереди — те, что выбираются как `-PromptFile` / из меню `run-agent-queue.bat` (файлы `*.txt`). Локальный оверрайд без коммита: **`agent-queue/agent-queue.prompts.local.txt`** рядом с `agent-queue.ps1`.
 
-Сценарии совместной работы с Git (fetch/merge/push/проверка) **встроены** в **`prompts/agent-queue.pipeline.prompts.txt`**, **`prompts/agent-queue.autotests.pipeline.prompts.txt`** и **`prompts/agent-queue.general.pipeline.prompts.txt`**: в шапке файлов обычно только строка copyright (`#`); шаги merge/push/commit — **в теле** соответствующих блоков (разделитель **`---`**). Формат сообщений коммита и роли документов — [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc); ссылки на спеки автотестов и матрицу **`AT-xxx`** — вводный абзац [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md) и [FEATURE_VERIFICATION_TEST_PROJECT.md](../../docs/FEATURE_VERIFICATION_TEST_PROJECT.md) §**15**.
+Сценарии совместной работы с Git (fetch/merge/push/проверка) **встроены** в **`prompts/agent-queue.*.pipeline.prompts.txt`** (в т.ч. **general**, **graphcaster**, **aura-sdk**, **autotests**): в шапке файлов обычно только строка copyright (`#`); шаги merge/push/commit — **в теле** соответствующих блоков (разделитель **`---`**). Формат сообщений коммита и роли документов — [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc). Матрица **`AT-xxx`** продукта (мессенджер / стенд) — [FEATURE_VERIFICATION_TEST_PROJECT.md](../../docs/FEATURE_VERIFICATION_TEST_PROJECT.md) §**15**; как запускать реализованные тесты — [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md).
 
 **`run-agent-queue.bat` без аргументов** показывает нумерованный список всех `*.txt` из `prompts/`, затем запрашивает число циклов и **cycles per chat** (`-CyclesPerChat`), после чего запускает непрерывное выполнение до конца всех циклов.
 
 ### Git: синхронизация с remote перед коммитом
 
-Канонический текст для агента — блок **«Синхронизация с remote перед коммитом»** внутри pipeline-файлов в `prompts/` (перед блоком коммита). В **`agent-queue.pipeline.prompts.txt`** шаги **1–6**; в **autotests** и **general** блок короче (без отдельного шага **6**) — при выравнивании правьте `prompts/` **только** с префиксом из [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc) (**`РЕДАКТИРОВАНИЕ АВТОМТИЧЕСКИХ ЗАПРОСОВ`**). Ниже — полная логика для людей и поиска; при расхождении с `prompts/*.txt` для людей ориентир — **этот подраздел README**.
+Канонический текст для агента — блок **«Синхронизация с remote перед коммитом»** внутри pipeline-файлов в `prompts/` (перед блоком коммита). Число нумерованных шагов в блоке может отличаться по файлам (сверяйте с **dev-workflow** и [DEV_SETUP — Git](../../docs/DEV_SETUP.md#git-sync-with-origin)); при выравнивании правьте `prompts/` **только** с префиксом из [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc) (**`РЕДАКТИРОВАНИЕ АВТОМТИЧЕСКИХ ЗАПРОСОВ`**). Ниже — полная логика для людей и поиска; при расхождении с `prompts/*.txt` для людей ориентир — **этот подраздел README**.
 
 Синхронизация с remote перед коммитом (совместная работа с другим разработчиком).
 
@@ -49,13 +49,14 @@ Merge/rebase и конфликты реши самостоятельно; нах
 
 ## Файлы pipeline (встроенный порядок шагов)
 
-Для **трёх** имён файлов в `prompts/` `agent-queue.ps1` по умолчанию включает тот же режим, что и для основного pipeline (минимум **3** блока `---`; см. справку):
+Для имён вида **`agent-queue.*.pipeline.prompts.txt`** в `prompts/` при явном **`-PromptFile`** `agent-queue.ps1` включает встроенный порядок шагов pipeline (минимум **3** блока `---`; см. `-Help`). **Умалчиваемого файла промптов нет:** если **`-PromptFile` не задан**, подставляются только **`agent-queue.prompts.local.txt`** или **`agent-queue.prompts.txt`** (рядом со скриптом или в `prompts/`).
 
 | Файл | Назначение |
 |------|------------|
-| `prompts/agent-queue.pipeline.prompts.txt` | Итерации по разработке фичи (brainstorming → **writing-plans** → **executing-plans** → ревью → коммит → следующая задача). Инъекция скиллов: `superpowers/*.md` при префиксах `/brainstorming`, `/writing-plans`, `/executing-plans`, `/requesting-code-review` (`agent-queue.ps1 -Help`). |
-| `prompts/agent-queue.autotests.pipeline.prompts.txt` | Итерации по автотестам: приоритет AT-xxx, ревью тестов, коммит, следующий шаг (см. заголовок файла). |
-| `prompts/agent-queue.general.pipeline.prompts.txt` | Сквозная автоматизация разработки репозитория: инфраструктура, DX, CI, скрипты, документация для разработчиков (не привязка к одной фиче сервиса). |
+| `prompts/agent-queue.general.pipeline.prompts.txt` | Сквозная автоматизация монорепозитория: DX, CI, скрипты, согласованные итерации плана/кода/ревью/коммита (см. заголовок и блоки файла). |
+| `prompts/agent-queue.graphcaster.pipeline.prompts.txt` | Pipeline под работу в дереве **graph-caster** / смежном workspace. |
+| `prompts/agent-queue.aura-sdk.pipeline.prompts.txt` | Pipeline под слой **Aura SDK** (`clients/aura-client-sdk/`). |
+| `prompts/agent-queue.autotests.pipeline.prompts.txt` | Итерации по автотестам: приоритет AT-xxx, ревью тестов, коммит (см. заголовок файла). |
 
 Пример (автотесты, `N` циклов):
 

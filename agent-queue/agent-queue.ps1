@@ -162,7 +162,7 @@ When the CLI sends a final assistant event after deltas, the full message is not
 By default, incremental assistant deltas are not printed (only the final assistant block, or the
 accumulated text at end of the step if there is no final event). Pass -AssistantStreamDelta to
 show streamed assistant text as it arrives (buffered; see -StreamBufferChars).
-Pipeline mode (default for agent-queue.pipeline.prompts.txt, agent-queue.autotests.pipeline.prompts.txt, and agent-queue.general.pipeline.prompts.txt): at least 3 blocks
+Pipeline mode (default for agent-queue*.pipeline.prompts.txt under prompts/, e.g. general / autotests / graphcaster / aura-sdk): at least 3 blocks
 separated by ---. Block 1 starts a new chat; the last block anchors the next cycle;
 the second-to-last block is the commit step. Step order (1-based block indices): first
 cycle of a session runs 1..N in file order (through commit, then anchor). Later cycles
@@ -173,7 +173,7 @@ cycles a new chat starts; each K-th cycle ends after commit without the anchor s
 If -CyclesPerChat is 0 (default), one chat for the whole run (except the first prompt still starts without --continue).
 
 Options:
-  -PromptFile      Path to prompts (default: see below)
+  -PromptFile      Path to prompts (required unless agent-queue.prompts.local.txt or agent-queue.prompts.txt exists — see below)
   -Workspace       Passed to agent --workspace (Cursor project root). Default: directory containing python/ and ui/ next to agent-queue/ (graph-caster layout); if parent of agent-queue/ is named scripts/, default is two levels up (legacy repo root); else parent of agent-queue/. Relative -Workspace resolves against that default root, then the agent-queue script directory.
   -AgentExe        Agent executable name or path (default: agent)
   -Model           Cursor model id for --model (default: composer-2 = Composer 2). Use composer-2-fast for Composer 2 Fast. Empty string = omit --model (CLI default).
@@ -224,9 +224,9 @@ Options:
   Injected skills are prefixed with "## Superpower: ..." (not a line starting with ---) so Cursor CLI does not treat the prompt as extra flags.
 
 Prompt files:
-  - agent-queue.prompts.local.txt (optional, gitignored) next to agent-queue.ps1 overrides everything if present
-  - prompts/agent-queue.prompts.txt - default queue file (can be committed)
-  - prompts/agent-queue.pipeline.prompts.txt - built-in pipeline if no prompts.txt / local
+  - agent-queue.prompts.local.txt (optional, gitignored) next to agent-queue.ps1 — used automatically when present
+  - prompts/agent-queue.prompts.txt (or agent-queue.prompts.txt next to script) — used automatically when present if no local file
+  - Otherwise pass -PromptFile explicitly (e.g. prompts/agent-queue.*.pipeline.prompts.txt)
   - Lines starting with # are skipped. Multi-line prompts: separate blocks with
     a line containing only ---
 
@@ -234,12 +234,13 @@ Examples:
   .\agent-queue\run-agent-queue.bat
     (no args: interactive prompt file + cycles + cycles-per-chat; with args: forwarded; -Cycles in args skips iteration prompt)
   .\agent-queue\agent-queue.ps1 -Cycles 2
-  .\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.pipeline.prompts.txt -Cycles 3 -Mode agent
+  .\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.general.pipeline.prompts.txt -Cycles 3 -Mode agent
   .\agent-queue\agent-queue.ps1 -Sequential -Cycles 3
   .\agent-queue\agent-queue.ps1 -StartFromPrompt 4 -Cycles 1
   .\agent-queue\agent-queue.ps1 -AgentQueueSmokeTest -PromptFile .\agent-queue\prompts\agent-queue.prompts.example.txt
   (In Aura monorepo: prefix paths with third_party\graph-caster\ or set -Workspace to graph-caster root.)
-  .\tests\test_agent_queue_smoke.ps1   (same smoke from repo root; exit 0 = OK)
+  From monorepo root: powershell -NoProfile -File scripts/agent-queue/agent-queue.ps1 -PromptFile path\to\one-line-prompt.txt -Workspace . -Cycles 1 -DryRun
+    (output should contain "Would run:"; exit 0 = OK)
 
 "@
 }
@@ -498,28 +499,14 @@ if (-not $PromptFile) {
     if (-not (Test-Path -LiteralPath $DefaultPrompts)) {
         $DefaultPrompts = Join-Path $ScriptDir "agent-queue.prompts.txt"
     }
-    $Pipeline = Join-Path $PromptsDir "agent-queue.pipeline.prompts.txt"
-    if (-not (Test-Path -LiteralPath $Pipeline)) {
-        $Pipeline = Join-Path $ScriptDir "agent-queue.pipeline.prompts.txt"
-    }
-    $Example = Join-Path $PromptsDir "agent-queue.prompts.example.txt"
-    if (-not (Test-Path -LiteralPath $Example)) {
-        $Example = Join-Path $ScriptDir "agent-queue.prompts.example.txt"
-    }
     if (Test-Path -LiteralPath $Personal) {
         $PromptFile = $Personal
     }
     elseif (Test-Path -LiteralPath $DefaultPrompts) {
         $PromptFile = $DefaultPrompts
     }
-    elseif (Test-Path -LiteralPath $Pipeline) {
-        $PromptFile = $Pipeline
-    }
-    elseif (Test-Path -LiteralPath $Example) {
-        $PromptFile = $Example
-    }
     else {
-        Write-Error "No prompt file. Pass -PromptFile or add prompts/agent-queue.prompts.txt / prompts/agent-queue.pipeline.prompts.txt next to agent-queue.ps1"
+        Write-Error "No prompt file. Pass -PromptFile, or add agent-queue.prompts.local.txt next to agent-queue.ps1, or prompts/agent-queue.prompts.txt (or agent-queue.prompts.txt next to the script)."
     }
 }
 else {
@@ -764,7 +751,7 @@ if ($Sequential) {
 elseif ($PipelineOrder) {
     $usePipelineOrder = $true
 }
-elseif ($pipelineFileName -ieq "agent-queue.pipeline.prompts.txt" -or $pipelineFileName -ieq "agent-queue.autotests.pipeline.prompts.txt" -or $pipelineFileName -ieq "agent-queue.general.pipeline.prompts.txt") {
+elseif ($pipelineFileName -like "agent-queue*.pipeline.prompts.txt") {
     $usePipelineOrder = $true
 }
 
