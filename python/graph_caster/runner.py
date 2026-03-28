@@ -24,6 +24,7 @@ from graph_caster.node_output_cache import (
     StepCacheStore,
     compute_step_cache_key,
     step_cache_root,
+    validate_ai_route_step_cache_entry,
 )
 from graph_caster.run_event_sink import (
     NdjsonAppendFileSink,
@@ -756,39 +757,182 @@ class GraphRunner:
         rid = str(ctx.get("run_id") or self._run_id or "")
         outgoing = usable_ai_route_out_edges(self._doc, node.id)
         n_out = len(outgoing)
-        req_bytes = 0
         preds = self._incoming_success_sources(node.id)
-        if n_out >= 2:
-            max_req = int(node.data.get("maxRequestJsonBytes") or 65536)
-            if max_req < 256:
-                max_req = 256
-            body, err = build_ai_route_request(
-                doc=self._doc,
-                node=node,
-                outgoing=outgoing,
-                ctx=ctx,
-                run_id=rid,
-                max_request_bytes=max_req,
-                preds=preds,
-            )
-            if body is not None:
-                req_bytes = len(encode_ai_route_wire_body(body))
-        self.emit(
-            "ai_route_invoke",
-            nodeId=node.id,
-            graphId=gid,
-            outgoingCount=n_out,
-            requestBytes=req_bytes,
-        )
+        outs_map = ctx.setdefault("node_outputs", {})
+
+        graph_rev = str(ctx.get("graph_rev") or "")
+        tenant_id = ctx.get("tenant_id")
+        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
+        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
+        pol = self._step_cache
+        store = self._ensure_step_cache_store()
+        want_cache = _node_wants_step_cache(node)
         prov = ctx.get("ai_route_provider")
-        override = prov if callable(prov) else None
+        provider_override = prov if callable(prov) else None
+        dirty = bool(
+            pol
+            and pol.enabled
+            and (
+                node.id in pol.dirty_nodes
+                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
+            )
+        )
+        # Step cache applies even when ``ai_route_provider`` overrides HTTP: the
+        # cache stores the resolved branch (choiceIndex, edgeId); replays must
+        # not re-invoke the provider or the network.
+        cache_active = (
+            want_cache
+            and pol is not None
+            and pol.enabled
+            and store is not None
+        )
+        used_step_cache = False
+        cache_key: str | None = None
+        upstream_incomplete = False
+        cache_ws_fp: str | None = (
+            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
+        )
+
+        if cache_active:
+            up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
+            if inc_reason:
+                upstream_incomplete = True
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    reason=inc_reason,
+                )
+            elif dirty:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="ai_route",
+                )
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    keyPrefix=_cache_key_prefix(cache_key),
+                    reason="dirty",
+                )
+            else:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="ai_route",
+                )
+                cached = store.get(cache_key) if store is not None else None
+                if cached is not None and validate_ai_route_step_cache_entry(self._doc, node.id, cached):
+                    ar = cached["aiRoute"]
+                    idx_1based = int(ar["choiceIndex"])
+                    edge_id = str(ar["edgeId"])
+                    chosen = next((e for e in outgoing if e.id == edge_id), None)
+                    if chosen is None:
+                        self.emit(
+                            "node_cache_miss",
+                            nodeId=node.id,
+                            graphId=gid,
+                            keyPrefix=_cache_key_prefix(cache_key),
+                            reason="stale_structure",
+                        )
+                    else:
+                        outs_map[node.id] = copy.deepcopy(cached)
+                        self.emit(
+                            "node_cache_hit",
+                            nodeId=node.id,
+                            graphId=gid,
+                            keyPrefix=_cache_key_prefix(cache_key),
+                        )
+                        self.emit(
+                            "ai_route_decided",
+                            nodeId=node.id,
+                            graphId=gid,
+                            choiceIndex=idx_1based,
+                            edgeId=chosen.id,
+                        )
+                        used_step_cache = True
+                        for e in outgoing:
+                            if e.id == chosen.id:
+                                continue
+                            self.emit(
+                                "branch_skipped",
+                                edgeId=e.id,
+                                fromNode=e.source,
+                                toNode=e.target,
+                                graphId=gid,
+                                reason=BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED,
+                            )
+                        multi = n_out > 1
+                        self._traverse_chosen_edge(
+                            node.id,
+                            chosen,
+                            ctx,
+                            step_q,
+                            emit_branch_taken=multi,
+                            error_route=False,
+                        )
+                        return True
+                elif cached is not None:
+                    self.emit(
+                        "node_cache_miss",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                        reason="stale_structure",
+                    )
+                else:
+                    self.emit(
+                        "node_cache_miss",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+
+        req_bytes = 0
+        if not used_step_cache:
+            if n_out >= 2:
+                max_req = int(node.data.get("maxRequestJsonBytes") or 65536)
+                if max_req < 256:
+                    max_req = 256
+                body, err = build_ai_route_request(
+                    doc=self._doc,
+                    node=node,
+                    outgoing=outgoing,
+                    ctx=ctx,
+                    run_id=rid,
+                    max_request_bytes=max_req,
+                    preds=preds,
+                )
+                if body is not None:
+                    req_bytes = len(encode_ai_route_wire_body(body))
+            self.emit(
+                "ai_route_invoke",
+                nodeId=node.id,
+                graphId=gid,
+                outgoingCount=n_out,
+                requestBytes=req_bytes,
+            )
         outcome = resolve_ai_route_choice(
             doc=self._doc,
             node=node,
             ctx=ctx,
             run_id=rid,
             preds=preds,
-            provider_override=override,
+            provider_override=provider_override,
         )
         chosen = outcome.chosen
         if chosen is None and outcome.error_reason:
@@ -830,7 +974,6 @@ class GraphRunner:
             choiceIndex=idx_1based,
             edgeId=chosen.id,
         )
-        outs_map = ctx.setdefault("node_outputs", {})
         entry = outs_map.get(node.id)
         ar_meta = {"choiceIndex": idx_1based, "edgeId": chosen.id}
         if isinstance(entry, dict):
@@ -848,6 +991,14 @@ class GraphRunner:
                 graphId=gid,
                 reason=BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED,
             )
+        if (
+            not used_step_cache
+            and cache_active
+            and cache_key is not None
+            and store is not None
+            and not upstream_incomplete
+        ):
+            store.put(cache_key, copy.deepcopy(outs_map[node.id]))
         multi = n_out > 1
         self._traverse_chosen_edge(
             node.id,

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_TASK,
@@ -27,8 +28,20 @@ describe("stepCacheDirtyGraph", () => {
   it("nodeTypeTriggersStepCacheDirtyOnDataEdit skips comment only", () => {
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_COMMENT)).toBe(false);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_TASK)).toBe(true);
+    expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_AI_ROUTE)).toBe(true);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(undefined)).toBe(false);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit("")).toBe(false);
+  });
+
+  it("linear with ai_route (stepCache): seed reaches downstream cached nodes", () => {
+    const doc = docWith(
+      [
+        { id: "a", type: GRAPH_NODE_TYPE_AI_ROUTE, data: { stepCache: true } },
+        { id: "b", type: GRAPH_NODE_TYPE_TASK, data: { stepCache: true } },
+      ],
+      [{ id: "e1", source: "a", target: "b" }],
+    );
+    expect(transitiveStepCacheDirtyNodeIds(doc, ["a"])).toEqual(["a", "b"]);
   });
 
   it("linear a→b→c: seed a reaches a,b,c", () => {

@@ -158,8 +158,10 @@
     "aiRouteNodeData": {
       "type": "object",
       "additionalProperties": true,
+      "description": "AI branch router node. Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task / mcp_tool).",
       "properties": {
         "title": { "type": "string" },
+        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
         "providerKind": {
           "type": "string",
           "enum": ["http_json"],

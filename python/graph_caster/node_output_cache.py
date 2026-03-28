@@ -9,7 +9,10 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from graph_caster.models import GraphDocument
 
 __all__ = [
     "StepCachePolicy",
@@ -21,7 +24,12 @@ __all__ = [
     "step_cache_root",
     "upstream_outputs_fingerprint",
     "upstream_step_cache_fingerprint",
+    "validate_ai_route_step_cache_entry",
 ]
+
+
+def _positive_int_ge1(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 1
 
 
 @dataclass(frozen=True)
@@ -85,7 +93,38 @@ def _coerce_step_cache_entry(raw: dict[str, Any]) -> dict[str, Any] | None:
         if mt.get("success") is not True:
             return None
         return raw
+    if nt == "ai_route":
+        ar = raw.get("aiRoute")
+        if not isinstance(ar, dict):
+            return None
+        if not _positive_int_ge1(ar.get("choiceIndex")):
+            return None
+        eid = ar.get("edgeId")
+        if not isinstance(eid, str) or not eid.strip():
+            return None
+        return raw
     return None
+
+
+def validate_ai_route_step_cache_entry(doc: "GraphDocument", node_id: str, cached: Mapping[str, Any]) -> bool:
+    """True if cached ``aiRoute`` matches current ``usable_ai_route_out_edges`` order and ids."""
+    from graph_caster.ai_routing import usable_ai_route_out_edges
+
+    ar = cached.get("aiRoute")
+    if not isinstance(ar, dict):
+        return False
+    ci = ar.get("choiceIndex")
+    eid_raw = ar.get("edgeId")
+    if not _positive_int_ge1(ci):
+        return False
+    if not isinstance(eid_raw, str) or not eid_raw.strip():
+        return False
+    outgoing = usable_ai_route_out_edges(doc, node_id)
+    if ci > len(outgoing):
+        return False
+    if outgoing[ci - 1].id != eid_raw:
+        return False
+    return True
 
 
 def compute_step_cache_key(

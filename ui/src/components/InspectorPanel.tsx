@@ -727,6 +727,54 @@ export function InspectorPanel({
               </span>
             </div>
           ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_AI_ROUTE ? (
+            <div className="gc-inspector-pin">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <span className="gc-inspector-k">{t("app.inspector.stepCacheHeading")}</span>
+                <label className="gc-inspector-pin-toggle">
+                  <input
+                    type="checkbox"
+                    disabled={runLocked}
+                    checked={isPlainObject(selection.raw) && selection.raw.stepCache === true}
+                    onChange={(ev) => {
+                      const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+                      if (ev.target.checked) {
+                        base.stepCache = true;
+                      } else {
+                        delete base.stepCache;
+                      }
+                      onApplyNodeData(selection.id, base);
+                    }}
+                  />
+                  <span>{t("app.inspector.stepCacheEnabled")}</span>
+                </label>
+              </div>
+              <div className="gc-inspector-pin-actions">
+                <button
+                  type="button"
+                  className="gc-btn gc-inspector-apply"
+                  disabled={runLocked}
+                  onClick={() => {
+                    const doc = getDocumentForStepCacheDirty?.() ?? graphDocument;
+                    const before = new Set(getStepCacheDirtySnapshot().ids);
+                    const mark =
+                      onMarkStepCacheDirtyTransitive ??
+                      ((d: GraphDocumentJson, s: readonly string[]) =>
+                        markStepCacheDirtyTransitive(d, s));
+                    mark(doc, [selection.id]);
+                    const snap = getStepCacheDirtySnapshot();
+                    const added = snap.ids.filter((id) => !before.has(id));
+                    runSessionAppendLine(
+                      `[host] step-cache dirty +${added.length} [${added.join(",")}] → queue ${snap.ids.length}: ${snap.ids.join(",")}`,
+                    );
+                  }}
+                >
+                  {t("app.inspector.stepCacheMarkDirty")}
+                </button>
+              </div>
+              <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
+            </div>
+          ) : null}
           {selection.graphNodeType === GRAPH_NODE_TYPE_TASK ? (
             <>
             <div className="gc-inspector-pin">

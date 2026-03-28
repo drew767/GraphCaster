@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
@@ -447,3 +448,81 @@ def test_step_cache_env_keys_invalidates_when_secrets_file_changes(tmp_path: Pat
     GraphRunner(doc, sink=lambda e: ev3.append(e), host=host, step_cache=pol).run()
     assert sum(1 for e in ev3 if e.get("type") == "process_spawn" and e.get("nodeId") == "t1") == 1
     assert any(e.get("type") == "node_cache_miss" for e in ev3)
+
+
+def test_step_cache_ai_route_hits_without_second_provider_invocation(tmp_path: Path) -> None:
+    """Second run must emit node_cache_hit; injectable provider runs only on miss."""
+
+    gid = "c3c3c3c3-c3c3-43c3-83c3-c3c3c3c3c3c3"
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "ai-route-step-cache"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {
+                    "id": "r1",
+                    "type": "ai_route",
+                    "position": {"x": 0, "y": 0},
+                    "data": {
+                        "stepCache": True,
+                        "title": "R",
+                        "endpointUrl": "http://example.invalid/route",
+                    },
+                },
+                {"id": "x1", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "y1", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "e0",
+                    "source": "s1",
+                    "sourceHandle": "out_default",
+                    "target": "r1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+                {
+                    "id": "e1",
+                    "source": "r1",
+                    "sourceHandle": "out_default",
+                    "target": "x1",
+                    "targetHandle": "in_default",
+                    "data": {"routeDescription": "path X"},
+                },
+                {
+                    "id": "e2",
+                    "source": "r1",
+                    "sourceHandle": "out_default",
+                    "target": "y1",
+                    "targetHandle": "in_default",
+                    "data": {"routeDescription": "path Y"},
+                },
+            ],
+        }
+    )
+
+    bodies: list[dict[str, Any]] = []
+
+    def provider(body: dict[str, Any]) -> dict[str, Any]:
+        bodies.append(body)
+        return {"choiceIndex": 1}
+
+    host = RunHostContext(artifacts_base=tmp_path)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+
+    ev1: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run(
+        context={"ai_route_provider": provider},
+    )
+    assert len(bodies) == 1
+    assert any(e.get("type") == "ai_route_invoke" for e in ev1)
+
+    ev2: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run(
+        context={"ai_route_provider": provider},
+    )
+    assert len(bodies) == 1
+    assert any(e.get("type") == "node_cache_hit" and e.get("nodeId") == "r1" for e in ev2)
+    assert not any(e.get("type") == "ai_route_invoke" for e in ev2)

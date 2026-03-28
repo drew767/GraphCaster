@@ -6,6 +6,7 @@ import {
   pickEdgeHandleRaw,
 } from "./normalizeHandles";
 import {
+  GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
@@ -21,6 +22,7 @@ export type SuccessPathAdjacency = ReadonlyMap<string, readonly string[]>;
 const NODE_TYPES_DATA_EDIT_INVALIDATES_STEP_CACHE = new Set<string>([
   GRAPH_NODE_TYPE_TASK,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
@@ -33,6 +35,17 @@ export function nodeTypeTriggersStepCacheDirtyOnDataEdit(nodeType: string | unde
     return false;
   }
   return NODE_TYPES_DATA_EDIT_INVALIDATES_STEP_CACHE.has(nodeType);
+}
+
+function dataStepCacheEnabled(data: GraphNodeJson["data"]): boolean {
+  const v = data?.stepCache;
+  if (v === true) {
+    return true;
+  }
+  if (v === 1 || v === "1" || v === "true" || v === "True" || v === "yes" || v === "Yes") {
+    return true;
+  }
+  return false;
 }
 
 function isSuccessPathEdge(e: GraphEdgeJson): boolean {
@@ -98,17 +111,18 @@ export function collectDownstreamNodeIds(
 }
 
 export function wantsStepCacheOnNode(node: GraphNodeJson | undefined): boolean {
-  if (node == null || node.type !== GRAPH_NODE_TYPE_TASK) {
+  if (node == null) {
     return false;
   }
-  const v = node.data?.stepCache;
-  if (v === true) {
-    return true;
+  const t = node.type;
+  if (
+    t !== GRAPH_NODE_TYPE_TASK &&
+    t !== GRAPH_NODE_TYPE_MCP_TOOL &&
+    t !== GRAPH_NODE_TYPE_AI_ROUTE
+  ) {
+    return false;
   }
-  if (v === 1 || v === "1" || v === "true" || v === "True" || v === "yes" || v === "Yes") {
-    return true;
-  }
-  return false;
+  return dataStepCacheEnabled(node.data);
 }
 
 export function filterStepCacheParticipants(doc: GraphDocumentJson, ids: readonly string[]): string[] {

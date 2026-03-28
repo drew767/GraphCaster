@@ -40,7 +40,10 @@ def test_compute_step_cache_key_node_kind_separates_task_and_mcp() -> None:
     )
     kt = compute_step_cache_key(**shared, cache_node_kind="task")
     km = compute_step_cache_key(**shared, cache_node_kind="mcp_tool")
+    kar = compute_step_cache_key(**shared, cache_node_kind="ai_route")
     assert kt != km
+    assert kt != kar
+    assert km != kar
 
 
 def test_compute_step_cache_key_workspace_secrets_fp_changes_key() -> None:
@@ -73,6 +76,44 @@ def test_step_cache_store_roundtrip(tmp_path) -> None:
     assert store.get(key) == payload
     p = root / key[:2] / key[2:4] / f"{key}.json"
     assert p.is_file()
+
+
+def test_step_cache_store_ai_route_roundtrip(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "a" * 63 + "r"
+    payload = {
+        "nodeType": "ai_route",
+        "data": {"title": "R"},
+        "aiRoute": {"choiceIndex": 1, "edgeId": "e1"},
+    }
+    store.put(key, payload)
+    assert store.get(key) == payload
+
+
+def test_step_cache_get_rejects_ai_route_bad_choice_index(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "b" * 63 + "r"
+    store.put(
+        key,
+        {
+            "nodeType": "ai_route",
+            "data": {},
+            "aiRoute": {"choiceIndex": 0, "edgeId": "e1"},
+        },
+    )
+    assert store.get(key) is None
+
+    store.put(
+        key,
+        {
+            "nodeType": "ai_route",
+            "data": {},
+            "aiRoute": {"choiceIndex": 1, "edgeId": ""},
+        },
+    )
+    assert store.get(key) is None
 
 
 def test_step_cache_store_mcp_tool_roundtrip(tmp_path) -> None:
