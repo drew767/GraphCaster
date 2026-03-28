@@ -1,0 +1,5 @@
+root = true
+
+# Windows PowerShell 5.1 loads .ps1 as UTF-8 only when BOM is present; utf-8-bom avoids parse errors.
+[*.ps1]
+charset = utf-8-bom

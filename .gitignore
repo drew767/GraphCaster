@@ -1,3 +1,10 @@
+# .NET / MSBuild (dotnet build, test, publish)
+**/bin/
+**/obj/
+**/publish/
+**/TestResults/
+**/.vs/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -32,9 +39,23 @@ htmlcov/
 # IDE / OS
 .idea/
 .vscode/
+.cursor/
 *.swp
 .DS_Store
 Thumbs.db
+*.lnk
+
+# Custom / non-standard dotnet output dirs (-o bin-out, verify folders, …)
+**/bin-out/
+**/bin-out-*/
+**/_build_verify_ui/
+
+# agent-queue runtime & local-only
+agent-queue/agent-queue.prompts.local.txt
+agent-queue/agent-queue.monitor-status.json
+**/agent-queue-stall-debug.log
+**/agent-queue.manual-stall-retry.flag
+**/agent-queue.finish-after-cycle.flag
 
 # Local Windows shortcut from build.bat (next to repo root)
 GraphCaster.lnk
