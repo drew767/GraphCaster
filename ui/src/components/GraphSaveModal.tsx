@@ -6,6 +6,11 @@ import { useTranslation } from "react-i18next";
 import type { GraphDocumentJson } from "../graph/types";
 import { saveJsonWithFilePickerOrDownload } from "../lib/saveToDisk";
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
+import {
+  type OpenGraphErrorPresentation,
+  presentationForSaveEmptyName,
+  presentationForSaveWriteFailed,
+} from "../graph/openGraphErrorPresentation";
 
 type Props = {
   open: boolean;
@@ -15,6 +20,7 @@ type Props = {
   getDocument: () => GraphDocumentJson | null;
   onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<boolean>;
   onClose: () => void;
+  onUserMessage?: (presentation: OpenGraphErrorPresentation) => void;
 };
 
 export function GraphSaveModal({
@@ -25,6 +31,7 @@ export function GraphSaveModal({
   getDocument,
   onSaveToWorkspace,
   onClose,
+  onUserMessage,
 }: Props) {
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
@@ -66,7 +73,12 @@ export function GraphSaveModal({
     }
     const trimmed = fileName.trim();
     if (trimmed === "") {
-      window.alert(t("app.saveModal.emptyName"));
+      const p = presentationForSaveEmptyName(t);
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.saveModal.emptyName"));
+      }
       return;
     }
     if (workspaceLinked) {
@@ -83,9 +95,14 @@ export function GraphSaveModal({
       if (e instanceof DOMException && e.name === "AbortError") {
         return;
       }
-      window.alert(t("app.saveModal.writeFailed"));
+      const p = presentationForSaveWriteFailed(t, e);
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.saveModal.writeFailed"));
+      }
     }
-  }, [fileName, getDocument, onClose, onSaveToWorkspace, t, workspaceLinked]);
+  }, [fileName, getDocument, onClose, onSaveToWorkspace, onUserMessage, t, workspaceLinked]);
 
   if (!open) {
     return null;

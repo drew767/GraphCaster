@@ -123,3 +123,37 @@ export function presentationForReadFailure(
   const copyText = fn ? `${fn}\n\n${message}` : message;
   return { title, message, copyText };
 }
+
+export function presentationForInspectorSimple(
+  t: TFunction,
+  messageKey: string,
+): OpenGraphErrorPresentation {
+  const title = t("app.errors.inspectorModal.title");
+  const message = t(messageKey);
+  return { title, message, copyText: message };
+}
+
+export function presentationForInspectorJsonSyntaxError(
+  t: TFunction,
+  err: unknown,
+): OpenGraphErrorPresentation {
+  const title = t("app.errors.inspectorModal.title");
+  const rawMsg = err instanceof Error ? err.message : String(err);
+  const message = t("app.inspector.dataParseError");
+  const copyText = rawMsg.trim() === "" ? message : `${message}\n\n${rawMsg}`;
+  return { title, message, copyText };
+}
+
+export function presentationForSaveEmptyName(t: TFunction): OpenGraphErrorPresentation {
+  const title = t("app.errors.saveError.title");
+  const message = t("app.saveModal.emptyName");
+  return { title, message, copyText: message };
+}
+
+export function presentationForSaveWriteFailed(t: TFunction, err: unknown): OpenGraphErrorPresentation {
+  const title = t("app.errors.saveError.title");
+  const message = t("app.saveModal.writeFailed");
+  const raw = err instanceof Error ? err.message : String(err);
+  const copyText = `${message}\n\n${raw}`;
+  return { title, message, copyText };
+}

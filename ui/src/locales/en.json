@@ -207,6 +207,12 @@
       "ru": "Русский"
     },
     "errors": {
+      "inspectorModal": {
+        "title": "Invalid input"
+      },
+      "saveError": {
+        "title": "Save failed"
+      },
       "openModal": {
         "title": "Could not open graph",
         "titleWithFile": "Could not open graph: {{fileName}}",

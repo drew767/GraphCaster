@@ -207,6 +207,12 @@
       "ru": "Русский"
     },
     "errors": {
+      "inspectorModal": {
+        "title": "Некорректный ввод"
+      },
+      "saveError": {
+        "title": "Ошибка сохранения"
+      },
       "openModal": {
         "title": "Не удалось открыть граф",
         "titleWithFile": "Не удалось открыть граф: {{fileName}}",

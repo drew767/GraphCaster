@@ -5,9 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { TFunction } from "i18next";
 
 import {
+  presentationForInspectorJsonSyntaxError,
+  presentationForInspectorSimple,
   presentationForJsonSyntaxError,
   presentationForParseError,
   presentationForReadFailure,
+  presentationForSaveEmptyName,
+  presentationForSaveWriteFailed,
 } from "./openGraphErrorPresentation";
 
 function mockT(): TFunction {
@@ -29,6 +33,24 @@ function mockT(): TFunction {
     }
     if (key === "app.errors.openModal.invalid_node_id") {
       return `bad_node:${opts?.index ?? ""}`;
+    }
+    if (key === "app.errors.inspectorModal.title") {
+      return "INSP_TITLE";
+    }
+    if (key === "app.inspector.dataParseError") {
+      return "DATA_PARSE";
+    }
+    if (key === "app.inspector.invalidDataJson") {
+      return "INVALID_OBJ";
+    }
+    if (key === "app.errors.saveError.title") {
+      return "SAVE_TITLE";
+    }
+    if (key === "app.saveModal.emptyName") {
+      return "EMPTY_NAME";
+    }
+    if (key === "app.saveModal.writeFailed") {
+      return "WRITE_FAIL";
     }
     return key;
   }) as TFunction;
@@ -85,5 +107,40 @@ describe("presentationForReadFailure", () => {
     const p = presentationForReadFailure(mockT(), { fileName: "b.json" });
     expect(p.title).toBe("TITLE:b.json");
     expect(p.copyText).toBe("b.json\n\nread_failed_msg");
+  });
+});
+
+describe("presentationForInspectorSimple", () => {
+  it("uses inspector title and message key", () => {
+    const p = presentationForInspectorSimple(mockT(), "app.inspector.invalidDataJson");
+    expect(p.title).toBe("INSP_TITLE");
+    expect(p.message).toBe("INVALID_OBJ");
+    expect(p.copyText).toBe("INVALID_OBJ");
+  });
+});
+
+describe("presentationForInspectorJsonSyntaxError", () => {
+  it("includes engine message in copyText", () => {
+    const p = presentationForInspectorJsonSyntaxError(mockT(), new SyntaxError("x"));
+    expect(p.title).toBe("INSP_TITLE");
+    expect(p.message).toBe("DATA_PARSE");
+    expect(p.copyText).toContain("x");
+  });
+});
+
+describe("presentationForSaveEmptyName", () => {
+  it("uses save empty message", () => {
+    const p = presentationForSaveEmptyName(mockT());
+    expect(p.title).toBe("SAVE_TITLE");
+    expect(p.message).toBe("EMPTY_NAME");
+  });
+});
+
+describe("presentationForSaveWriteFailed", () => {
+  it("appends error text to copy", () => {
+    const p = presentationForSaveWriteFailed(mockT(), new Error("disk"));
+    expect(p.title).toBe("SAVE_TITLE");
+    expect(p.message).toBe("WRITE_FAIL");
+    expect(p.copyText).toContain("disk");
   });
 });

@@ -17,6 +17,11 @@ import {
   markStepCacheDirtyTransitive,
 } from "../run/stepCacheDirtyStore";
 import { mergeModeFromNodeData } from "../graph/structureWarnings";
+import {
+  type OpenGraphErrorPresentation,
+  presentationForInspectorJsonSyntaxError,
+  presentationForInspectorSimple,
+} from "../graph/openGraphErrorPresentation";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -33,6 +38,7 @@ type Props = {
   runLocked?: boolean;
   onRunUntilThisNode?: () => void;
   runUntilThisNodeEnabled?: boolean;
+  onUserMessage?: (presentation: OpenGraphErrorPresentation) => void;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -101,6 +107,7 @@ export function InspectorPanel({
   runLocked = false,
   onRunUntilThisNode,
   runUntilThisNodeEnabled = false,
+  onUserMessage,
 }: Props) {
   const { t } = useTranslation();
   const runSession = useRunSession();
@@ -170,12 +177,22 @@ export function InspectorPanel({
     let parsed: unknown;
     try {
       parsed = JSON.parse(dataText);
-    } catch {
-      window.alert(t("app.inspector.dataParseError"));
+    } catch (err) {
+      const p = presentationForInspectorJsonSyntaxError(t, err);
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.inspector.dataParseError"));
+      }
       return;
     }
     if (!isPlainObject(parsed)) {
-      window.alert(t("app.inspector.invalidDataJson"));
+      const p = presentationForInspectorSimple(t, "app.inspector.invalidDataJson");
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.inspector.invalidDataJson"));
+      }
       return;
     }
     onApplyNodeData(selection.id, parsed);
@@ -216,8 +233,13 @@ export function InspectorPanel({
     } else {
       try {
         inputsParsed = JSON.parse(graphInputsText);
-      } catch {
-        window.alert(t("app.inspector.dataParseError"));
+      } catch (err) {
+        const p = presentationForInspectorJsonSyntaxError(t, err);
+        if (onUserMessage) {
+          onUserMessage(p);
+        } else {
+          window.alert(t("app.inspector.dataParseError"));
+        }
         return;
       }
     }
@@ -226,8 +248,13 @@ export function InspectorPanel({
     } else {
       try {
         outputsParsed = JSON.parse(graphOutputsText);
-      } catch {
-        window.alert(t("app.inspector.dataParseError"));
+      } catch (err) {
+        const p = presentationForInspectorJsonSyntaxError(t, err);
+        if (onUserMessage) {
+          onUserMessage(p);
+        } else {
+          window.alert(t("app.inspector.dataParseError"));
+        }
         return;
       }
     }
@@ -236,7 +263,12 @@ export function InspectorPanel({
       !Array.isArray(inputsParsed) &&
       !isPlainObject(inputsParsed)
     ) {
-      window.alert(t("app.inspector.graphParamsInvalidJson"));
+      const p = presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson");
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.inspector.graphParamsInvalidJson"));
+      }
       return;
     }
     if (
@@ -244,7 +276,12 @@ export function InspectorPanel({
       !Array.isArray(outputsParsed) &&
       !isPlainObject(outputsParsed)
     ) {
-      window.alert(t("app.inspector.graphParamsInvalidJson"));
+      const p = presentationForInspectorSimple(t, "app.inspector.graphParamsInvalidJson");
+      if (onUserMessage) {
+        onUserMessage(p);
+      } else {
+        window.alert(t("app.inspector.graphParamsInvalidJson"));
+      }
       return;
     }
     const svRaw = graphSchemaVersion.trim();
@@ -254,7 +291,12 @@ export function InspectorPanel({
     } else {
       const n = Number.parseInt(svRaw, 10);
       if (!Number.isFinite(n)) {
-        window.alert(t("app.inspector.graphSchemaInvalid"));
+        const p = presentationForInspectorSimple(t, "app.inspector.graphSchemaInvalid");
+        if (onUserMessage) {
+          onUserMessage(p);
+        } else {
+          window.alert(t("app.inspector.graphSchemaInvalid"));
+        }
         return;
       }
       schemaVersion = n;

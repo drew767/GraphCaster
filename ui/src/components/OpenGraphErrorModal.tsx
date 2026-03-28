@@ -96,12 +96,12 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
         className="gc-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="gc-open-error-title"
+        aria-labelledby="gc-app-message-title"
         onClick={(e) => {
           e.stopPropagation();
         }}
       >
-        <h2 id="gc-open-error-title" className="gc-modal-title">
+        <h2 id="gc-app-message-title" className="gc-modal-title">
           {presentation.title}
         </h2>
         <p className="gc-modal-hint gc-modal-hint--prewrap">{presentation.message}</p>

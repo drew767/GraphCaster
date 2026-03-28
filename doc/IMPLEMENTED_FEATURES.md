@@ -34,8 +34,9 @@
 |-----------------|---------------|
 | Не показывать безликий alert при битом workflow | **Файл → Открыть** и **Открыть из graphs/…**: при ошибке чтения, синтаксиса JSON или **`parseGraphDocumentJsonResult`** — модалка **`OpenGraphErrorModal`** с i18n-текстом по виду ошибки (**`nodes` не массив**, невалидный **`schemaVersion`**, индекс битой ноды/ребра и т.д.) |
 | Понять, какой файл ломается | Заголовок **`titleWithFile`** с **`fileName`** (локальный pick и файл воркспейса); детали для копирования — JSON ошибки парсера или текст **`JSON.parse`** / read |
+| Те же паттерны в инспекторе и Save, что у n8n/Dify (явная ошибка вместо «голого» alert) | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — модалка **`OpenGraphErrorModal`** через **`onUserMessage`** (`presentationForInspector*`); пустое имя файла и сбой записи в **`GraphSaveModal`** — **`presentationForSave*`**; общее состояние **`appMessageModal`** в **`AppShell`** |
 
-Код: **`ui/src/graph/openGraphErrorPresentation.ts`**, **`ui/src/components/OpenGraphErrorModal.tsx`**, **`ui/src/layout/AppShell.tsx`**; Vitest **`ui/src/graph/openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 помечен как **закрытый**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
+Код: **`ui/src/graph/openGraphErrorPresentation.ts`**, **`ui/src/components/OpenGraphErrorModal.tsx`**, **`ui/src/layout/AppShell.tsx`**, **`InspectorPanel.tsx`**, **`GraphSaveModal.tsx`**; Vitest **`ui/src/graph/openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 помечен как **закрытый**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — краткая отсылка сюда без дублирования деталей.
 
 ---
 
@@ -227,15 +228,15 @@
 
 ---
 
-## Стабильный `runId` на строках NDJSON (конспект **§3.7.1** в `COMPETITIVE_ANALYSIS.md`)
+## Стабильный `runId` на строках NDJSON (канон; **§3.7** в `COMPETITIVE_ANALYSIS.md` — таблица `type` и эталоны)
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Один идентификатор на весь прогон (**`prompt_id`** Comfy, **`workflow_run_id`** Dify, **`executionId`** n8n) | Поле **`runId`** в объектах NDJSON корневого прогона; вложенные **`graph_ref`** используют **тот же** **`runId`**, что и корень |
 | Контракт и проверки | **`schemas/run-event.schema.json`**: описание корня, **`allOf`** с обязательным **`runId`** для ключевых **`type`** (**`run_started`**, **`run_finished`**, …) |
-| Транспорт в UI | Десктоп: **`run_bridge.rs`** → события с **`runId`**; веб: SSE-брокер отдаёт те же строки; **`runSessionStore`** маршрутизирует по **`runId`** (несколько живых прогонов — отдельный подраздел «Несколько корневых прогонов» ниже) |
+| Транспорт в UI (фаза 8) | Десктоп: **`run_bridge.rs`** → события с **`runId`**, UI фильтрует по нему; веб: SSE-брокер отдаёт те же строки; **`runSessionStore`** маршрутизирует по **`runId`** (несколько живых прогонов — подраздел «Несколько корневых прогонов» ниже). Второй протокол поверх NDJSON в MVP **не** вводится (**§39** в competitive — открытый prod-транспорт) |
 
-Код/тесты: `python/graph_caster/runner.py` (эмиссия с **`run_id`**), `python/tests/test_run_event_schema.py`. Эталоны очередей/буферов у конкурентов — по смыслу в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§3.6**–**§3.7.1**, без дублирования таблиц событий здесь.
+Код/тесты: `python/graph_caster/runner.py` (эмиссия с **`run_id`**), `python/tests/test_run_event_schema.py`. Эталоны очередей/буферов у конкурентов — по смыслу в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§3.6**–**§3.7**, без дублирования таблиц событий здесь.
 
 ---
 
@@ -421,4 +422,4 @@
 
 ---
 
-*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов в `doc/plans/`: после выполнения плана удалите соответствующий файл; если в каталоге не остаётся документов кроме служебного **`.gitkeep`**, дополнительных действий не требуется.*
+*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог создаётся при первом плане; в репозитории удерживается пустой **`doc/plans/.gitkeep`**). После выполнения плана удалите соответствующий **`.md`**; коммиты по плану не обязательны.*

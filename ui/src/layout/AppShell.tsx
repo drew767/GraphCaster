@@ -164,7 +164,7 @@ export function AppShell({ onLangChange }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
-  const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
+  const [appMessageModal, setAppMessageModal] = useState<OpenGraphErrorPresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
   const [autosaveFailed, setAutosaveFailed] = useState(false);
@@ -409,19 +409,19 @@ export function AppShell({ onLangChange }: Props) {
       try {
         text = await file.text();
       } catch {
-        setGraphOpenError(presentationForReadFailure(t, { fileName: file.name }));
+        setAppMessageModal(presentationForReadFailure(t, { fileName: file.name }));
         return;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch (err) {
-        setGraphOpenError(presentationForJsonSyntaxError(t, err, { fileName: file.name }));
+        setAppMessageModal(presentationForJsonSyntaxError(t, err, { fileName: file.name }));
         return;
       }
       const res = parseGraphDocumentJsonResult(parsed);
       if (!res.ok) {
-        setGraphOpenError(presentationForParseError(t, res.error, { fileName: file.name }));
+        setAppMessageModal(presentationForParseError(t, res.error, { fileName: file.name }));
         return;
       }
       nestedGraphRefStackRef.current = [];
@@ -470,19 +470,19 @@ export function AppShell({ onLangChange }: Props) {
       try {
         text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
       } catch {
-        setGraphOpenError(presentationForReadFailure(t, { fileName }));
+        setAppMessageModal(presentationForReadFailure(t, { fileName }));
         return false;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch (err) {
-        setGraphOpenError(presentationForJsonSyntaxError(t, err, { fileName }));
+        setAppMessageModal(presentationForJsonSyntaxError(t, err, { fileName }));
         return false;
       }
       const res = parseGraphDocumentJsonResult(parsed);
       if (!res.ok) {
-        setGraphOpenError(presentationForParseError(t, res.error, { fileName }));
+        setAppMessageModal(presentationForParseError(t, res.error, { fileName }));
         return false;
       }
       preDragDocumentRef.current = null;
@@ -1442,6 +1442,7 @@ export function AppShell({ onLangChange }: Props) {
           runLocked={runSessionBlocking}
           onRunUntilThisNode={onRunUntilSelectedNode}
           runUntilThisNodeEnabled={runUntilSelectionEnabled}
+          onUserMessage={setAppMessageModal}
         />
       </div>
       <ConsolePanel heightPx={height} onResizeStart={startDrag} onNavigateToNode={onConsoleNavigateToNode} />
@@ -1457,12 +1458,13 @@ export function AppShell({ onLangChange }: Props) {
         onClose={() => {
           setSaveModalOpen(false);
         }}
+        onUserMessage={setAppMessageModal}
       />
       <OpenGraphErrorModal
-        open={graphOpenError != null}
-        presentation={graphOpenError}
+        open={appMessageModal != null}
+        presentation={appMessageModal}
         onClose={() => {
-          setGraphOpenError(null);
+          setAppMessageModal(null);
         }}
       />
       <RunHistoryModal
