@@ -25,6 +25,7 @@ def test_example_graph_events_validate_against_run_event_schema() -> None:
     doc = GraphDocument.from_dict(raw)
     events: list[dict] = []
     GraphRunner(doc, sink=lambda e: events.append(e)).run(context={"last_result": True})
+    assert events, "expected GraphRunner to emit at least one run event for the example graph"
     validator = _validator()
     for ev in events:
         validator.validate(ev)

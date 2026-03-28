@@ -477,24 +477,20 @@
 
 **Форма записи:** каждое событие — **плоский** объект `dict`: **`{"type": "<строка>", ...поля}`** (всё на верхнем уровне). Это ближе к одной строке **NDJSON**, чем к оболочке Comfy **`{type, data}`** — при мосте в WebSocket можно оборачивать в `data` на границе, если нужна единообразная схема с **§3.5**.
 
+**Полный закрытый enum `type`, обязательные поля по веткам и паритет с кодом** — только **`schemas/run-event.schema.json`** и раздел **«NDJSON `run-event`: полный перечень `type`»** в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); здесь — краткая иллюстрация для сопоставления с конкурентами (неисчерпывающий список).
+
 | `type` (GC) | Где возникает | Аналог у конкурентов (уровень смысла) |
 |-------------|--------------|----------------------------------------|
+| `run_started` / `run_finished` | Жизненный цикл корневого прогона (**`runId`**, статусы **`success`** / **`failed`** / **`cancelled`** / **`partial`**) | n8n **`executionId`** + фазы run; Dify workflow run meta |
 | `run_root_ready` | Корневой run, создан каталог артефактов | Comfy `status` + среда; Dify старт run / meta |
-| `node_enter` | Перед обработкой ноды | Comfy `executing` (старт ноды); Dify `NodeRunStartedEvent` |
-| `node_execute` | Номинальное «выполнение» (в т.ч. comment) | Dify pre-run / входные данные ноды |
-| `node_exit` | После обработки ноды | Comfy `executed` (без отдельного UI output); Dify успех шага |
-| `process_spawn` | Старт подпроцесса `task` | n8n запуск воркера / command |
-| `process_complete` | Подпроцесс завершён успешно | — |
-| `process_failed` | Ошибка / ненулевой код (по политике) | Comfy `execution_error`; Dify `NodeRunFailedEvent` |
-| `process_retry` | Повтор по retry-настройкам | Dify `NodeRunRetryEvent` |
-| `process_output` | Чанки stdout/stderr подпроцесса `task` до `process_complete` | n8n/Flowise/Dify инкрементальные логи шага; факт реализации и контракт — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) («Инкрементальный вывод подпроцесса **task**») |
+| `node_enter` / `node_execute` / `node_exit` | Визит ноды (в т.ч. comment); выход (опц. **`usedPin`**) | Comfy `executing` / `executed`; Dify шаги ноды |
+| `process_spawn` / `process_complete` / `process_failed` / `process_retry` / `process_output` | Подпроцесс **`task`** (ретраи, чанки stdout/stderr) | n8n/Flowise/Dify инкрементальные логи шага; детали — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) |
+| `stream_backpressure` | Dev SSE-брокер: дроп **`process_output`** у медленного клиента | Политика буфера исполнитель↔транспорт — **§39.2**; факты — там же в **Implemented** |
+| `structure_warning` / `node_cache_*` / `node_pinned_skip` / `node_outputs_snapshot` | Статика merge/fork/barrier/pin/**`ai_route`**, кэш шага, pinData-style | См. **F4** / **F17** / **`gcPin`** в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) |
+| `ai_route_invoke` / `ai_route_decided` / `ai_route_failed` | Нода **`ai_route`** (wire v1) | Отдельный шаг маршрутизации vs n8n IF/Switch — там же (**«ИИ-ветвление»**) |
 | `nested_graph_enter` / `nested_graph_exit` | Вход/выход из `graph_ref` | Dify child graph; n8n sub-workflow |
-| `edge_traverse` | Выбрано исходящее ребро | — (часто не отдельное событие у других) |
-| `branch_skipped` | Условное ребро оценено, предикат ложен (перед выбором другого исхода) | Dify skip / невыбранная ветвь в логе; n8n непройденная веть IF |
-| `branch_taken` | Явно взятая ветвь при нескольких исходах или после `branch_skipped` | Явный «chosen branch» в execution UI |
-| `run_success` | Достигнута нода `exit` | Comfy end of prompt; Dify `GraphRunSucceededEvent` |
-| `run_end` | Останов без `exit` (нет подходящего ребра) | Частичный / мягкий stop |
-| `error` | Инвариант / цикл / graph_ref / прочее | Comfy `execution_error`; Dify fail events |
+| `edge_traverse` / `branch_skipped` / `branch_taken` | Выбор исходящего ребра (**F4**); пропуски **`condition_false`** / **`ai_route_not_selected`** | Dify skip; n8n IF |
+| `run_success` / `run_end` / `error` | **`exit`**, мягкий стоп, инварианты | Comfy / Dify fail / success события |
 
 Цепочка **`task`:** `process_complete` (в т.ч. `success=false`) → при исчерпании ретраев **`process_failed`**; сопоставление с политиками конкурентов — **§16** (**F19**).
 

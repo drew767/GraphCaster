@@ -1,0 +1,6 @@
+* text=auto
+.gitattributes text eol=lf
+
+# Stable LF for Python and schema JSON (avoids CRLF-only noise on Windows checkouts).
+python/** text eol=lf
+schemas/** text eol=lf

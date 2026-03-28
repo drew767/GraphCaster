@@ -55,7 +55,7 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
-Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), ИИ-ветвление (**фаза 6**), продуктовая документация, расширение контекста предикатов, **истинный параллелизм** веток (**F6**); узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
+Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), продуктовая документация, расширение контекста предикатов, **истинный параллелизм** веток (**F6**). **Структурированное ИИ-ветвление** (**нода `ai_route`**, wire v1) — **закрыто** (подраздел **«ИИ-ветвление / нода `ai_route`»** ниже и п.4 **§32.2** в competitive). Узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -230,7 +230,7 @@
 
 ---
 
-## Стабильный `runId` на строках NDJSON (канон; **§3.7** в `COMPETITIVE_ANALYSIS.md` — таблица `type` и эталоны)
+## Стабильный `runId` на строках NDJSON (канон; **§3.7** в `COMPETITIVE_ANALYSIS.md` — краткий обзор и эталоны)
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -238,7 +238,28 @@
 | Контракт и проверки | **`schemas/run-event.schema.json`**: описание корня, **`allOf`** с обязательным **`runId`** для ключевых **`type`** (**`run_started`**, **`run_finished`**, …) |
 | Транспорт в UI (фаза 8) | Десктоп: **`run_bridge.rs`** → события с **`runId`**, UI фильтрует по нему; веб: SSE-брокер отдаёт те же строки; **`runSessionStore`** маршрутизирует по **`runId`** (несколько живых прогонов — подраздел «Несколько корневых прогонов» ниже). Второй протокол поверх NDJSON в MVP **не** вводится (**§39** в competitive — открытый prod-транспорт) |
 
-Код/тесты: `python/graph_caster/runner.py` (эмиссия с **`run_id`**), `python/tests/test_run_event_schema.py`. Эталоны очередей/буферов у конкурентов — по смыслу в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§3.6**–**§3.7**, без дублирования таблиц событий здесь.
+Код/тесты: `python/graph_caster/runner.py` (эмиссия с **`run_id`**), `python/tests/test_run_event_schema.py`. Эталоны очередей/буферов у конкурентов — по смыслу в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§3.6**–**§3.7**. **Полный перечень значений `type` и обязательных полей** — в подразделе ниже и в JSON Schema, без второй полной таблицы в competitive.
+
+---
+
+## NDJSON `run-event`: полный перечень `type` (v0.1, машиночитаемый контракт)
+
+Единый реестр строк **`type`** из **`schemas/run-event.schema.json`** (закрытый **`enum`**). Обязательные поля по каждому типу — ветки **`allOf`/`if`/`then`** той же схемы. Паритет с раннером и примерами — **`python/tests/test_run_event_schema.py`**.
+
+| Группа | `type` | Назначение (кратко) |
+|--------|--------|---------------------|
+| Жизненный цикл корня | **`run_started`**, **`run_finished`**, **`run_root_ready`**, **`run_success`**, **`run_end`** | Старт/финиш прогона, каталог артефактов, нормальный выход через **`exit`**, останов без **`exit`** |
+| Нода | **`node_enter`**, **`node_execute`**, **`node_exit`** | Визит ноды; **`node_exit`**: опц. **`usedPin`** (short-circuit **`gcPin`**) |
+| Ветвление (F4) | **`edge_traverse`**, **`branch_taken`**, **`branch_skipped`** | Выбранное ребро; явная ветвь; пропуск (**`condition_false`**, **`ai_route_not_selected`**) |
+| Вложенный граф | **`nested_graph_enter`**, **`nested_graph_exit`** | **`graph_ref`**, тот же корневой **`runId`** |
+| Подпроцесс **`task`** | **`process_spawn`**, **`process_complete`**, **`process_failed`**, **`process_output`**, **`process_retry`** | Запуск команды, исход, чанки stdout/stderr, ретрай по политике ноды |
+| Транспорт (dev SSE) | **`stream_backpressure`** | Дроп **`process_output`** у медленного подписчика брокера (**`RunBroadcaster`**) |
+| Статика / предупреждения | **`structure_warning`** | В т.ч. **`kind`**: merge/fork/barrier/**`gc_pin_enabled_empty_payload`**/**`ai_route_*`** (см. **`validate.py`**, UI) |
+| Кэш и pin (F17 / n8n-style) | **`node_cache_hit`**, **`node_cache_miss`**, **`node_pinned_skip`**, **`node_outputs_snapshot`** | Comfy-style кэш шага; пропуск по pin; снимок выхода для UI |
+| ИИ-маршрут (**`ai_route`**) | **`ai_route_invoke`**, **`ai_route_decided`**, **`ai_route_failed`** | Запрос к провайдеру, выбранная ветка, сбой маршрутизации |
+| Инварианты | **`error`** | Жёсткая ошибка прогона / графа |
+
+Источники эмиссии: **`python/graph_caster/runner.py`** (**`GraphRunner.emit`**), **`python/graph_caster/process_exec.py`**, **`python/graph_caster/run_broker/broadcaster.py`** (**`stream_backpressure`**). Сопоставление с продуктами-референсами — только краткая таблица в **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); детали реализации по группам — разделы выше и ниже в этом файле (**`process_output`**, **Backpressure SSE**, **F4**, **`ai_route`**, **`gcPin`**, F17).
 
 ---
 
@@ -251,7 +272,7 @@
 | Поведение по строкам | События по **`readline`**: вывод без **`flush()`**/перевода строки может появляться в UI с задержкой до завершения строки или процесса |
 | Контракт | **`schemas/run-event.schema.json`** (ветка **`process_output`**) |
 | Консоль UI | Сырые строки NDJSON в сторе; отображение: **`buildConsoleLineMeta`** (`ui/src/run/consoleLineMeta.ts`) — читаемые строки **`[nodeId] …`** и префикс **`[stderr]`** для потока stderr |
-| Сводная таблица **`type` (GC)** в competitive | В **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) — обзор и аналоги у n8n/Dify; **факты реализации** **`process_output`** / **`stream_backpressure`** ведутся **здесь**, не вторым списком в competitive |
+| Сводная таблица **`type` (GC)** в competitive | В **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) — краткий обзор и аналоги у n8n/Dify; **полный enum и обязательные поля** — подраздел **«NDJSON `run-event`: полный перечень `type`»** выше и **`schemas/run-event.schema.json`**; **`process_output`** / **`stream_backpressure`** — также этот файл |
 | Два уровня буфера (**§13.3** / **§39.2** у конкурентов) | **Ядро:** **`process_exec`** — очередь **`readline` → emit** с **`maxsize`** (этот раздел). **Транспорт (dev):** **`RunBroadcaster`** — **«Backpressure SSE»** и подраздел **Evidence** ниже. **Prod** / relay / политика хоста — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§39.2** п.7 и п.6 |
 
 Код/тесты: `process_exec.py`, `test_run_event_schema.py`, **`python/tests/test_process_exec_streaming.py`**, Vitest **`consoleLineMeta.test.ts`**.
@@ -461,4 +482,4 @@
 
 ---
 
-*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане, см. **writing-plans** в agent-queue). После выполнения плана удалите соответствующий **`.md`**; коммиты по плану не обязательны.*
+*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане, см. **writing-plans** в agent-queue). После выполнения плана удалите соответствующий **`.md`** из **`doc/plans/`**; если в каталоге нет файлов — удалять нечего. Коммиты по плану не обязательны.*
