@@ -66,6 +66,16 @@ describe("buildConsoleLineMeta", () => {
     expect(m.nodeId).toBe("t");
   });
 
+  it("parses stream_backpressure for console warning", () => {
+    const line = `{"type":"stream_backpressure","runId":"r1","droppedOutputLines":15,"reason":"subscriber_queue_full"}`;
+    const m = buildConsoleLineMeta(line);
+    expect(m.parsedType).toBe("stream_backpressure");
+    expect(m.streamBackpressureDropped).toBe(15);
+    expect(m.isErrorLike).toBe(false);
+    expect(m.displayLine).toBe("stream_backpressure dropped 15");
+    expect(consoleLineMatchesSearch(m, "dropped")).toBe(true);
+  });
+
   it("formats process_output stdout for display", () => {
     const line = `{"type":"process_output","runId":"r","nodeId":"t1","graphId":"g","stream":"stdout","text":"hi\\n","seq":0,"eol":true}`;
     const m = buildConsoleLineMeta(line);

@@ -28,6 +28,7 @@
         "process_complete",
         "process_failed",
         "process_output",
+        "stream_backpressure",
         "process_retry",
         "structure_warning",
         "node_cache_hit",
@@ -458,6 +459,20 @@
             "type": "boolean",
             "description": "True when this chunk ends with a newline (hint for renderers)."
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "stream_backpressure" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "droppedOutputLines"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "droppedOutputLines": { "type": "integer", "minimum": 1 },
+          "reason": { "type": "string", "enum": ["subscriber_queue_full"] }
         }
       }
     },

@@ -11,6 +11,8 @@ export type ConsoleLineMeta = {
   parsedType: string | null;
   nodeId: string | null;
   isErrorLike: boolean;
+  /** When set, ConsolePanel shows i18n warning instead of raw `displayLine`. */
+  streamBackpressureDropped?: number;
 };
 
 export function splitStderrPrefix(line: string): { isStderr: boolean; payload: string } {
@@ -98,6 +100,22 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
         nodeId = from.trim();
       }
     }
+  }
+
+  if (parsedType === "stream_backpressure" && ev && typeof ev === "object" && ev !== null && !Array.isArray(ev)) {
+    const o = ev as Record<string, unknown>;
+    const n = o.droppedOutputLines;
+    const count = typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.floor(n) : 0;
+    const isStderr = prefixedStderr;
+    return {
+      rawLine,
+      displayLine: count > 0 ? `stream_backpressure dropped ${count}` : rawLine,
+      isStderr,
+      parsedType,
+      nodeId: null,
+      isErrorLike: false,
+      streamBackpressureDropped: count > 0 ? count : undefined,
+    };
   }
 
   if (parsedType === "process_output" && ev && typeof ev === "object" && ev !== null && !Array.isArray(ev)) {

@@ -239,6 +239,34 @@ def test_process_like_events_validate() -> None:
         validator.validate(ev)
 
 
+def test_stream_backpressure_validates() -> None:
+    validator = _validator()
+    ok = {
+        "type": "stream_backpressure",
+        "runId": "550e8400-e29b-41d4-a716-446655440099",
+        "droppedOutputLines": 42,
+        "reason": "subscriber_queue_full",
+    }
+    validator.validate(ok)
+    validator.validate(
+        {
+            "type": "stream_backpressure",
+            "runId": "550e8400-e29b-41d4-a716-446655440099",
+            "droppedOutputLines": 1,
+        }
+    )
+
+
+def test_stream_backpressure_requires_dropped_output_lines() -> None:
+    validator = _validator()
+    bad = {
+        "type": "stream_backpressure",
+        "runId": "550e8400-e29b-41d4-a716-446655440099",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(bad)
+
+
 def test_process_output_schema_requires_seq() -> None:
     validator = _validator()
     bad = {

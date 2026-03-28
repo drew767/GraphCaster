@@ -13,7 +13,16 @@ import uuid
 from pathlib import Path
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
-from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster
+from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
+
+
+def _sub_queue_max() -> int:
+    raw = os.environ.get("GC_RUN_BROKER_SUB_QUEUE_MAX", "8192").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 8192
+    return max(64, min(131_072, n))
 
 
 def _max_concurrent_runs() -> int:
@@ -107,7 +116,10 @@ class RunBrokerRegistry:
             env = os.environ.copy()
             _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
 
-            broadcaster = RunBroadcaster()
+            broadcaster = RunBroadcaster(
+                run_id=run_id,
+                config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
+            )
             cmd = [sys.executable, "-m", "graph_caster", *argv]
             proc = subprocess.Popen(
                 cmd,

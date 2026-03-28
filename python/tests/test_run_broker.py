@@ -229,7 +229,7 @@ def test_run_broker_stream_accepts_token_query(monkeypatch: pytest.MonkeyPatch) 
 def test_broadcaster_splits_newlines_in_sse_out() -> None:
     from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster
 
-    b = RunBroadcaster()
+    b = RunBroadcaster(run_id="sse-newline-test")
     q = b.subscribe()
 
     async def collect() -> str:

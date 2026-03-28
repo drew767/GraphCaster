@@ -913,6 +913,14 @@ body {
   margin-left: 0;
 }
 
+.gc-console-line--warn {
+  background: color-mix(in srgb, #b9770e 14%, var(--gc-console-bg));
+  border-left: 3px solid color-mix(in srgb, #d68910 70%, var(--gc-border));
+  padding-left: 0.35rem;
+  margin-left: 0;
+  border-radius: 2px;
+}
+
 .gc-console-line--error {
   background: color-mix(in srgb, #c0392b 16%, var(--gc-console-bg));
   border-radius: 2px;

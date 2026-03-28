@@ -198,7 +198,13 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
               const navigable = m.nodeId != null && onNavigateToNode != null;
               const lineClass = [
                 "gc-console-line",
-                m.isErrorLike ? "gc-console-line--error" : m.isStderr ? "gc-console-line--stderr" : "",
+                m.isErrorLike
+                  ? "gc-console-line--error"
+                  : m.streamBackpressureDropped != null
+                    ? "gc-console-line--warn"
+                    : m.isStderr
+                      ? "gc-console-line--stderr"
+                      : "",
                 navigable ? "gc-console-line--nav" : "",
               ]
                 .filter(Boolean)
@@ -227,7 +233,9 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
                     }
                   }}
                 >
-                  {m.displayLine}
+                  {m.streamBackpressureDropped != null
+                    ? t("app.run.console.outputTruncated", { count: m.streamBackpressureDropped })
+                    : m.displayLine}
                 </pre>
               );
             })
