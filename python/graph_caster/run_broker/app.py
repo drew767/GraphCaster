@@ -25,11 +25,18 @@ from graph_caster.artifacts import (
     read_persisted_events_ndjson_capped,
     read_persisted_run_summary_text,
 )
+from graph_caster.run_broker.idempotency import IdempotencyCache
 from graph_caster.run_broker.registry import RunBrokerRegistry
+from graph_caster.run_broker.webhook_signature import verify_webhook_signature
 from graph_caster.run_transport.ws_envelope import broker_ws_payload_from_fanout
 
 _GLOBAL_REGISTRY = RunBrokerRegistry()
+_WEBHOOK_IDEMPOTENCY = IdempotencyCache()
 _LOG = logging.getLogger(__name__)
+
+_WS_CLOSE_DEV_TOKEN = 1008
+_WS_CLOSE_VIEWER_REJECT = 4401
+_WS_CLOSE_UNKNOWN_RUN = 4404
 
 
 def _const_time_str_eq(left: str, right: str) -> bool:
@@ -60,6 +67,8 @@ def _broker_ws_token_ok(websocket: WebSocket, secret: str) -> bool:
 
 class BrokerTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path == "/webhooks/run":
+            return await call_next(request)
         token = os.environ.get("GC_RUN_BROKER_TOKEN", "").strip()
         if token and not _broker_token_ok(request, token):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -86,6 +95,48 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
         entry = reg.get(rid)
         if entry is None:
             return JSONResponse({"error": "run lost after spawn"}, status_code=500)
+        return JSONResponse({"runId": rid, "viewerToken": entry.viewer_token})
+
+    async def webhook_run(request: Request) -> Response:
+        wh_secret = os.environ.get("GC_RUN_BROKER_WEBHOOK_SECRET", "").strip()
+        if not wh_secret:
+            return JSONResponse({"error": "webhook_not_configured"}, status_code=404)
+        raw = await request.body()
+        sig = request.headers.get("X-GC-Webhook-Signature") or request.headers.get(
+            "x-gc-webhook-signature"
+        )
+        if not verify_webhook_signature(raw, sig, wh_secret):
+            return JSONResponse({"error": "invalid_signature"}, status_code=401)
+
+        idem_header = request.headers.get("X-GC-Idempotency-Key") or request.headers.get(
+            "x-gc-idempotency-key"
+        )
+        idem_key: str | None = None
+        if idem_header is not None:
+            key = idem_header.strip()
+            if not key or len(key) > 256:
+                return JSONResponse({"error": "invalid_idempotency_key"}, status_code=400)
+            idem_key = key
+            cached = _WEBHOOK_IDEMPOTENCY.get(key)
+            if cached is not None:
+                rid_c, vt_c = cached
+                return JSONResponse({"runId": rid_c, "viewerToken": vt_c})
+
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError):
+            return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+        if not isinstance(parsed, dict):
+            return JSONResponse({"error": "body must be object"}, status_code=400)
+        try:
+            rid = reg.spawn_from_body(parsed)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        entry = reg.get(rid)
+        if entry is None:
+            return JSONResponse({"error": "run lost after spawn"}, status_code=500)
+        if idem_key is not None:
+            _WEBHOOK_IDEMPOTENCY.remember(idem_key, rid, entry.viewer_token)
         return JSONResponse({"runId": rid, "viewerToken": entry.viewer_token})
 
     async def stream_run(request: Request) -> Response:
@@ -195,7 +246,7 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
     async def ws_run(websocket: WebSocket) -> None:
         secret = os.environ.get("GC_RUN_BROKER_TOKEN", "").strip()
         if secret and not _broker_ws_token_ok(websocket, secret):
-            await websocket.close(code=1008)
+            await websocket.close(code=_WS_CLOSE_DEV_TOKEN)
             return
         run_id = websocket.path_params["run_id"]
         entry = reg.get(run_id)
@@ -203,10 +254,10 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
             websocket.query_params.get("viewerToken") or websocket.query_params.get("pushRef") or ""
         ).strip()
         if entry is None:
-            await websocket.close(code=1008)
+            await websocket.close(code=_WS_CLOSE_UNKNOWN_RUN)
             return
         if not _const_time_str_eq(vt, entry.viewer_token):
-            await websocket.close(code=1008)
+            await websocket.close(code=_WS_CLOSE_VIEWER_REJECT)
             return
         await websocket.accept()
         q = entry.broadcaster.subscribe()
@@ -222,30 +273,35 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
                 entry.broadcaster.unsubscribe(q)
 
         async def pump_in() -> None:
-            try:
-                while True:
+            while True:
+                try:
                     message = await websocket.receive()
-                    if message["type"] == "websocket.disconnect":
-                        break
-                    if message["type"] != "websocket.receive":
-                        continue
-                    if message.get("bytes") is not None:
-                        continue
-                    raw = message.get("text")
-                    if raw is None:
-                        continue
-                    try:
-                        o = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    if (
-                        isinstance(o, dict)
-                        and o.get("type") == "cancel_run"
-                        and o.get("runId") == run_id
-                    ):
-                        reg.cancel(run_id)
-            except WebSocketDisconnect:
-                pass
+                except WebSocketDisconnect:
+                    break
+                except Exception as e:
+                    _LOG.debug("ws pump_in receive: %s", e)
+                    break
+                if message["type"] == "websocket.disconnect":
+                    break
+                if message["type"] != "websocket.receive":
+                    continue
+                if "bytes" in message and message["bytes"] is not None:
+                    continue
+                raw = message.get("text")
+                if raw is None:
+                    continue
+                try:
+                    o = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(o, dict) or o.get("type") != "cancel_run":
+                    continue
+                msg_rid = o.get("runId")
+                if msg_rid is None:
+                    continue
+                if str(msg_rid).strip() != run_id:
+                    continue
+                reg.cancel(run_id)
 
         out_task = asyncio.create_task(pump_out())
         in_task = asyncio.create_task(pump_in())
@@ -264,6 +320,7 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
 
     routes = [
         Route("/health", health, methods=["GET"]),
+        Route("/webhooks/run", webhook_run, methods=["POST"]),
         Route("/runs", create_run, methods=["POST"]),
         Route("/runs/{run_id}/stream", stream_run, methods=["GET"]),
         WebSocketRoute("/runs/{run_id}/ws", ws_run),

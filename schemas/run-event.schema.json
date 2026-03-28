@@ -217,6 +217,24 @@
               "transport": { "type": "string" },
               "graphId": { "type": "string", "minLength": 1 }
             }
+          },
+          {
+            "required": ["kind", "forkNodeId", "reason", "graphId"],
+            "properties": {
+              "kind": { "const": "fork_parallel_deferred" },
+              "forkNodeId": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "forkNodeId", "reason", "graphId"],
+            "properties": {
+              "kind": { "const": "fork_parallel_region_unsupported" },
+              "forkNodeId": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 1 },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
           }
         ]
       }

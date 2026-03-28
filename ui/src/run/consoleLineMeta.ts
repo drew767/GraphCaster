@@ -103,6 +103,11 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
       if (typeof from === "string" && from.trim() !== "") {
         nodeId = from.trim();
       }
+    } else if (parsedType === "structure_warning") {
+      const fid = o.forkNodeId;
+      if (typeof fid === "string" && fid.trim() !== "") {
+        nodeId = fid.trim();
+      }
     }
   }
 

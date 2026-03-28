@@ -131,6 +131,7 @@
 
 - Старт/стоп/cancel Run; стрим событий в консоль и на canvas (подсветка).
 - **Сделано (первая итерация):** десктоп **Tauri** — дочерний процесс `python -m graph_caster run` с **NDJSON в stdout** и **cancel по stdin** (как Flowise/n8n: один логический канал на `runId`); временный JSON графа на диске; отдельный WebSocket в UI не требуется. **Несколько корневых Run** из одного UI — FIFO-очередь и лимит параллелизма (**`gc.run.maxConcurrent`**, **`GC_TAURI_MAX_RUNS`**, брокер **`GC_RUN_BROKER_MAX_RUNS`**); см. подраздел в `doc/IMPLEMENTED_FEATURES.md`.
+- **Push-триггер (срез F9):** dev-брокер **`graph_caster serve`** — **`POST /webhooks/run`**: тело как у **`POST /runs`**, подпись **`X-GC-Webhook-Signature`** (**`sha256=`** + HMAC-SHA256 сырого тела, секрет **`GC_RUN_BROKER_WEBHOOK_SECRET`**), опционально **`X-GC-Idempotency-Key`** (in-memory кэш, TTL **15** мин); путь **исключён** из **`GC_RUN_BROKER_TOKEN`** middleware. Детали: **`python/README.md`**, **`doc/IMPLEMENTED_FEATURES.md`** (F9 / push), **`python/tests/test_run_broker_webhook.py`**.
 - Проброс **root run artifact dir** во вложенные вызовы `graph_ref` в Python (согласовано с фазой 2).
 
 ## Фаза 9 — MVP «Cursor CLI»

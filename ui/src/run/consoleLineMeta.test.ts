@@ -39,6 +39,14 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
   });
 
+  it("parses nodeId from structure_warning fork_parallel via forkNodeId", () => {
+    const m = buildConsoleLineMeta(
+      `{"type":"structure_warning","kind":"fork_parallel_deferred","forkNodeId":"f1","reason":"multi_hop","graphId":"g"}`,
+    );
+    expect(m.nodeId).toBe("f1");
+    expect(m.parsedType).toBe("structure_warning");
+  });
+
   it("marks branch_taken with route error as error-like", () => {
     const m = buildConsoleLineMeta(
       `{"type":"branch_taken","edgeId":"e1","fromNode":"src","toNode":"dst","graphId":"g","route":"error"}`,

@@ -170,6 +170,20 @@ def test_process_like_events_validate() -> None:
             "graphId": "g1",
         },
         {
+            "type": "structure_warning",
+            "kind": "fork_parallel_deferred",
+            "forkNodeId": "f1",
+            "reason": "multi_hop_or_non_subprocess_task",
+            "graphId": "g1",
+        },
+        {
+            "type": "structure_warning",
+            "kind": "fork_parallel_region_unsupported",
+            "forkNodeId": "f1",
+            "reason": "nested_fork",
+            "graphId": "g1",
+        },
+        {
             "type": "ai_route_invoke",
             "runId": "550e8400-e29b-41d4-a716-422039440000",
             "nodeId": "ar1",
