@@ -1460,6 +1460,7 @@ export function AppShell({ onLangChange }: Props) {
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={runSessionBlocking}
               runHighlightNodeId={runSession.activeNodeId}
+              nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}
               warningEdgeIds={canvasWarningEdgeIds}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);

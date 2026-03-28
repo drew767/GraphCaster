@@ -30,8 +30,21 @@ function GcFlowNodeInner(props: NodeProps) {
     !Array.isArray(raw) &&
     (raw as { stepCache?: unknown }).stepCache === true;
 
+  const overlayPhase = data?.runOverlayPhase;
+  const overlayStatus =
+    overlayPhase === "running" ||
+    overlayPhase === "success" ||
+    overlayPhase === "failed" ||
+    overlayPhase === "skipped"
+      ? t(`app.run.overlay.${overlayPhase}`)
+      : undefined;
+  const overlayAria =
+    overlayStatus != null
+      ? t("app.run.overlay.nodeAria", { label: data?.label ?? props.id, status: overlayStatus })
+      : undefined;
+
   return (
-    <div className={cls}>
+    <div className={cls} title={overlayStatus} aria-label={overlayAria ?? undefined}>
       {showTarget ? <Handle type="target" position={Position.Left} id="in_default" /> : null}
       <div className="gc-flow-node__body">
         <span className="gc-flow-node__pillrow">

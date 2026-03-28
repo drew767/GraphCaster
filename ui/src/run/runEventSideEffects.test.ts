@@ -27,4 +27,17 @@ describe("applyRunnerNdjsonSideEffects", () => {
     expect(spy).toHaveBeenCalledWith("run-a", "x", { k: 1 });
     spy.mockRestore();
   });
+
+  it("updates node run overlay from NDJSON side effects", () => {
+    store.runSessionResetForTest();
+    store.runSessionRegisterLiveRun("run-a");
+    applyRunnerNdjsonSideEffects(
+      '{"type":"node_enter","nodeId":"n1","nodeType":"task","graphId":"g"}',
+    );
+    expect(store.getRunSessionSnapshot().nodeRunOverlayByNodeId.n1?.phase).toBe("running");
+    applyRunnerNdjsonSideEffects(
+      '{"type":"node_exit","nodeId":"n1","nodeType":"task","graphId":"g"}',
+    );
+    expect(store.getRunSessionSnapshot().nodeRunOverlayByNodeId.n1?.phase).toBe("success");
+  });
 });

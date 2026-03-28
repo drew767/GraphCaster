@@ -223,6 +223,7 @@
       "replayDisabledHint": "В этой папке нет events.ndjson.",
       "replayLabel": "каталог {{dir}}",
       "logTruncated": "events.ndjson прочитан с конца (ограничение размера); первая строка может быть обрезанным JSON — при необходимости увеличьте лимит в коде.",
+      "replayGraphIdMismatch": "В логе rootGraphId «{{logRoot}}», а открыт граф «{{openRoot}}» — подсветка нод может не совпадать с полотном.",
       "refresh": "Обновить",
       "close": "Закрыть"
     },
@@ -247,6 +248,13 @@
       "hostConcurrencyHint": "Увеличьте GC_RUN_BROKER_MAX_RUNS (брокер веб) или GC_TAURI_MAX_RUNS (десктоп), чтобы было не меньше gc.run.maxConcurrent в localStorage.",
       "console": {
         "outputTruncated": "Консоль: отброшено {{count}} событий process_output (переполнена очередь SSE-подписчика; одна строка NDJSON ≈ одно событие). Запись прогона на диск не меняется."
+      },
+      "overlay": {
+        "running": "Выполняется",
+        "success": "Успешно",
+        "failed": "Ошибка",
+        "skipped": "Ветка пропущена",
+        "nodeAria": "{{label}}, статус запуска: {{status}}"
       }
     },
     "lang": {

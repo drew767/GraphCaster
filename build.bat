@@ -15,6 +15,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
+where cargo >nul 2>&1
+if errorlevel 1 (
+    echo [GraphCaster] cargo not in PATH. Install Rust toolchain ^(https://rustup.rs^).
+    exit /b 1
+)
+
 echo [GraphCaster] npm ci...
 echo [GraphCaster] If npm ci fails with EPERM on esbuild.exe: stop Vite/Node, close IDEs touching ui, cd ui, rmdir /s /q node_modules, cd .., run build.bat again.
 call npm ci
@@ -24,19 +30,19 @@ if not "!NPM_CI_EXIT!"=="0" (
     exit /b 1
 )
 
-echo [GraphCaster] npm run build...
-call npm run build
-set "NPM_BUILD_EXIT=!ERRORLEVEL!"
-if not "!NPM_BUILD_EXIT!"=="0" (
-    echo [GraphCaster] build failed ^(exit !NPM_BUILD_EXIT!^).
+echo [GraphCaster] Building Tauri desktop app (npm run build:desktop)...
+call npm run build:desktop
+set "TAURI_EXIT=!ERRORLEVEL!"
+if not "!TAURI_EXIT!"=="0" (
+    echo [GraphCaster] Tauri build failed ^(exit !TAURI_EXIT!^).
     exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%GCHOME%ui\Create-GraphCaster-PreviewShortcut.ps1" -UiDir "%CD%" -ShortcutDir "%GCHOME%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%GCHOME%ui\Create-GraphCaster-Shortcut.ps1" -UiDir "%CD%" -ShortcutDir "%GCHOME%"
 if errorlevel 1 (
     echo [GraphCaster] Could not create shortcut.
     exit /b 1
 )
 
-echo [GraphCaster] Build OK. Use GraphCaster.lnk next to build.bat to run Vite preview.
+echo [GraphCaster] Build OK. Use GraphCaster.lnk next to build.bat to launch the desktop app.
 exit /b 0

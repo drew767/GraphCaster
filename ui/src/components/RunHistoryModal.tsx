@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { gcListPersistedRuns, gcReadPersistedRunEvents, type PersistedRunListItem } from "../run/runCommands";
+import { peekRootGraphIdFromNdjson } from "../run/parseRunEventLine";
 import { loadReplayNdjsonText } from "../run/runEventSideEffects";
 
 type Props = {
@@ -83,11 +84,15 @@ export function RunHistoryModal({ open, onClose, artifactsBase, graphId }: Props
       try {
         const { text, truncated } = await gcReadPersistedRunEvents(ab, gid, runDirName);
         const label = t("app.runHistory.replayLabel", { dir: runDirName });
-        loadReplayNdjsonText(
-          text,
-          label,
-          truncated ? `[host] ${t("app.runHistory.logTruncated")}` : undefined,
-        );
+        const logRoot = peekRootGraphIdFromNdjson(text);
+        const notices: string[] = [];
+        if (truncated) {
+          notices.push(`[host] ${t("app.runHistory.logTruncated")}`);
+        }
+        if (logRoot != null && logRoot !== gid) {
+          notices.push(`[host] ${t("app.runHistory.replayGraphIdMismatch", { logRoot, openRoot: gid })}`);
+        }
+        loadReplayNdjsonText(text, label, notices.length > 0 ? notices.join("\n") : undefined);
         onClose();
       } catch (e) {
         setError(String(e));

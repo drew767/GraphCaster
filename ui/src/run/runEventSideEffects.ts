@@ -74,4 +74,8 @@ export function applyRunnerNdjsonSideEffects(line: string, sourceRunId?: string)
       store.runSessionClearActiveNodeForRun(runKey);
     }
   }
+
+  if (runKey != null) {
+    store.runSessionApplyParsedRunEventToOverlay(runKey, o);
+  }
 }

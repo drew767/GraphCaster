@@ -288,7 +288,7 @@ public partial class MainWindow : Window
         psiInner.Environment["AGENT_QUEUE_HIDE_THINKING"] = "0";
         psiInner.Environment["AGENT_QUEUE_ASSISTANT_STREAM_DELTA"] = "1";
 
-        const int defaultStallRestartSeconds = 800;
+        const int defaultStallRestartSeconds = 1200;
         const int maxStallRestartSeconds = 604800;
         var stallRestartSecondsForArgs = defaultStallRestartSeconds;
         if (int.TryParse(TxtStallRestartSeconds?.Text?.Trim() ?? "", out var stallParsed) && stallParsed >= 0)

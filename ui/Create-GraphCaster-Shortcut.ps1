@@ -41,20 +41,19 @@ if (-not (Test-Path -LiteralPath $ShortcutDir -PathType Container)) {
 }
 
 $shortcutParent = (Resolve-Path -LiteralPath $ShortcutDir).Path
-$npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
-if (-not $npm) {
-  $npm = Get-Command npm -ErrorAction Stop
+
+$exePath = Join-Path $ui "src-tauri\target\release\graph-caster-desktop.exe"
+if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+  throw "Tauri release binary not found: $exePath (run 'npm run build:desktop' first)"
 }
-if (-not (Test-Path -LiteralPath (Join-Path $ui "node_modules"))) {
-  throw "node_modules not found under ui (run npm ci): $ui"
-}
+
 $lnkPath = Join-Path $shortcutParent "GraphCaster.lnk"
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnkPath)
-$shortcut.TargetPath = $npm.Source
-$shortcut.Arguments = "run preview:web"
+$shortcut.TargetPath = $exePath
+$shortcut.Arguments = ""
 $shortcut.WorkingDirectory = $ui
-$shortcut.Description = "GraphCaster: Vite preview of ui/dist (no browser auto-open; open http://127.0.0.1:4173 )"
+$shortcut.Description = "GraphCaster desktop application"
 $shortcut.WindowStyle = 1
 $shortcut.Save()
 Write-Host "Shortcut: $lnkPath"

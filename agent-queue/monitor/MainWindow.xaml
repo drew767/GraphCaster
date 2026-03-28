@@ -264,9 +264,9 @@
 
                         <TextBlock Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Text="Таймер автоперезапуска, с"/>
 
-                        <TextBox Name="TxtStallRestartSeconds" Grid.Row="7" Grid.Column="1" Margin="0,2" Text="800"
+                        <TextBox Name="TxtStallRestartSeconds" Grid.Row="7" Grid.Column="1" Margin="0,2" Text="1200"
 
-                                 ToolTip="Полная длительность таймера в секундах: если agent-queue.monitor-status.json не обновлялся дольше этого времени — создаётся флаг перезапуска шага (как у кнопки). 0 = только ручной перезапуск. По умолчанию 800."/>
+                                 ToolTip="Полная длительность таймера в секундах: если agent-queue.monitor-status.json не обновлялся дольше этого времени — создаётся флаг перезапуска шага (как у кнопки). 0 = только ручной перезапуск. По умолчанию 1200."/>
 
                     </Grid>
 

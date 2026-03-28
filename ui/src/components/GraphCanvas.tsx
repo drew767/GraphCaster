@@ -45,10 +45,38 @@ import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
+import type { NodeRunOverlayEntry, NodeRunPhase } from "../run/nodeRunOverlay";
 
 const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
 
+const GC_NODE_RUN_CLASS_RE = /\bgc-node--run-(active|running|success|failed|skipped)\b/g;
+
 const GC_EDGE_WARN_CLASS = "gc-edge--warning";
+
+function runHighlightClassNameForNode(
+  n: Node<GcNodeData>,
+  nodeRunOverlayById: Readonly<Record<string, NodeRunOverlayEntry>>,
+  hl: string | null,
+): { className: string | undefined; effectivePhase: NodeRunPhase | null } {
+  const strip = (n.className ?? "").replace(GC_NODE_RUN_CLASS_RE, "").trim();
+  const phase = nodeRunOverlayById[n.id]?.phase;
+  const hlHere = hl !== null && n.id === hl;
+  const effectivePhase = phase ?? (hlHere ? ("running" as const) : null);
+  let runClass: string | undefined;
+  if (phase === "failed") {
+    runClass = "gc-node--run-failed";
+  } else if (phase === "skipped") {
+    runClass = "gc-node--run-skipped";
+  } else if (phase === "success") {
+    runClass = "gc-node--run-success";
+  } else if (phase === "running") {
+    runClass = "gc-node--run-running";
+  } else if (hlHere) {
+    runClass = "gc-node--run-active";
+  }
+  const className = runClass != null ? (strip ? `${strip} ${runClass}` : runClass) : strip || undefined;
+  return { className, effectivePhase };
+}
 
 function mergeEdgeWarningHighlight(edges: Edge[], warnIds: ReadonlySet<string>): Edge[] {
   return edges.map((e) => {
@@ -131,6 +159,8 @@ type Props = {
   structureLocked?: boolean;
   /** Highlights the node id from runner events (node_enter / node_execute). */
   runHighlightNodeId?: string | null;
+  /** Per-node execution overlay from run-event stream (live or replay). */
+  nodeRunOverlayById?: Readonly<Record<string, NodeRunOverlayEntry>>;
   /** Called when export drops edges with missing endpoint nodes (sanitize). */
   onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
   /** Edge ids with branch/handle/structure warnings — yellow stroke on canvas. */
@@ -266,6 +296,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onFlowStructureChange,
       structureLocked = false,
       runHighlightNodeId = null,
+      nodeRunOverlayById = {},
       onExportRemovedDanglingEdges,
       warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
     },
@@ -298,9 +329,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [t, i18n.language],
     );
 
-    const initial = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
-    const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
+    const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
+    const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(flowFromDocument.edges);
     const nodesRef = useRef(nodes);
     nodesRef.current = nodes;
     const edgesRef = useRef(edges);
@@ -453,21 +484,87 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     }, [onNodeDragCaptureBegin]);
 
     useEffect(() => {
-      const base = graphDocumentToFlow(graphDocument);
+      const base = flowFromDocument;
       const hl = runHighlightNodeId != null && runHighlightNodeId.trim() !== "" ? runHighlightNodeId.trim() : null;
-      const nodesWithHl = base.nodes.map((n) => {
-        const strip = (n.className ?? "").replace(/\bgc-node--run-active\b/g, "").trim();
-        const active = hl !== null && n.id === hl;
-        const className = active
-          ? strip
-            ? `${strip} gc-node--run-active`
-            : "gc-node--run-active"
-          : strip || undefined;
-        return { ...n, className };
+
+      setNodes((prev) => {
+        const prevById = new Map(prev.map((x) => [x.id, x]));
+        const orderMatches =
+          prev.length === base.nodes.length && base.nodes.every((n, i) => n.id === prev[i]?.id);
+
+        if (!orderMatches) {
+          return base.nodes.map((n) => {
+            const d = n.data as GcNodeData;
+            const { className, effectivePhase } = runHighlightClassNameForNode(
+              n as Node<GcNodeData>,
+              nodeRunOverlayById,
+              hl,
+            );
+            return {
+              ...n,
+              className,
+              data: { ...d, runOverlayPhase: effectivePhase },
+            };
+          });
+        }
+
+        let changed = false;
+        const out = base.nodes.map((n) => {
+          const d = n.data as GcNodeData;
+          const cur = prevById.get(n.id);
+          const { className, effectivePhase } = runHighlightClassNameForNode(
+            n as Node<GcNodeData>,
+            nodeRunOverlayById,
+            hl,
+          );
+          if (
+            cur &&
+            cur.position.x === n.position.x &&
+            cur.position.y === n.position.y &&
+            cur.parentId === n.parentId &&
+            cur.type === n.type &&
+            (cur.data as GcNodeData).graphNodeType === d.graphNodeType &&
+            (cur.data as GcNodeData).label === d.label &&
+            (cur.data as GcNodeData).raw === d.raw
+          ) {
+            const cd = cur.data as GcNodeData;
+            if (cur.className === className && cd.runOverlayPhase === effectivePhase) {
+              return cur;
+            }
+            changed = true;
+            return {
+              ...cur,
+              className,
+              data: { ...cd, runOverlayPhase: effectivePhase },
+            };
+          }
+          changed = true;
+          return {
+            ...n,
+            className,
+            data: { ...d, runOverlayPhase: effectivePhase },
+          };
+        });
+        return changed ? out : prev;
       });
-      setNodes(nodesWithHl);
-      setEdges(mergeEdgeWarningHighlight(base.edges, warningEdgeIds));
-    }, [graphDocument, runHighlightNodeId, warningEdgeIds, setNodes, setEdges]);
+
+      setEdges((prev) => {
+        const next = mergeEdgeWarningHighlight(base.edges, warningEdgeIds);
+        if (prev.length !== next.length) {
+          return next;
+        }
+        let same = true;
+        for (let i = 0; i < prev.length; i++) {
+          const a = prev[i];
+          const b = next[i];
+          if (a.id !== b.id || a.className !== b.className) {
+            same = false;
+            break;
+          }
+        }
+        return same ? prev : next;
+      });
+    }, [flowFromDocument, runHighlightNodeId, nodeRunOverlayById, warningEdgeIds, setNodes, setEdges]);
 
     const onSelectionChange = useCallback(
       ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
@@ -604,6 +701,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         <ReactFlow
           colorMode="system"
           ariaLabelConfig={flowAriaLabels}
+          onlyRenderVisibleElements
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChangeWrapped}

@@ -1,7 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import { describe, expect, it } from "vitest";
-import { parseRunEventLine } from "./parseRunEventLine";
+import { parseRunEventLine, peekRootGraphIdFromNdjson } from "./parseRunEventLine";
 
 describe("parseRunEventLine", () => {
   it("returns null for empty or whitespace", () => {
@@ -29,5 +29,26 @@ describe("parseRunEventLine", () => {
 
   it("returns null on invalid JSON", () => {
     expect(parseRunEventLine("{")).toBeNull();
+  });
+});
+
+describe("peekRootGraphIdFromNdjson", () => {
+  it("returns rootGraphId from first run_started line", () => {
+    const ndjson = [
+      '{"type":"noise","x":1}',
+      '{"type":"run_started","runId":"r1","rootGraphId":"my-graph","mode":"manual"}',
+      '{"type":"node_enter","nodeId":"a"}',
+    ].join("\n");
+    expect(peekRootGraphIdFromNdjson(ndjson)).toBe("my-graph");
+  });
+
+  it("returns null when no run_started", () => {
+    expect(peekRootGraphIdFromNdjson('{"type":"node_enter","nodeId":"a"}')).toBeNull();
+  });
+
+  it("returns null for empty rootGraphId string", () => {
+    expect(
+      peekRootGraphIdFromNdjson('{"type":"run_started","runId":"r1","rootGraphId":"   "}'),
+    ).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ import {
 import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_START } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
+import type { NodeRunPhase } from "../run/nodeRunOverlay";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
@@ -20,6 +21,7 @@ export type GcNodeData = {
   graphNodeType: string;
   label: string;
   raw: Record<string, unknown>;
+  runOverlayPhase?: NodeRunPhase | null;
 };
 
 export function nodeLabel(data: Record<string, unknown> | undefined, fallbackId: string): string {

@@ -70,7 +70,7 @@ param(
     [switch] $ContinueFirstPrompt,
     [Parameter()]
     [ValidateRange(0, 604800)]
-    [int] $StallRestartSeconds = 800,
+    [int] $StallRestartSeconds = 1200,
     [Parameter()]
     [ValidateRange(0, 10080)]
     [int] $StallRestartMinutes = 0,
@@ -188,8 +188,8 @@ Options:
                     after the commit block (0 = one chat for all cycles)
   -ContinueFirstPrompt  First prompt of the run uses --continue (resume Cursor's last chat for this workspace).
                     Default: first prompt starts a new chat (no --continue). GUI: uncheck the first-prompt new-chat option to use --continue.
-  -StallRestartSeconds  Full stall timer in seconds (default 800; 0 = timer off, manual restart only). Auto-restart when elapsed time since last monitor status write exceeds this value. Env AGENT_QUEUE_STALL_RESTART_SECONDS applies only when this argument is 0. Takes precedence over -StallRestartMinutes when >0.
-  -StallRestartMinutes  If -StallRestartSeconds is 0 and this is >0: timer = N*60 seconds. Pass -StallRestartSeconds 0 to use minutes with the default seconds otherwise being 800. Env AGENT_QUEUE_STALL_RESTART_MINUTES.
+  -StallRestartSeconds  Full stall timer in seconds (default 1200; 0 = timer off, manual restart only). Auto-restart when elapsed time since last monitor status write exceeds this value. Env AGENT_QUEUE_STALL_RESTART_SECONDS applies only when this argument is 0. Takes precedence over -StallRestartMinutes when >0.
+  -StallRestartMinutes  If -StallRestartSeconds is 0 and this is >0: timer = N*60 seconds. Pass -StallRestartSeconds 0 to use minutes with the default seconds otherwise being 1200. Env AGENT_QUEUE_STALL_RESTART_MINUTES.
   -StallRestartGraceSeconds  Ignored for stall timing (kept for script compatibility only). Env AGENT_QUEUE_STALL_RESTART_GRACE_SECONDS has no effect on the timer.
   -StallAllowManualRetry  Use the polling subprocess path so a flag file can request an immediate step restart (see agent-queue.manual-stall-retry.flag). GUI passes this; env AGENT_QUEUE_STALL_ALLOW_MANUAL=1.
   -Loop            Sequential mode (advanced): repeat like pipeline rounds; prefer -Cycles N instead of -Loop -MaxRounds N

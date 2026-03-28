@@ -223,6 +223,7 @@
       "replayDisabledHint": "No events.ndjson in this folder.",
       "replayLabel": "folder {{dir}}",
       "logTruncated": "events.ndjson was read from the tail only (size cap); the first line may be a broken JSON fragment — narrow filters or raise the limit in code if needed.",
+      "replayGraphIdMismatch": "Replay log rootGraphId is \"{{logRoot}}\" but the open graph id is \"{{openRoot}}\" — node highlights may not match the canvas.",
       "refresh": "Refresh",
       "close": "Close"
     },
@@ -247,6 +248,13 @@
       "hostConcurrencyHint": "Raise GC_RUN_BROKER_MAX_RUNS (web broker) or GC_TAURI_MAX_RUNS (desktop) to match or exceed gc.run.maxConcurrent in localStorage.",
       "console": {
         "outputTruncated": "Console: {{count}} process_output event(s) dropped (SSE subscriber queue full; one NDJSON line ≈ one event). Persisted run log on disk is unchanged."
+      },
+      "overlay": {
+        "running": "Running",
+        "success": "Succeeded",
+        "failed": "Failed",
+        "skipped": "Skipped branch",
+        "nodeAria": "{{label}}, run status: {{status}}"
       }
     },
     "lang": {

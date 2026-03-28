@@ -2,7 +2,13 @@
 
 import { useSyncExternalStore } from "react";
 
+import { applyParsedRunEventToOverlayState, type NodeRunOverlayEntry } from "./nodeRunOverlay";
+
 const MAX_LINES_PER_RUN = 2000;
+
+const EMPTY_NODE_RUN_OVERLAY: Record<string, NodeRunOverlayEntry> = Object.freeze(
+  {},
+) as Record<string, NodeRunOverlayEntry>;
 
 export const LS_MAX_CONCURRENT_RUNS = "gc.run.maxConcurrent";
 
@@ -31,6 +37,7 @@ export type RunSessionSnapshot = {
   lastExitCode: number | null;
   nodeOutputSnapshots: Record<string, Record<string, unknown>>;
   replaySourceLabel: string | null;
+  nodeRunOverlayByNodeId: Readonly<Record<string, NodeRunOverlayEntry>>;
 };
 
 type InternalState = {
@@ -44,6 +51,7 @@ type InternalState = {
   pythonBanner: string | null;
   lastExitCode: number | null;
   outputSnapshotsByRunId: Record<string, Record<string, Record<string, unknown>>>;
+  nodeRunOverlayByRunId: Record<string, Record<string, NodeRunOverlayEntry>>;
 };
 
 function trimBuffer(lines: string[]): string[] {
@@ -51,6 +59,17 @@ function trimBuffer(lines: string[]): string[] {
     return lines;
   }
   return lines.slice(-MAX_LINES_PER_RUN);
+}
+
+function publicNodeRunOverlay(s: InternalState): Record<string, NodeRunOverlayEntry> {
+  const replay = s.replaySourceLabel != null;
+  if (replay) {
+    return s.nodeRunOverlayByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY] ?? EMPTY_NODE_RUN_OVERLAY;
+  }
+  if (s.focusedRunId != null) {
+    return s.nodeRunOverlayByRunId[s.focusedRunId] ?? EMPTY_NODE_RUN_OVERLAY;
+  }
+  return EMPTY_NODE_RUN_OVERLAY;
 }
 
 function publicNodeOutputSnapshots(s: InternalState): Record<string, Record<string, unknown>> {
@@ -95,6 +114,7 @@ function buildPublicSnapshot(s: InternalState): RunSessionSnapshot {
     lastExitCode: s.lastExitCode,
     nodeOutputSnapshots: publicNodeOutputSnapshots(s),
     replaySourceLabel: s.replaySourceLabel,
+    nodeRunOverlayByNodeId: publicNodeRunOverlay(s),
   };
 }
 
@@ -109,6 +129,7 @@ let internal: InternalState = {
   pythonBanner: null,
   lastExitCode: null,
   outputSnapshotsByRunId: {},
+  nodeRunOverlayByRunId: {},
 };
 
 let publicSnap: RunSessionSnapshot = buildPublicSnapshot(internal);
@@ -238,6 +259,7 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
   const { [rid]: _c, ...restConsole } = internal.consoleByRunId;
   const { [rid]: _s, ...restSnaps } = internal.outputSnapshotsByRunId;
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
+  const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   internal = {
@@ -247,6 +269,7 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
     consoleByRunId: restConsole,
     outputSnapshotsByRunId: restSnaps,
     activeNodeIdByRunId: restActive,
+    nodeRunOverlayByRunId: restOverlay,
     pendingStarts: pending,
   };
   emit();
@@ -267,6 +290,7 @@ export function runSessionOnRunProcessExited(
   const { [rid]: _c, ...restConsole } = internal.consoleByRunId;
   const { [rid]: _s, ...restSnaps } = internal.outputSnapshotsByRunId;
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
+  const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   const setExit = wasFocused || liveRunOrder.length === 0;
@@ -277,6 +301,7 @@ export function runSessionOnRunProcessExited(
     consoleByRunId: restConsole,
     outputSnapshotsByRunId: restSnaps,
     activeNodeIdByRunId: restActive,
+    nodeRunOverlayByRunId: restOverlay,
     pendingStarts: pending,
     lastExitCode: setExit ? code : internal.lastExitCode,
   };
@@ -344,12 +369,17 @@ export function runSessionBeginReplay(sourceLabel: string): void {
   };
   const activeNodeIdByRunId = { ...internal.activeNodeIdByRunId };
   delete activeNodeIdByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
+  const nodeRunOverlayByRunId = {
+    ...internal.nodeRunOverlayByRunId,
+    [RUN_SESSION_REPLAY_SNAPSHOT_KEY]: {},
+  };
   internal = {
     ...internal,
     replaySourceLabel: sourceLabel,
     replayLines: [],
     outputSnapshotsByRunId,
     activeNodeIdByRunId,
+    nodeRunOverlayByRunId,
     lastExitCode: null,
   };
   emit();
@@ -363,12 +393,15 @@ export function runSessionClearReplay(): void {
   delete outputSnapshotsByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
   const activeNodeIdByRunId = { ...internal.activeNodeIdByRunId };
   delete activeNodeIdByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
+  const nodeRunOverlayByRunId = { ...internal.nodeRunOverlayByRunId };
+  delete nodeRunOverlayByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
   internal = {
     ...internal,
     replaySourceLabel: null,
     replayLines: [],
     outputSnapshotsByRunId,
     activeNodeIdByRunId,
+    nodeRunOverlayByRunId,
   };
   emit();
 }
@@ -447,10 +480,31 @@ export function runSessionResetForTest(): void {
     pythonBanner: null,
     lastExitCode: null,
     outputSnapshotsByRunId: {},
+    nodeRunOverlayByRunId: {},
   };
   emit();
 }
 
 export function runSessionGetFocusedRunIdForSideEffects(): string | null {
   return internal.focusedRunId;
+}
+
+export function runSessionApplyParsedRunEventToOverlay(runKey: string, o: Record<string, unknown>): void {
+  const key = runKey.trim();
+  if (key === "") {
+    return;
+  }
+  const prev = internal.nodeRunOverlayByRunId[key] ?? {};
+  const next = applyParsedRunEventToOverlayState(prev, o);
+  if (next === prev) {
+    return;
+  }
+  internal = {
+    ...internal,
+    nodeRunOverlayByRunId: {
+      ...internal.nodeRunOverlayByRunId,
+      [key]: { ...next },
+    },
+  };
+  emit();
 }

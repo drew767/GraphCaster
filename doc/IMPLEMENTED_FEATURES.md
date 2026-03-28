@@ -71,6 +71,17 @@
 
 ---
 
+## Canvas: большие графы (**F1** / [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28.2** п.4)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Не оплачивать полный DOM/React для невидимых нод (React Flow / паттерны n8n «не рисовать лишнее») | В **`GraphCanvas`**: **`onlyRenderVisibleElements`** на **`<ReactFlow>`** (**`@xyflow/react`**) |
+| Не делать **O(N)** пересборку массива нод на каждое событие прогона, если поменялась одна нода | Тот же файл: **`setNodes`** с сохранением ссылок на неизменённые ноды при стабильном порядке и совпадении структуры; рёбра — **`setEdges`** с ранним выходом, если классы предупреждений совпали |
+
+Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/run/nodeRunOverlay.ts`** (**`nodeRunOverlayMapsEqual`** — сравнение карт оверлея), Vitest **`ui/src/run/nodeRunOverlayBatch.test.ts`**. **Не** закрыто в этой волне: lazy-подграфы по схеме **A** / группы «как в §28.2 п.7» до появления родителя в **`graph-document.schema.json`**.
+
+---
+
 ## Открытие графа, инспектор и Save: ошибки (P1, как n8n/Dify — явная причина отказа)
 
 | Идея конкурента | Реализация GC |
@@ -491,10 +502,11 @@
 | Langflow: поиск по буферу | Поле поиска (substring, без учёта регистра) по полному буферу, пересечение с активным фильтром |
 | Чтение середины лога без «срыва» вниз при новых событиях | **Sticky tail:** автопрокрутка в конец, если пользователь у низа (**в т.ч. после смены фильтра или поиска**); кнопка **Latest** / **В конец** снова приклеивает хвост |
 | Переход к ноде из события | Клик (или Enter/Space) по строке с **`nodeId`**; для **`branch_taken`** / **`branch_skipped`** берётся **`fromNode`** как источник фокуса; **`aria-label`** и **`aria-pressed`** у фильтров; к выбору в инспекторе и **`fitView`** на ноду (`GraphCanvasHandle.focusNode`) |
+| n8n / Dify / Langflow: статусы нод на полотне во время execution | Редьюсер **`run-event` → фазы нод** (**`nodeRunOverlay.ts`**), инкрементально в **`applyRunnerNdjsonSideEffects`** / стор **`runSessionStore`** (раздельно по **`runId`** и по ключу replay); **`GraphCanvas`** — классы **`gc-node--run-running|success|failed|skipped`**, подсветка «текущей» ноды без записи оверлея — **`gc-node--run-active`** (**`runHighlightNodeId`**); кэш **`graphDocumentToFlow`** в **`useMemo`** (**`flowFromDocument`**) для снижения пересчёта при обновлении оверлея; **`GcFlowNode`** — **`app.run.overlay.*`** (**title** / **`aria-label`**) |
 | Экспорт | **Export** сохраняет **видимые** строки (после фильтра и поиска); **Export all** / **Весь лог** — полный буфер, когда включён фильтр или непустой поиск |
-| Тесты | `ui/src/run/consoleLineMeta.test.ts` (Vitest) |
+| Тесты | `ui/src/run/consoleLineMeta.test.ts`, `ui/src/run/nodeRunOverlay.test.ts`, `ui/src/run/parseRunEventLine.test.ts` (**`peekRootGraphIdFromNdjson`**) (Vitest) |
 
-Код: `ui/src/run/consoleLineMeta.ts`, `ui/src/components/ConsolePanel.tsx`, `ui/src/components/GraphCanvas.tsx`, `ui/src/layout/AppShell.tsx`, стили консоли в `ui/src/styles/app.css`, i18n `app.console.*`.
+Код: `ui/src/run/consoleLineMeta.ts`, `ui/src/run/nodeRunOverlay.ts`, `ui/src/run/runEventSideEffects.ts`, `ui/src/run/runSessionStore.ts`, `ui/src/run/parseRunEventLine.ts`, `ui/src/components/ConsolePanel.tsx`, `ui/src/components/GraphCanvas.tsx`, `ui/src/components/nodes/GcFlowNode.tsx`, `ui/src/layout/AppShell.tsx`, стили консоли и оверлея в `ui/src/styles/app.css`, i18n `app.console.*`, `app.run.overlay.*`.
 
 ---
 
@@ -507,9 +519,9 @@
 | Список прошлых прогонов и просмотр логов без live-run | При **`--artifacts-base`**: **`events.ndjson`** (все события NDJSON, включая **`run_root_ready`**) и **`run-summary.json`** (**`schemaVersion`**: 1, **`runId`**, **`status`**, таймстампы); отключение: **`--no-persist-run-events`** |
 | Тот же поток, что в stdout, не терять при сбое диска на вторичном приёмнике | **`TeeRunEventSink`**: сначала основной sink; **`OSError`** на файловой ветке не рвёт прогон после успешного stdout |
 | Хост читает файлы без path-escape | Tauri: **`canonicalize`** + проверка префикса **`runs/<graphId>/`**; чтение с потолком размера (**16 MiB** для хвоста **`events`**) |
-| Веб (dev) и десктоп | Брокер **`POST /persisted-runs/list`**, **`events`** (ответ **`text`**, **`truncated`**; **`maxBytes`** ≤ **16 MiB**), **`summary`**; UI модалка **History**, replay в консоль (offline), i18n при **`truncated`** |
+| Веб (dev) и десктоп | Брокер **`POST /persisted-runs/list`**, **`events`** (ответ **`text`**, **`truncated`**; **`maxBytes`** ≤ **16 MiB**), **`summary`**; UI модалка **History**, replay в консоль (offline) **и тот же оверлей нод на канвасе**, i18n при **`truncated`**; при несовпадении **`rootGraphId`** из первого **`run_started`** в тексте лога и id открытого графа — строка предупреждения в консоли (**`peekRootGraphIdFromNdjson`**, **`app.runHistory.replayGraphIdMismatch`**) |
 
-Код: `run_event_sink.py`, `artifacts.py`, `runner.py`, `run_broker/app.py`, `run_bridge.rs`, `RunHistoryModal.tsx`, `run/runCommands.ts`, `webRunBroker.ts`. Сводка жизненного цикла артефактов рана — подраздел «Связанные артефакты run» ниже.
+Код: `run_event_sink.py`, `artifacts.py`, `runner.py`, `run_broker/app.py`, `run_bridge.rs`, `RunHistoryModal.tsx`, `run/runCommands.ts`, `run/runEventSideEffects.ts`, `run/parseRunEventLine.ts`, `run/nodeRunOverlay.ts`, `webRunBroker.ts`. Сводка жизненного цикла артефактов рана — подраздел «Связанные артефакты run» ниже.
 
 ---
 
