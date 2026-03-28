@@ -9,8 +9,12 @@ from pathlib import Path
 
 import pytest
 
+from graph_caster.host_context import RunHostContext
+from graph_caster.mcp_client.client import McpToolCallOutcome
 from graph_caster.models import GraphDocument
+from graph_caster.node_output_cache import StepCachePolicy
 from graph_caster.runner import GraphRunner
+import graph_caster.runner as runner_mod
 from graph_caster.validate import find_mcp_tool_structure_warnings, find_unreachable_out_error_sources
 
 GRAPH_CASTER_ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +23,125 @@ FIXTURE = GRAPH_CASTER_ROOT / "schemas" / "test-fixtures" / "mcp-tool-linear.jso
 
 def _load_fixture() -> GraphDocument:
     return GraphDocument.from_dict(json.loads(FIXTURE.read_text(encoding="utf-8")))
+
+
+def test_mcp_tool_step_cache_second_run_hit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["nodes"][1]["data"]["stepCache"] = True
+    doc = GraphDocument.from_dict(raw)
+    calls: list[int] = []
+
+    def _fake_run_mcp_tool_call(**_kwargs: object) -> McpToolCallOutcome:
+        calls.append(1)
+        return McpToolCallOutcome(ok=True, result={"cached_test": True}, error=None, code=None)
+
+    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    host = RunHostContext(artifacts_base=tmp_path)
+    ev1: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run(
+        context={"last_result": True},
+    )
+    assert len(calls) == 1
+    assert any(e.get("type") == "mcp_tool_invoke" for e in ev1)
+    assert not any(e.get("type") == "node_cache_hit" for e in ev1)
+
+    ev2: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run(
+        context={"last_result": True},
+    )
+    assert len(calls) == 1
+    assert not any(e.get("type") == "mcp_tool_invoke" for e in ev2)
+    hits = [e for e in ev2 if e.get("type") == "node_cache_hit"]
+    assert len(hits) == 1
+    res_ev = [e for e in ev2 if e.get("type") == "mcp_tool_result"]
+    assert len(res_ev) == 1
+    assert res_ev[0].get("fromStepCache") is True
+
+
+def test_mcp_tool_step_cache_disabled_when_provider_override(tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["nodes"][1]["data"]["stepCache"] = True
+    doc = GraphDocument.from_dict(raw)
+
+    def _prov(_payload: dict) -> dict:
+        return {"ok": True, "result": {"p": True}}
+
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    host = RunHostContext(artifacts_base=tmp_path)
+    ev1: list[dict] = []
+    ev2: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run(
+        context={"last_result": True, "mcp_tool_provider": _prov},
+    )
+    GraphRunner(doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run(
+        context={"last_result": True, "mcp_tool_provider": _prov},
+    )
+    assert sum(1 for e in ev1 if e.get("type") == "mcp_tool_invoke") == 1
+    assert sum(1 for e in ev2 if e.get("type") == "mcp_tool_invoke") == 1
+    assert not any(e.get("type") == "node_cache_hit" for e in ev1)
+    assert not any(e.get("type") == "node_cache_hit" for e in ev2)
+
+
+def test_mcp_tool_step_cache_dirty_then_repopulate_hit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["nodes"][1]["data"]["stepCache"] = True
+    doc = GraphDocument.from_dict(raw)
+    calls: list[int] = []
+
+    def _fake_run_mcp_tool_call(**_kwargs: object) -> McpToolCallOutcome:
+        calls.append(1)
+        return McpToolCallOutcome(ok=True, result={"n": len(calls)}, error=None, code=None)
+
+    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    host = RunHostContext(artifacts_base=tmp_path)
+    pol_clean = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    GraphRunner(doc, sink=lambda _e: None, host=host, step_cache=pol_clean).run(
+        context={"last_result": True},
+    )
+    assert len(calls) == 1
+
+    pol_dirty = StepCachePolicy(enabled=True, dirty_nodes=frozenset({"m1"}))
+    ev_dirty: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev_dirty.append(e), host=host, step_cache=pol_dirty).run(
+        context={"last_result": True},
+    )
+    assert len(calls) == 2
+    assert any(
+        e.get("type") == "node_cache_miss" and e.get("reason") == "dirty" for e in ev_dirty
+    )
+
+    ev_hit: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev_hit.append(e), host=host, step_cache=pol_clean).run(
+        context={"last_result": True},
+    )
+    assert len(calls) == 2
+    assert any(e.get("type") == "node_cache_hit" for e in ev_hit)
+    assert not any(e.get("type") == "mcp_tool_invoke" for e in ev_hit)
+
+
+def test_mcp_tool_step_cache_arguments_change_misses(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["nodes"][1]["data"]["stepCache"] = True
+    doc_a = GraphDocument.from_dict(raw)
+    raw_b = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw_b["nodes"][1]["data"]["stepCache"] = True
+    raw_b["nodes"][1]["data"]["arguments"] = {"msg": "other"}
+    doc_b = GraphDocument.from_dict(raw_b)
+
+    def _fake_run_mcp_tool_call(**_kwargs: object) -> McpToolCallOutcome:
+        return McpToolCallOutcome(ok=True, result={"ok": True}, error=None, code=None)
+
+    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    host = RunHostContext(artifacts_base=tmp_path)
+    GraphRunner(doc_a, sink=lambda _e: None, host=host, step_cache=pol).run(context={"last_result": True})
+    ev: list[dict] = []
+    GraphRunner(doc_b, sink=lambda e: ev.append(e), host=host, step_cache=pol).run(context={"last_result": True})
+    assert any(e.get("type") == "mcp_tool_invoke" for e in ev)
+    assert not any(e.get("type") == "node_cache_hit" for e in ev)
 
 
 def test_mcp_tool_provider_success() -> None:

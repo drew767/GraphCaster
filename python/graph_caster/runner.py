@@ -553,6 +553,7 @@ class GraphRunner:
                     tenant_id=tenant_s,
                     workspace_secrets_file_fp=cache_ws_fp,
                     graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="task",
                 )
                 self.emit(
                     "node_cache_miss",
@@ -571,6 +572,7 @@ class GraphRunner:
                     tenant_id=tenant_s,
                     workspace_secrets_file_fp=cache_ws_fp,
                     graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="task",
                 )
                 cached = store.get(cache_key)
                 if cached is not None:
@@ -876,12 +878,13 @@ class GraphRunner:
 
         transport = str(d.get("transport") or "stdio").strip()
         outs_map = ctx.setdefault("node_outputs", {})
+        gid = self._doc.graph_id
 
         if not tool_name:
             self.emit(
                 "mcp_tool_failed",
                 nodeId=node.id,
-                graphId=self._doc.graph_id,
+                graphId=gid,
                 toolName=tool_name,
                 transport=transport,
                 errorMessage="empty_tool_name",
@@ -895,22 +898,128 @@ class GraphRunner:
             ctx["last_result"] = False
             return False
 
+        graph_rev = str(ctx.get("graph_rev") or "")
+        tenant_id = ctx.get("tenant_id")
+        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
+        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
+        pol = self._step_cache
+        store = self._ensure_step_cache_store()
+        want_cache = _node_wants_step_cache(node)
+        prov = ctx.get("mcp_tool_provider")
+        provider_override = prov if callable(prov) else None
+        dirty = bool(
+            pol
+            and pol.enabled
+            and (
+                node.id in pol.dirty_nodes
+                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
+            )
+        )
+        cache_active = (
+            provider_override is None
+            and want_cache
+            and pol is not None
+            and pol.enabled
+            and store is not None
+        )
+        used_step_cache = False
+        cache_key: str | None = None
+        upstream_incomplete = False
+        cache_ws_fp: str | None = (
+            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
+        )
+
+        if cache_active:
+            up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
+            if inc_reason:
+                upstream_incomplete = True
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    reason=inc_reason,
+                )
+            elif dirty:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="mcp_tool",
+                )
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    keyPrefix=_cache_key_prefix(cache_key),
+                    reason="dirty",
+                )
+            else:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="mcp_tool",
+                )
+                cached = store.get(cache_key)
+                if cached is not None:
+                    outs_map[node.id] = copy.deepcopy(cached)
+                    mt = cached.get("mcpTool")
+                    ctx["last_result"] = bool(isinstance(mt, dict) and mt.get("success"))
+                    self.emit(
+                        "node_cache_hit",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+                    self.emit(
+                        "mcp_tool_result",
+                        nodeId=node.id,
+                        graphId=gid,
+                        toolName=tool_name,
+                        transport=transport,
+                        resultPreview=format_mcp_result_preview(
+                            mt.get("result") if isinstance(mt, dict) else None
+                        ),
+                        fromStepCache=True,
+                    )
+                    used_step_cache = True
+                else:
+                    self.emit(
+                        "node_cache_miss",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+
+        if used_step_cache:
+            return bool(ctx["last_result"])
+
         inv_args = redact_mcp_tool_arguments_for_event(arguments)
         self.emit(
             "mcp_tool_invoke",
             nodeId=node.id,
-            graphId=self._doc.graph_id,
+            graphId=gid,
             toolName=tool_name,
             transport=transport,
             arguments=inv_args,
         )
 
-        prov = ctx.get("mcp_tool_provider")
-        override = prov if callable(prov) else None
+        override = provider_override
         outcome = run_mcp_tool_call(
             data=d,
             ctx=ctx,
-            graph_id=self._doc.graph_id,
+            graph_id=gid,
             node_id=node.id,
             workspace_secrets=self._get_workspace_secrets(),
             tool_name=tool_name,
@@ -923,19 +1032,26 @@ class GraphRunner:
             self.emit(
                 "mcp_tool_result",
                 nodeId=node.id,
-                graphId=self._doc.graph_id,
+                graphId=gid,
                 toolName=tool_name,
                 transport=transport,
                 resultPreview=format_mcp_result_preview(outcome.result),
             )
             outs_map[node.id]["mcpTool"] = {"success": True, "result": outcome.result}
             ctx["last_result"] = True
+            if (
+                cache_active
+                and cache_key is not None
+                and store is not None
+                and not upstream_incomplete
+            ):
+                store.put(cache_key, copy.deepcopy(outs_map[node.id]))
             return True
 
         self.emit(
             "mcp_tool_failed",
             nodeId=node.id,
-            graphId=self._doc.graph_id,
+            graphId=gid,
             toolName=tool_name,
             transport=transport,
             errorMessage=outcome.error or "error",

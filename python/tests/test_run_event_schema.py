@@ -212,6 +212,16 @@ def test_process_like_events_validate() -> None:
             "resultPreview": '{"ok":true}',
         },
         {
+            "type": "mcp_tool_result",
+            "runId": "550e8400-e29b-41d4-a716-422039440000",
+            "nodeId": "m1",
+            "graphId": "g1",
+            "toolName": "echo",
+            "transport": "stdio",
+            "resultPreview": "{}",
+            "fromStepCache": True,
+        },
+        {
             "type": "mcp_tool_failed",
             "runId": "550e8400-e29b-41d4-a716-422039440000",
             "nodeId": "m1",

@@ -68,14 +68,24 @@ def upstream_outputs_fingerprint(outputs: Mapping[str, Any]) -> str:
 
 
 def _coerce_step_cache_entry(raw: dict[str, Any]) -> dict[str, Any] | None:
-    if raw.get("nodeType") != "task":
-        return None
+    nt = raw.get("nodeType")
     if not isinstance(raw.get("data"), dict):
         return None
-    pr = raw.get("processResult")
-    if not isinstance(pr, dict) or "success" not in pr:
-        return None
-    return raw
+    if nt == "task":
+        pr = raw.get("processResult")
+        if not isinstance(pr, dict) or "success" not in pr:
+            return None
+        if pr.get("success") is not True:
+            return None
+        return raw
+    if nt == "mcp_tool":
+        mt = raw.get("mcpTool")
+        if not isinstance(mt, dict) or "success" not in mt:
+            return None
+        if mt.get("success") is not True:
+            return None
+        return raw
+    return None
 
 
 def compute_step_cache_key(
@@ -88,6 +98,7 @@ def compute_step_cache_key(
     tenant_id: str | None = None,
     workspace_secrets_file_fp: str | None = None,
     graph_ref_upstream_revisions: Sequence[tuple[str, str]] | None = None,
+    cache_node_kind: str = "task",
 ) -> str:
     pairs: Sequence[tuple[str, str]] = (
         () if graph_ref_upstream_revisions is None else graph_ref_upstream_revisions
@@ -98,6 +109,7 @@ def compute_step_cache_key(
         "gid": graph_id,
         "gr": graph_rev,
         "nid": node_id,
+        "nk": str(cache_node_kind),
         "up_fp": up_fp,
     }
     if tenant_id is not None and str(tenant_id).strip():

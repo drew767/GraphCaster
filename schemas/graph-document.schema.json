@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.9)",
+  "title": "GraphCaster graph document (v1.10)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -133,9 +133,10 @@
     "mcpToolNodeData": {
       "type": "object",
       "additionalProperties": true,
-      "description": "MCP client node (direction B): one tools/call per visit. Secrets via envKeys / bearerEnvKey + workspace secrets (F8).",
+      "description": "MCP client node (direction B): one tools/call per visit. Secrets via envKeys / bearerEnvKey + workspace secrets (F8). Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task).",
       "properties": {
         "title": { "type": "string" },
+        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
         "transport": {
           "type": "string",
           "enum": ["stdio", "streamable_http"],

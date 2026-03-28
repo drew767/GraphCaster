@@ -30,6 +30,19 @@ def test_compute_step_cache_key_stable() -> None:
     assert k1 == k2
 
 
+def test_compute_step_cache_key_node_kind_separates_task_and_mcp() -> None:
+    shared = dict(
+        graph_rev="r",
+        graph_id="g",
+        node_id="n",
+        node_data={"x": 1},
+        upstream_outputs={"s": {"nodeType": "start", "data": {}}},
+    )
+    kt = compute_step_cache_key(**shared, cache_node_kind="task")
+    km = compute_step_cache_key(**shared, cache_node_kind="mcp_tool")
+    assert kt != km
+
+
 def test_compute_step_cache_key_workspace_secrets_fp_changes_key() -> None:
     base = {
         "graph_rev": "r",
@@ -62,6 +75,34 @@ def test_step_cache_store_roundtrip(tmp_path) -> None:
     assert p.is_file()
 
 
+def test_step_cache_store_mcp_tool_roundtrip(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "d" * 64
+    payload = {
+        "nodeType": "mcp_tool",
+        "data": {"toolName": "echo"},
+        "mcpTool": {"success": True, "result": {"z": 1}},
+    }
+    store.put(key, payload)
+    assert store.get(key) == payload
+
+
+def test_step_cache_get_rejects_unsuccessful_mcp_tool(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "e" * 64
+    store.put(
+        key,
+        {
+            "nodeType": "mcp_tool",
+            "data": {},
+            "mcpTool": {"success": False, "error": "x"},
+        },
+    )
+    assert store.get(key) is None
+
+
 def test_step_cache_root_under_runs(tmp_path) -> None:
     base = tmp_path / "ws"
     r = step_cache_root(base, "my-graph-id-uuid")
@@ -69,10 +110,13 @@ def test_step_cache_root_under_runs(tmp_path) -> None:
     assert "runs" in r.parts
 
 
-def _valid_task_entry(*, success: bool = True) -> dict:
+def _valid_task_entry(*, success: bool = True, extra: str | None = None) -> dict:
+    data = {"command": "echo"}
+    if extra is not None:
+        data = {**data, "tag": extra}
     return {
         "nodeType": "task",
-        "data": {"command": "echo"},
+        "data": data,
         "processResult": {"success": success, "exitCode": 0 if success else 1},
     }
 
@@ -81,9 +125,17 @@ def test_different_keys_different_files(tmp_path) -> None:
     root = tmp_path / "c"
     store = StepCacheStore(root)
     store.put("b" * 64, _valid_task_entry(success=True))
-    store.put("c" * 64, _valid_task_entry(success=False))
+    store.put("c" * 64, _valid_task_entry(success=True, extra="c"))
     assert store.get("b" * 64) == _valid_task_entry(success=True)
-    assert store.get("c" * 64) == _valid_task_entry(success=False)
+    assert store.get("c" * 64) == _valid_task_entry(success=True, extra="c")
+
+
+def test_step_cache_get_rejects_unsuccessful_task(tmp_path) -> None:
+    root = tmp_path / "c"
+    store = StepCacheStore(root)
+    key = "c" * 64
+    store.put(key, _valid_task_entry(success=False))
+    assert store.get(key) is None
 
 
 def test_step_cache_get_rejects_malformed_entry(tmp_path) -> None:
