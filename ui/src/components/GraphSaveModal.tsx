@@ -6,11 +6,8 @@ import { useTranslation } from "react-i18next";
 import type { GraphDocumentJson } from "../graph/types";
 import { saveJsonWithFilePickerOrDownload } from "../lib/saveToDisk";
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
-import {
-  type AppMessagePresentation,
-  presentationForSaveEmptyName,
-  presentationForSaveWriteFailed,
-} from "../graph/openGraphErrorPresentation";
+
+type SaveFieldIssue = { kind: "empty_name" } | { kind: "write_failed"; detail: string | null };
 
 type Props = {
   open: boolean;
@@ -20,7 +17,6 @@ type Props = {
   getDocument: () => GraphDocumentJson | null;
   onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<boolean>;
   onClose: () => void;
-  onUserMessage?: (presentation: AppMessagePresentation) => void;
 };
 
 export function GraphSaveModal({
@@ -31,25 +27,15 @@ export function GraphSaveModal({
   getDocument,
   onSaveToWorkspace,
   onClose,
-  onUserMessage,
 }: Props) {
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
-
-  const showSaveError = useCallback(
-    (presentation: AppMessagePresentation, legacyAlertKey: string) => {
-      if (onUserMessage) {
-        onUserMessage(presentation);
-      } else {
-        window.alert(t(legacyAlertKey));
-      }
-    },
-    [onUserMessage, t],
-  );
+  const [saveIssue, setSaveIssue] = useState<SaveFieldIssue | null>(null);
 
   useEffect(() => {
     if (open) {
       setFileName(suggestedFileName);
+      setSaveIssue(null);
     }
   }, [open, suggestedFileName]);
 
@@ -84,7 +70,7 @@ export function GraphSaveModal({
     }
     const trimmed = fileName.trim();
     if (trimmed === "") {
-      showSaveError(presentationForSaveEmptyName(t), "app.saveModal.emptyName");
+      setSaveIssue({ kind: "empty_name" });
       return;
     }
     if (workspaceLinked) {
@@ -101,9 +87,11 @@ export function GraphSaveModal({
       if (e instanceof DOMException && e.name === "AbortError") {
         return;
       }
-      showSaveError(presentationForSaveWriteFailed(t, e), "app.saveModal.writeFailed");
+      const raw = e instanceof Error ? e.message : String(e);
+      const d = raw.trim();
+      setSaveIssue({ kind: "write_failed", detail: d === "" ? null : d });
     }
-  }, [fileName, getDocument, onClose, onSaveToWorkspace, showSaveError, t, workspaceLinked]);
+  }, [fileName, getDocument, onClose, onSaveToWorkspace, workspaceLinked]);
 
   if (!open) {
     return null;
@@ -143,6 +131,7 @@ export function GraphSaveModal({
                       className={`gc-save-card${selected ? " gc-save-card--selected" : ""}${e.duplicateGraphId ? " gc-save-card--warn" : ""}`}
                       onClick={() => {
                         setFileName(e.fileName);
+                        setSaveIssue(null);
                       }}
                     >
                       <span className="gc-save-card__glyph" aria-hidden="true" />
@@ -168,12 +157,28 @@ export function GraphSaveModal({
           className="gc-modal-input"
           type="text"
           value={fileName}
+          aria-invalid={saveIssue?.kind === "empty_name"}
+          aria-describedby={saveIssue != null ? "gc-save-modal-error" : undefined}
           onChange={(ev) => {
             setFileName(ev.target.value);
+            setSaveIssue(null);
           }}
           spellCheck={false}
           autoComplete="off"
         />
+        {saveIssue != null ? (
+          <p
+            id="gc-save-modal-error"
+            className="gc-modal-hint gc-modal-hint--error gc-modal-hint--prewrap"
+            role="alert"
+          >
+            {saveIssue.kind === "empty_name"
+              ? t("app.saveModal.emptyName")
+              : saveIssue.detail != null
+                ? `${t("app.saveModal.writeFailed")}\n\n${saveIssue.detail}`
+                : t("app.saveModal.writeFailed")}
+          </p>
+        ) : null}
         <div className="gc-modal-actions">
           <button type="button" className="gc-btn" onClick={onClose}>
             {t("app.saveModal.cancel")}

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  ADD_MENU_PRIMITIVE_ORDER,
+  ADD_NODE_CATEGORY_ORDER,
   type AddMenuPrimitiveType,
+  type AddNodeCategoryId,
   type AddNodeMenuPick,
+  computeAddNodeMenuLists,
   type WorkspaceGraphAddMenuRow,
 } from "../graph/addNodeMenu";
 import { GRAPH_NODE_TYPE_GRAPH_REF } from "../graph/nodeKinds";
@@ -32,10 +34,12 @@ export function CanvasAddNodeMenu({
 }: Props) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
+  const [category, setCategory] = useState<AddNodeCategoryId>("all");
 
   useEffect(() => {
     if (!open) {
       setFilter("");
+      setCategory("all");
     }
   }, [open]);
 
@@ -55,35 +59,24 @@ export function CanvasAddNodeMenu({
   }, [open, onClose]);
 
   const { primitiveOptions, graphOptions } = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    const primitives = ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
-      if (ty === "start" && hasStartNode) {
-        return false;
-      }
-      if (q === "") {
-        return true;
-      }
-      const label = t(`app.canvas.nodeTypes.${ty}`).toLowerCase();
-      return ty.includes(q) || label.includes(q);
+    return computeAddNodeMenuLists({
+      category,
+      filterText: filter,
+      hasStartNode,
+      workspaceGraphs,
+      labelForPrimitive: (ty) => {
+        return t(`app.canvas.nodeTypes.${ty}`);
+      },
     });
-    const graphs = workspaceGraphs.filter((row) => {
-      if (q === "") {
-        return true;
-      }
-      return (
-        row.graphId.toLowerCase().includes(q) ||
-        row.label.toLowerCase().includes(q) ||
-        row.fileName.toLowerCase().includes(q)
-      );
-    });
-    return { primitiveOptions: primitives, graphOptions: graphs };
-  }, [filter, hasStartNode, t, workspaceGraphs]);
+  }, [category, filter, hasStartNode, t, workspaceGraphs]);
 
   if (!open) {
     return null;
   }
 
   const totalCount = primitiveOptions.length + graphOptions.length;
+  const nestedEmptyWorkspace =
+    category === "nested" && workspaceGraphs.length === 0 && filter.trim() === "";
 
   return (
     <div
@@ -95,6 +88,23 @@ export function CanvasAddNodeMenu({
       }}
     >
       <div className="gc-ctx-menu__title">{t("app.canvas.addNodeTitle")}</div>
+      <div className="gc-ctx-menu__chips" role="group" aria-label={t("app.canvas.addNodeCategoryGroup")}>
+        {ADD_NODE_CATEGORY_ORDER.map((id) => {
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`gc-ctx-menu__chip${category === id ? " gc-ctx-menu__chip--active" : ""}`}
+              aria-pressed={category === id}
+              onClick={() => {
+                setCategory(id);
+              }}
+            >
+              {t(`app.canvas.addNodeCategory.${id}`)}
+            </button>
+          );
+        })}
+      </div>
       <input
         type="search"
         className="gc-ctx-menu__filter"
@@ -107,7 +117,9 @@ export function CanvasAddNodeMenu({
         autoFocus
       />
       <ul className="gc-ctx-menu__list">
-        {totalCount === 0 ? (
+        {nestedEmptyWorkspace ? (
+          <li className="gc-ctx-menu__empty">{t("app.canvas.addNodeNestedEmptyWorkspace")}</li>
+        ) : totalCount === 0 ? (
           <li className="gc-ctx-menu__empty">{t("app.canvas.addNodeNoMatch")}</li>
         ) : (
           <>

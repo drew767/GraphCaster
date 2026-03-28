@@ -76,12 +76,12 @@
 | **n8n** IF / Switch / AI-ноды как отдельный шаг маршрутизации | Нода **`ai_route`**: вход **`in_default`**, несколько **`out_default`**; порядок веток = порядок в массиве **`edges`**; условия на рёбрах с **`ai_route`** **не** используются для выбора |
 | **Langflow** structured output / выбор ветки | Провайдер возвращает **`choiceIndex`** **1…N**; см. **`schemas/ai-route-wire.schema.json`** |
 | **Dify** условный обход графа | Один синхронный выбор исхода за визит ноды |
-| HTTP POST + Bearer из env | **`data.endpointUrl`**, опционально **`data.envVarApiKey`** (имя переменной окружения) |
+| HTTP POST + Bearer из env | **`data.endpointUrl`**, опционально **`data.envVarApiKey`** (имя переменной окружения); в инспекторе ноды — **ссылка «Открыть endpoint»** на **http/https** (нормализация и отсев **`javascript:`** / **`file:`** — **`safeExternalHttpUrl`**, новая вкладка **`noopener`**); если в **Data JSON** есть ключ **`endpointUrl`**, превью ссылки берётся из **черновика** до **Apply**, иначе из сохранённого документа |
 | Описание веток для модели | **`edges[].data.routeDescription`** (до 1024 символов); статические предупреждения в UI/Python при отсутствии описаний при **>1** ветке |
 | Наблюдаемость | События **`ai_route_invoke`**, **`ai_route_decided`**, **`ai_route_failed`**; **`branch_skipped`** с **`ai_route_not_selected`**; **`node_exit`** ноды — после маршрутизации; **`node_outputs[id].aiRoute`**; тело POST и лимит **`maxRequestJsonBytes`** — один компактный JSON |
 | Тесты без сети | **`context["ai_route_provider"]`**: **`Callable[[dict], dict]`** |
 
-Код: **`python/graph_caster/ai_routing.py`**, **`runner.py`** (`_follow_ai_route_from`), **`handle_contract.py`**, **`validate.py`** (`find_ai_route_structure_warnings`), **`schemas/graph-document.schema.json`**, **`schemas/run-event.schema.json`**; UI: **`nodeKinds`**, палитра, инспектор ребра, **`structureWarnings`**, фикстура **`schemas/test-fixtures/ai-route-simple.json`**. Тесты: **`python/tests/test_ai_route_node.py`**, Vitest **`fromReactFlow`**, **`handleCompatibility`**, **`structureWarnings`**.
+Код: **`python/graph_caster/ai_routing.py`**, **`runner.py`** (`_follow_ai_route_from`), **`handle_contract.py`**, **`validate.py`** (`find_ai_route_structure_warnings`), **`schemas/graph-document.schema.json`**, **`schemas/run-event.schema.json`**; UI: **`nodeKinds`**, палитра, **`InspectorPanel`** (в т.ч. внешняя ссылка на **`endpointUrl`**), инспектор ребра, **`structureWarnings`**, фикстура **`schemas/test-fixtures/ai-route-simple.json`**. Тесты: **`python/tests/test_ai_route_node.py`**, Vitest **`fromReactFlow`**, **`handleCompatibility`**, **`structureWarnings`**, **`safeExternalUrl.test.ts`**.
 
 ### Merge (`join`) — реконвергенция после ветки (MVP)
 
@@ -373,6 +373,19 @@
 | **n8n** / **Dify** / **Langflow** — обзорная миникарта и кнопки масштаба | Виджеты **`MiniMap`** (**`pannable`**, **`zoomable`**) и **`Controls`** (**zoom in/out**, **fit view**, переключатель интерактивности) из **@xyflow/react** на **`GraphCanvas`** (`ui/src/components/GraphCanvas.tsx`); подписи **`aria-*`** через **`reactFlowTranslations`** и **`app.canvas.flowControls.*`** (локали **en/ru**) |
 
 Код: `GraphCanvas.tsx`, `app.css` (классы полотна при необходимости), локали **`app.canvas.flowControls`**.
+
+---
+
+## Меню «Добавить ноду» на полотне (ПКМ; категории как у n8n / Langflow)
+
+Пункт **§28.2** п.6 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): факт реализации только здесь; в competitive — ссылка без дублирования таблиц.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** / **Langflow** — палитра с группами и поиском | **ПКМ** на полотне → **`CanvasAddNodeMenu`**: чипы **Все / Поток / Запуск и ИИ / Вложенные / Заметки** (**`ADD_NODE_CATEGORY_ORDER`**) плюс поле **фильтра** по подстроке (**id** ноды и локализованный ярлык); категория **«Вложенные»** показывает только строки **`graph_ref`** из индекса **`graphs/`** (при пустом workspace — отдельное сообщение) |
+| Согласованность с одной **`start`** | **`hasStartNode`** скрывает **`start`** во всех категориях, где он в базовом списке |
+
+Код: **`ui/src/graph/addNodeMenu.ts`** (**`computeAddNodeMenuLists`**), **`CanvasAddNodeMenu.tsx`**, Vitest **`addNodeMenu.test.ts`**.
 
 ---
 

@@ -23,6 +23,15 @@
       "addNodeTitle": "Add node",
       "addNodeFilterPh": "Filter by type…",
       "addNodeNoMatch": "No matching node type.",
+      "addNodeCategoryGroup": "Filter by category",
+      "addNodeCategory": {
+        "all": "All",
+        "flow": "Flow",
+        "steps": "Run & AI",
+        "nested": "Nested",
+        "notes": "Notes"
+      },
+      "addNodeNestedEmptyWorkspace": "No graphs in the linked workspace folder — link graphs/ or pick another category.",
       "onlyOneStart": "This graph already has a start node.",
       "addNodeGraphsHeading": "Graphs in folder",
       "nodeContextMenuTitle": "Node",
@@ -97,6 +106,7 @@
       "edgeRouteDescription": "Branch description (ai_route)",
       "edgeRouteDescriptionHint": "Shown to the routing model as this outgoing option (max 1024 chars). If empty, the runner sends a short default label using the target node id.",
       "applyEdgeRouteDescription": "Apply branch description",
+      "openEndpointUrl": "Open endpoint (new tab)",
       "openGraphRef": "Open nested graph",
       "runUntilThisNode": "Run until this node",
       "runUntilThisNodeHint": "From the graph start; stops after this node when reached. Unreachable target or earlier failure → failed; exit node → success; nested graph_ref runs to completion. Partial only when stop triggers on the root path (desktop).",

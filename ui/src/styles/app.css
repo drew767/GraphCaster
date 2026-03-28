@@ -222,6 +222,37 @@ body {
   margin-bottom: 0.35rem;
 }
 
+.gc-ctx-menu__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.gc-ctx-menu__chip {
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--gc-border);
+  background: var(--gc-surface-0);
+  color: var(--gc-text-secondary);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.gc-ctx-menu__chip:hover {
+  background: var(--gc-surface-2);
+  color: var(--gc-text-primary);
+}
+
+.gc-ctx-menu__chip--active {
+  border-color: var(--gc-accent, #3b82f6);
+  background: var(--gc-surface-2);
+  color: var(--gc-text-primary);
+}
+
 .gc-ctx-menu__filter {
   width: 100%;
   font: inherit;
@@ -446,6 +477,31 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.gc-inspector-url-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.45rem;
+}
+
+.gc-inspector-external-link {
+  font-size: 0.82rem;
+  color: var(--gc-accent, #3b82f6);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.gc-inspector-external-link:hover {
+  text-decoration: underline;
+}
+
+.gc-inspector-url-preview {
+  font-size: 0.68rem;
+  color: var(--gc-text-secondary);
+  word-break: break-all;
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
 }
 
 .gc-flow-wrap .react-flow__edge.gc-edge--warning .react-flow__edge-path {

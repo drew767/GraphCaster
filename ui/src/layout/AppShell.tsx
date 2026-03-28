@@ -1466,7 +1466,6 @@ export function AppShell({ onLangChange }: Props) {
         onClose={() => {
           setSaveModalOpen(false);
         }}
-        onUserMessage={setAppMessageModal}
       />
       <OpenGraphErrorModal
         open={appMessageModal != null}

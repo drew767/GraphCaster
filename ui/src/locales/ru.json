@@ -23,6 +23,15 @@
       "addNodeTitle": "Добавить ноду",
       "addNodeFilterPh": "Фильтр по типу…",
       "addNodeNoMatch": "Нет подходящего типа.",
+      "addNodeCategoryGroup": "Фильтр по категории",
+      "addNodeCategory": {
+        "all": "Все",
+        "flow": "Поток",
+        "steps": "Запуск и ИИ",
+        "nested": "Вложенные",
+        "notes": "Заметки"
+      },
+      "addNodeNestedEmptyWorkspace": "В привязанной папке graphs/ нет графов — привяжите workspace или выберите другую категорию.",
       "onlyOneStart": "В графе уже есть нода start.",
       "addNodeGraphsHeading": "Графы в папке",
       "nodeContextMenuTitle": "Нода",
@@ -97,6 +106,7 @@
       "edgeRouteDescription": "Описание ветки (ai_route)",
       "edgeRouteDescriptionHint": "Текст для модели маршрутизации (макс. 1024 символа). Если пусто, раннер подставит короткую метку с id целевой ноды.",
       "applyEdgeRouteDescription": "Применить описание ветки",
+      "openEndpointUrl": "Открыть endpoint (новая вкладка)",
       "openGraphRef": "Открыть вложенный граф",
       "runUntilThisNode": "Запуск до этой ноды",
       "runUntilThisNodeHint": "Старт от start; остановка после этой ноды, если она достигнута. Недостижимая цель или ошибка раньше → failed; нода exit → success; вложенный graph_ref выполняется целиком. partial только при фактической остановке на корневом пути (десктоп).",

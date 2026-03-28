@@ -22,6 +22,7 @@ import {
   presentationForInspectorJsonSyntaxError,
   presentationForInspectorSimple,
 } from "../graph/openGraphErrorPresentation";
+import { safeExternalHttpUrl } from "../lib/safeExternalUrl";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -152,6 +153,22 @@ export function InspectorPanel({
     const n = graphDocument.nodes?.find((x) => x.id === selection.source);
     return n?.type === GRAPH_NODE_TYPE_AI_ROUTE;
   }, [selection, graphDocument.nodes]);
+
+  const aiRouteEndpointHref = useMemo(() => {
+    if (selection?.kind !== "node" || selection.graphNodeType !== GRAPH_NODE_TYPE_AI_ROUTE) {
+      return null;
+    }
+    try {
+      const parsed: unknown = JSON.parse(dataText);
+      if (isPlainObject(parsed) && Object.prototype.hasOwnProperty.call(parsed, "endpointUrl")) {
+        return safeExternalHttpUrl(parsed.endpointUrl);
+      }
+    } catch {
+      /* keep saved document as fallback below */
+    }
+    const raw = selection.raw;
+    return isPlainObject(raw) ? safeExternalHttpUrl(raw.endpointUrl) : null;
+  }, [dataText, selection]);
 
   const showInspectorError = (presentation: AppMessagePresentation, legacyAlertKey: string) => {
     if (onUserMessage) {
@@ -344,6 +361,21 @@ export function InspectorPanel({
                 <option value="barrier">{t("app.inspector.mergeModeBarrier")}</option>
               </select>
               <p className="gc-inspector-edge-hint">{t("app.inspector.mergeModeHint")}</p>
+            </div>
+          ) : null}
+          {aiRouteEndpointHref != null ? (
+            <div className="gc-inspector-url-row">
+              <a
+                href={aiRouteEndpointHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="gc-inspector-external-link"
+              >
+                {t("app.inspector.openEndpointUrl")}
+              </a>
+              <span className="gc-inspector-url-preview" title={aiRouteEndpointHref}>
+                {aiRouteEndpointHref.length > 72 ? `${aiRouteEndpointHref.slice(0, 69)}…` : aiRouteEndpointHref}
+              </span>
             </div>
           ) : null}
           {selection.graphNodeType === GRAPH_NODE_TYPE_TASK ? (

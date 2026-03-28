@@ -31,3 +31,81 @@ export type WorkspaceGraphAddMenuRow = {
   graphId: string;
   label: string;
 };
+
+export const ADD_NODE_CATEGORY_ORDER = ["all", "flow", "steps", "nested", "notes"] as const;
+
+export type AddNodeCategoryId = (typeof ADD_NODE_CATEGORY_ORDER)[number];
+
+const FLOW_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
+  GRAPH_NODE_TYPE_START,
+  GRAPH_NODE_TYPE_EXIT,
+  GRAPH_NODE_TYPE_FORK,
+  GRAPH_NODE_TYPE_MERGE,
+]);
+
+const STEP_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
+  GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_AI_ROUTE,
+]);
+
+export function primitivesForAddNodeCategory(category: AddNodeCategoryId): readonly AddMenuPrimitiveType[] {
+  switch (category) {
+    case "all":
+      return ADD_MENU_PRIMITIVE_ORDER;
+    case "flow":
+      return ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
+        return FLOW_PRIMITIVE_TYPES.has(ty);
+      });
+    case "steps":
+      return ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
+        return STEP_PRIMITIVE_TYPES.has(ty);
+      });
+    case "nested":
+      return [];
+    case "notes":
+      return ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
+        return ty === GRAPH_NODE_TYPE_COMMENT;
+      });
+    default: {
+      return ADD_MENU_PRIMITIVE_ORDER;
+    }
+  }
+}
+
+export function computeAddNodeMenuLists(input: {
+  category: AddNodeCategoryId;
+  filterText: string;
+  hasStartNode: boolean;
+  workspaceGraphs: ReadonlyArray<WorkspaceGraphAddMenuRow>;
+  labelForPrimitive: (ty: AddMenuPrimitiveType) => string;
+}): { primitiveOptions: AddMenuPrimitiveType[]; graphOptions: WorkspaceGraphAddMenuRow[] } {
+  const q = input.filterText.trim().toLowerCase();
+  let basePrimitives = [...primitivesForAddNodeCategory(input.category)];
+  if (input.hasStartNode) {
+    basePrimitives = basePrimitives.filter((ty) => {
+      return ty !== GRAPH_NODE_TYPE_START;
+    });
+  }
+  const primitiveOptions =
+    q === ""
+      ? basePrimitives
+      : basePrimitives.filter((ty) => {
+          const label = input.labelForPrimitive(ty).toLowerCase();
+          return ty.includes(q) || label.includes(q);
+        });
+
+  const includeGraphs = input.category === "all" || input.category === "nested";
+  const graphsBase = includeGraphs ? input.workspaceGraphs : [];
+  const graphOptions =
+    q === ""
+      ? [...graphsBase]
+      : graphsBase.filter((row) => {
+          return (
+            row.graphId.toLowerCase().includes(q) ||
+            row.label.toLowerCase().includes(q) ||
+            row.fileName.toLowerCase().includes(q)
+          );
+        });
+
+  return { primitiveOptions, graphOptions };
+}
