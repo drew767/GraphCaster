@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import threading
+import time
 from pathlib import Path
 
 import jsonschema
@@ -74,3 +76,48 @@ def test_run_task_process_streams_stderr(tmp_path: Path) -> None:
     assert len(err_lines) >= 1
     joined = "".join(e["text"] for e in err_lines)
     assert "e" in joined
+
+
+def test_run_task_process_cancel_during_stream(tmp_path: Path) -> None:
+    events: list[dict] = []
+    rid = "550e8400-e29b-41d4-a716-42203944009b"
+    emit = _emit_collect(events, rid)
+    ctx = {"last_result": True, "root_run_artifact_dir": str(tmp_path)}
+    data = {
+        "command": [
+            sys.executable,
+            "-c",
+            "import time\n"
+            "for i in range(500):\n"
+            "    print(i, flush=True)\n"
+            "    time.sleep(0.02)\n",
+        ],
+        "successMode": "exit_code",
+    }
+    cancel_state = {"cancel": False}
+    errors: list[BaseException] = []
+
+    def work() -> None:
+        try:
+            run_task_process(
+                node_id="n1",
+                graph_id="g1",
+                data=data,
+                ctx=ctx,
+                emit=emit,
+                should_cancel=lambda: cancel_state["cancel"],
+            )
+        except BaseException as e:
+            errors.append(e)
+
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    time.sleep(0.08)
+    cancel_state["cancel"] = True
+    th.join(timeout=30.0)
+    assert not th.is_alive(), "run_task_process did not finish after cancel"
+    assert not errors, errors
+    out_ev = [e for e in events if e.get("type") == "process_output" and e.get("stream") == "stdout"]
+    assert len(out_ev) >= 1
+    complete = [e for e in events if e.get("type") == "process_complete"]
+    assert any(e.get("cancelled") is True for e in complete), complete

@@ -206,7 +206,8 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Живые логи шага (stdout/stderr) в UI до завершения команды | NDJSON **`type`:** **`process_output`**: **`stream`** **`stdout`** \| **`stderr`**, **`text`**, монотонный **`seq`** по потоку, опц. **`eol`**, **`attempt`**; на каждой строке **`runId`** (как у прочих событий корня) |
-| Захват без блокирующего **`communicate()`** до конца | **`python/graph_caster/process_exec.py`**: потоки **`readline`** → **`queue.Queue`**, основной цикл с **`poll`**, таймаутом и **`should_cancel`**; после выхода — прежний потолок **`_STDOUT_CAP`** для хвостов **`process_complete`** и **`node_outputs`** |
+| Захват без блокирующего **`communicate()`** до конца | **`python/graph_caster/process_exec.py`**: потоки **`readline`** → очередь с **`maxsize`** (**backpressure**: **`put`** блокирует читатель при переполнении, основной цикл забирает через **`get(timeout)`**, без **`sleep`** между порциями — нет взаимной блокировки с потребителем); таймаут и **`should_cancel`**; хвосты — потолок **`_STDOUT_CAP`** для **`process_complete`** и **`node_outputs`** |
+| Поведение по строкам | События по **`readline`**: вывод без **`flush()`**/перевода строки может появляться в UI с задержкой до завершения строки или процесса |
 | Контракт | **`schemas/run-event.schema.json`** (ветка **`process_output`**) |
 | Консоль UI | Сырые строки NDJSON в сторе; отображение: **`buildConsoleLineMeta`** (`ui/src/run/consoleLineMeta.ts`) — читаемые строки **`[nodeId] …`** и префикс **`[stderr]`** для потока stderr |
 
