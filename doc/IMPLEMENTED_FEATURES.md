@@ -144,6 +144,22 @@
 
 ---
 
+## Вложенный **`graph_ref`**: опциональная изоляция OS-процесса (**F5**, §**29**)
+
+Эталон конкурентов — отдельный процесс или worker на вызов саб-воркфлоу (n8n queue / sub-workflow, Dify child graph, headless run у Langflow и т.д.). Ниже — **факт реализации** GraphCaster; продуктовые таблицы **F5** / §**29** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) остаются для сравнения продуктов без дублирования полного описания кода.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| **n8n** — Execute Workflow / sub-workflow, в enterprise часто изоляция на worker | **`GC_GRAPH_REF_SUBPROCESS=1`** (также **`true`** / **`yes`** / **`on`**): на каждый заход в **`graph_ref`** — отдельный процесс **`python -m graph_caster run`**; строки NDJSON дочернего прогона в тот же **`RunEventSink`**, тот же корневой **`runId`**, **`nested_graph_enter` / `nested_graph_exit`** как при in-process. Родитель **синхронно** ждёт дочерний CLI; это **не** отдельная очередь прогонов (**F6**, **§13**). |
+| **Dify** — child graph и merge переменных / контекста | Allow-list ключей контекста (**`NESTED_CONTEXT_INPUT_KEYS`**) → **`--context-json`**; снимок после прогона → **`--nested-context-out`**, merge **`node_outputs`** и флагов в родителя (**`nested_run_subprocess.py`**). |
+| **Flowise** queue / **Langflow** отдельный процесс на run | Тот же CLI entrypoint, что у корневого Run; без Redis/WebSocket. |
+
+По умолчанию (**ENV** не задан / **`0`**) вложенный граф — **in-process** (**`GraphRunner`** в родителе).
+
+Код: **`python/graph_caster/nested_run_subprocess.py`**, **`runner._execute_graph_ref`**; **`TeeRunEventSink.emit`** под **`threading.Lock`** (поток pump stdout дочернего процесса и основной поток раннера). Тесты: **`python/tests/test_nested_graph_subprocess.py`**. Таблица NDJSON **`type`** — строка «Вложенный **`graph_ref`**, изоляция процесса (опция)». См. также **`python/README.md`**, **`doc/DEVELOPMENT_PLAN.md`** (фаза 2).
+
+---
+
 ## Статическая совместимость ручек **F18** (n8n connection types / Langflow `validate_edge`)
 
 Сравнение с **ComfyUI / Dify / Flowise / Langflow / n8n** по моделям портов и таблицы конкурентов — **§15** в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); здесь только **факт реализации** GraphCaster.
@@ -269,6 +285,7 @@
 | Нода | **`node_enter`**, **`node_execute`**, **`node_exit`** | Визит ноды; **`node_exit`**: опц. **`usedPin`** (short-circuit **`gcPin`**) |
 | Ветвление (F4) | **`edge_traverse`**, **`branch_taken`**, **`branch_skipped`** | Выбранное ребро; явная ветвь; пропуск (**`condition_false`**, **`ai_route_not_selected`**) |
 | Вложенный граф | **`nested_graph_enter`**, **`nested_graph_exit`** | **`graph_ref`**, тот же корневой **`runId`** |
+| Вложенный **`graph_ref`**, изоляция процесса (опция) | Subprocess + NDJSON в тот же sink | **`GC_GRAPH_REF_SUBPROCESS=1`**: `python -m graph_caster run` на каждый заход в **`graph_ref`**; **`--context-json`** / **`--nested-context-out`** (внутренние детали); merge **`node_outputs`** и флагов в родительский контекст — **`nested_run_subprocess.py`**, тесты **`python/tests/test_nested_graph_subprocess.py`** |
 | Подпроцесс **`task`** | **`process_spawn`**, **`process_complete`**, **`process_failed`**, **`process_output`**, **`process_retry`** | Запуск команды, исход, чанки stdout/stderr, ретрай по политике ноды |
 | Транспорт (dev SSE) | **`stream_backpressure`** | Дроп **`process_output`** у медленного подписчика брокера (**`RunBroadcaster`**) |
 | Статика / предупреждения | **`structure_warning`** | В т.ч. **`kind`**: merge/fork/barrier/**`gc_pin_enabled_empty_payload`**/**`ai_route_*`** (см. **`validate.py`**, UI) |
@@ -276,7 +293,7 @@
 | ИИ-маршрут (**`ai_route`**) | **`ai_route_invoke`**, **`ai_route_decided`**, **`ai_route_failed`** | Запрос к провайдеру, выбранная ветка, сбой маршрутизации |
 | Инварианты | **`error`** | Жёсткая ошибка прогона / графа |
 
-Источники эмиссии: **`python/graph_caster/runner.py`** (**`GraphRunner.emit`**), **`python/graph_caster/process_exec.py`**, **`python/graph_caster/run_broker/broadcaster.py`** (**`stream_backpressure`**). Сопоставление с продуктами-референсами — только краткая таблица в **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); детали реализации по группам — разделы выше и ниже в этом файле (**`process_output`**, **Backpressure SSE**, **F4**, **`ai_route`**, **`gcPin`**, F17).
+Источники эмиссии: **`python/graph_caster/runner.py`** (**`GraphRunner.emit`**), **`python/graph_caster/process_exec.py`**, **`python/graph_caster/nested_run_subprocess.py`** (проброс NDJSON дочернего CLI при **`GC_GRAPH_REF_SUBPROCESS`**), **`python/graph_caster/run_broker/broadcaster.py`** (**`stream_backpressure`**). Сопоставление с продуктами-референсами — только краткая таблица в **§3.7** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md); детали реализации по группам — разделы выше и ниже в этом файле (**`process_output`**, **Backpressure SSE**, **F4**, **`ai_route`**, **`gcPin`**, F17).
 
 ---
 

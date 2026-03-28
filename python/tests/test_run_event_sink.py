@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 from graph_caster.run_event_sink import (
     CallableRunEventSink,
@@ -58,6 +59,34 @@ def test_tee_run_event_sink_fanout() -> None:
     sink.emit({"type": "x"})
     assert a == [{"type": "x"}]
     assert b == [{"type": "x"}]
+
+
+def test_tee_concurrent_emit_serializes_writes(tmp_path) -> None:
+    p = tmp_path / "events.ndjson"
+    primary: list[str] = []
+
+    def write(s: str) -> None:
+        primary.append(s)
+
+    file_sink = NdjsonAppendFileSink(p)
+    tee = TeeRunEventSink(NdjsonStdoutSink(write, flush=None), file_sink)
+    n = 200
+
+    def worker(start: int, end: int) -> None:
+        for i in range(start, end):
+            tee.emit({"type": "e", "i": i})
+
+    t1 = threading.Thread(target=worker, args=(0, n // 2))
+    t2 = threading.Thread(target=worker, args=(n // 2, n))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    file_sink.close()
+    lines = [ln for ln in p.read_text(encoding="utf-8").strip().split("\n") if ln.strip()]
+    assert len(lines) == n
+    for line in lines:
+        json.loads(line)
 
 
 def test_tee_swallows_secondary_oserror() -> None:

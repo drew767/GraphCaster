@@ -14,6 +14,7 @@ from graph_caster.document_revision import graph_document_revision
 from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.nested_run_subprocess import graph_ref_subprocess_enabled, run_nested_graph_ref_subprocess
 from graph_caster.node_output_cache import (
     StepCachePolicy,
     StepCacheStore,
@@ -960,17 +961,30 @@ class GraphRunner:
         child_ctx["nesting_depth"] = depth_next
         child_ctx["_parent_graph_ref_node_id"] = node.id
 
-        child = GraphRunner(
-            nested,
-            self._event_sink,
-            host=self._host,
-            run_id=self._run_id,
-            session_registry=self._session_registry,
-            stop_after_node_id=None,
-            step_cache=self._step_cache,
-            persist_run_events=False,
-        )
-        child.run(context=child_ctx)
+        sess = child_ctx.get("_gc_run_session")
+        sess_coop = sess if isinstance(sess, RunSession) else None
+        if graph_ref_subprocess_enabled():
+            run_nested_graph_ref_subprocess(
+                nested_path=path,
+                child_ctx=child_ctx,
+                sink=self._event_sink,
+                host=self._host,
+                run_id=self._run_id,
+                step_cache=self._step_cache,
+                run_session=sess_coop,
+            )
+        else:
+            child = GraphRunner(
+                nested,
+                self._event_sink,
+                host=self._host,
+                run_id=self._run_id,
+                session_registry=self._session_registry,
+                stop_after_node_id=None,
+                step_cache=self._step_cache,
+                persist_run_events=False,
+            )
+            child.run(context=child_ctx)
 
         self.emit(
             "nested_graph_exit",

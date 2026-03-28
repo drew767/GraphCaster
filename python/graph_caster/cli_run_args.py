@@ -17,20 +17,17 @@ def build_graph_caster_run_argv(
     step_cache: bool = False,
     step_cache_dirty: str = "",
     no_persist_run_events: bool = False,
+    enable_session_stdin: bool = True,
+    nested_context_out: Path | None = None,
 ) -> list[str]:
     rid = str(run_id).strip()
     if not rid:
         raise ValueError("run_id required")
 
-    argv: list[str] = [
-        "run",
-        "-d",
-        str(document_path),
-        "--track-session",
-        "--control-stdin",
-        "--run-id",
-        rid,
-    ]
+    argv: list[str] = ["run", "-d", str(document_path)]
+    if enable_session_stdin:
+        argv.extend(["--track-session", "--control-stdin"])
+    argv.extend(["--run-id", rid])
     if graphs_dir is not None and str(graphs_dir).strip():
         argv.extend(["-g", str(Path(graphs_dir))])
     if artifacts_base is not None and str(artifacts_base).strip():
@@ -46,6 +43,8 @@ def build_graph_caster_run_argv(
         argv.extend(["--until-node", str(until_node).strip()])
     if context_json_path is not None and str(context_json_path).strip():
         argv.extend(["--context-json", str(Path(context_json_path))])
+    if nested_context_out is not None and str(nested_context_out).strip():
+        argv.extend(["--nested-context-out", str(Path(nested_context_out))])
     return argv
 
 

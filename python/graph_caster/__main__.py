@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -14,6 +15,7 @@ from graph_caster.models import GraphDocument
 from graph_caster.run_event_sink import NdjsonStdoutSink
 from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
+from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_nested_run_result_json
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
 _SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "serve"})
@@ -108,6 +110,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Merge node_outputs from this JSON object (key node_outputs: { nodeId: … }) into run context before start",
     )
     run.add_argument(
+        "--nested-context-out",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    run.add_argument(
         "--step-cache",
         action="store_true",
         help="Enable cross-run step cache for task nodes with data.stepCache (requires --artifacts-base)",
@@ -150,7 +158,12 @@ def _merge_context_json(ctx: dict, path: Path) -> None:
     outs = raw.get("node_outputs")
     if isinstance(outs, dict):
         bucket = ctx.setdefault("node_outputs", {})
-        bucket.update(outs)
+        bucket.update(copy.deepcopy(outs))
+    for k in NESTED_CONTEXT_INPUT_KEYS:
+        if k == "node_outputs":
+            continue
+        if k in raw:
+            ctx[k] = copy.deepcopy(raw[k])
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -241,22 +254,29 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
 
-        if args.start and until is None:
-            try:
-                canon = validate_graph_structure(doc)
-            except GraphStructureError:
-                canon = ""
-            if canon and args.start != canon and args.context_json is None:
-                print(
-                    "graph-caster: warning: mid-graph --start without --context-json "
-                    "may break edge conditions; prefer --context-json with node_outputs.",
-                    file=sys.stderr,
-                )
-            runner.run_from(args.start, context=ctx)
-        elif until is not None:
-            runner.run(context=ctx)
-        else:
-            runner.run(context=ctx)
+        try:
+            if args.start and until is None:
+                try:
+                    canon = validate_graph_structure(doc)
+                except GraphStructureError:
+                    canon = ""
+                if canon and args.start != canon and args.context_json is None:
+                    print(
+                        "graph-caster: warning: mid-graph --start without --context-json "
+                        "may break edge conditions; prefer --context-json with node_outputs.",
+                        file=sys.stderr,
+                    )
+                runner.run_from(args.start, context=ctx)
+            elif until is not None:
+                runner.run(context=ctx)
+            else:
+                runner.run(context=ctx)
+        finally:
+            if args.nested_context_out is not None:
+                try:
+                    write_nested_run_result_json(ctx, Path(args.nested_context_out))
+                except OSError:
+                    pass
     except GraphStructureError as e:
         print(str(e), file=sys.stderr)
         return 2

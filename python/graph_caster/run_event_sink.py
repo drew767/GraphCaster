@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Any, Protocol, runtime_checkable
@@ -12,7 +13,10 @@ RunEventDict = dict[str, Any]
 
 @runtime_checkable
 class RunEventSink(Protocol):
-    """Receives run events from GraphRunner. Not thread-safe unless the implementation says otherwise."""
+    """Receives run events from GraphRunner.
+
+    Implementations are not thread-safe unless stated otherwise; ``TeeRunEventSink`` serializes ``emit`` with a lock.
+    """
 
     def emit(self, event: RunEventDict) -> None:
         ...
@@ -54,20 +58,25 @@ class NdjsonStdoutSink:
 
 class TeeRunEventSink:
     """Fan-out: ``a`` is primary (e.g. stdout). ``b`` is best-effort: ``OSError`` from ``b`` is swallowed so a disk
-    failure cannot abort the run after ``a`` already received the event."""
+    failure cannot abort the run after ``a`` already received the event.
 
-    __slots__ = ("_a", "_b")
+    ``emit`` is serialized with a lock so concurrent callers (e.g. nested ``graph_ref`` subprocess pump thread vs
+    main ``GraphRunner`` thread) cannot interleave writes to ``b`` (e.g. ``NdjsonAppendFileSink``)."""
+
+    __slots__ = ("_a", "_b", "_lock")
 
     def __init__(self, a: RunEventSink, b: RunEventSink) -> None:
         self._a = a
         self._b = b
+        self._lock = threading.Lock()
 
     def emit(self, event: RunEventDict) -> None:
-        self._a.emit(event)
-        try:
-            self._b.emit(event)
-        except OSError:
-            return
+        with self._lock:
+            self._a.emit(event)
+            try:
+                self._b.emit(event)
+            except OSError:
+                return
 
 
 class NdjsonAppendFileSink:
