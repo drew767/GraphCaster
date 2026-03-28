@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
+import { writeTextToClipboard } from "../lib/clipboardWrite";
 
 type Props = {
   open: boolean;
@@ -49,37 +50,8 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
     if (!presentation) {
       return;
     }
-    const text = presentation.copyText;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyDone(true);
-    } catch {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          ta.style.position = "fixed";
-          ta.style.left = "-9999px";
-          document.body.appendChild(ta);
-          ta.select();
-          try {
-            const ok = document.execCommand("copy");
-            document.body.removeChild(ta);
-            if (ok) {
-              resolve();
-            } else {
-              reject(new Error("execCommand"));
-            }
-          } catch (e) {
-            document.body.removeChild(ta);
-            reject(e);
-          }
-        });
-        setCopyDone(true);
-      } catch {
-        setCopyDone(false);
-      }
-    }
+    const ok = await writeTextToClipboard(presentation.copyText);
+    setCopyDone(ok);
   }, [presentation]);
 
   if (!open || !presentation) {

@@ -1,10 +1,11 @@
 // Copyright GraphCaster. All Rights Reserved.
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
 import type { GraphDocumentJson } from "../graph/types";
+import { writeTextToClipboard } from "../lib/clipboardWrite";
 import { saveJsonWithFilePickerOrDownload } from "../lib/saveToDisk";
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
 
@@ -19,7 +20,8 @@ type SaveFieldIssue =
   | { kind: "write_failed"; detail: string | null }
   | { kind: "duplicate_graph_id"; conflictingFile: string }
   | { kind: "workspace_write_failed"; detail: string | null }
-  | { kind: "workspace_unavailable" };
+  | { kind: "workspace_unavailable" }
+  | { kind: "document_unavailable" };
 
 type Props = {
   open: boolean;
@@ -45,6 +47,18 @@ export function GraphSaveModal({
   const [saveIssue, setSaveIssue] = useState<SaveFieldIssue | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const isSavingRef = useRef(false);
+
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
+
+  const safeClose = useCallback(() => {
+    if (isSavingRef.current) {
+      return;
+    }
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (open) {
@@ -63,22 +77,22 @@ export function GraphSaveModal({
     }
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") {
-        onClose();
+        safeClose();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, safeClose]);
 
   const onBackdropClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) {
-        onClose();
+        safeClose();
       }
     },
-    [onClose],
+    [safeClose],
   );
 
   const handleCopyIssue = useCallback(async () => {
@@ -93,6 +107,7 @@ export function GraphSaveModal({
   const handleSave = useCallback(async () => {
     const doc = getDocument();
     if (!doc) {
+      setSaveIssue({ kind: "document_unavailable" });
       return;
     }
     const trimmed = fileName.trim();
@@ -234,7 +249,7 @@ export function GraphSaveModal({
           </div>
         ) : null}
         <div className="gc-modal-actions">
-          <button type="button" className="gc-btn" onClick={onClose}>
+          <button type="button" className="gc-btn" disabled={isSaving} onClick={safeClose}>
             {t("app.saveModal.cancel")}
           </button>
           <button
@@ -255,6 +270,8 @@ function formatSaveIssueMessage(issue: SaveFieldIssue, t: TFunction): string {
   switch (issue.kind) {
     case "empty_name":
       return t("app.saveModal.emptyName");
+    case "document_unavailable":
+      return t("app.saveModal.documentUnavailable");
     case "duplicate_graph_id":
       return t("app.workspace.duplicateGraphId", { file: issue.conflictingFile });
     case "workspace_write_failed":
@@ -267,38 +284,5 @@ function formatSaveIssueMessage(issue: SaveFieldIssue, t: TFunction): string {
       return issue.detail != null
         ? `${t("app.saveModal.writeFailed")}\n\n${issue.detail}`
         : t("app.saveModal.writeFailed");
-  }
-}
-
-async function writeTextToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          const ok = document.execCommand("copy");
-          document.body.removeChild(ta);
-          if (ok) {
-            resolve();
-          } else {
-            reject(new Error("execCommand"));
-          }
-        } catch (e) {
-          document.body.removeChild(ta);
-          reject(e);
-        }
-      });
-      return true;
-    } catch {
-      return false;
-    }
   }
 }

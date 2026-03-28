@@ -263,7 +263,8 @@
       "cancel": "Cancel",
       "emptyName": "Enter a file name.",
       "writeFailed": "Could not save the file.",
-      "workspaceUnavailable": "The project folder link was lost. Link graphs/ again, or save without a linked folder."
+      "workspaceUnavailable": "The project folder link was lost. Link graphs/ again, or save without a linked folder.",
+      "documentUnavailable": "The graph could not be read from the editor. Try again or reload the page."
     },
     "workspace": {
       "link": "Link project folder…",
