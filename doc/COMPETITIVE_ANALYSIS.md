@@ -23,7 +23,7 @@
 | **C. Workspace** | Каталог `graphs/`, индекс `graphId` → путь, автосохранение | `workspace.py`, планы в `DEVELOPMENT_PLAN.md` / `PRODUCT_DESIGNE.md`; **`graphId`** для **`graph_ref`** — **§29** (**F5**); мультиредактирование и-merge из нескольких клиентов — **§19** (**F22**), в core GC не заложено |
 | **D. Рантайм** | Обход графа, условия на рёбрах, вложенные графы, субпроцессы, политика сбоев, опционально кэш шагов | `runner.py` (**§31** порядок обхода и достижимость, **F3**; **§32** условия на рёбрах и «первое истинное», **F4** — в т.ч. нода **`ai_route`** (ИИ-ветвление), [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **§29** **`graph_ref`**, **F5**; диспетчер по **`kind`**, `unknown_node` — **§18**), **`process_exec.py`** (**§27**, **F7**), события NDJSON; внутренний слой «исполнитель → транспорт» (**`RunEventSink`**, **`StepQueue`**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **частичный** отладочный прогон (**`--until-node`**, **`--context-json`**) — там же («Частичный прогон»); **`gcPin`** / short-circuit и **`node_outputs_snapshot`** (аналог n8n **`pinData`** для **`task`**) — там же («Закреплённый вывод…»); полный **F6** (масштабирование прогонов, два уровня очередей как у **§13.3**) — **§13**; ошибки — **§16** / **§37** (**F19**); **F17** (кэш **`task`**, **`--step-cache`**, **`--step-cache-dirty`**, десктоп, транзитив **dirty**, **bubble** во вложенном **`graph_ref`**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) («Межпрогонный кэш…», абзац **«Вложенный `graph_ref`»**); **остаток** F17 (кэш не-**`task`**, TTL и др. — **§22.2**) / ревизия в ключе — **§36** |
 | **E. Артефакты и Run** | Папки run, метаданные, учёт диска | `artifacts.py`, события `run_*` в раннере; при **`--artifacts-base`** — append-only **`events.ndjson`**, **`run-summary.json`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) |
-| **F. Интеграции** | Credentials, HTTP, внешние API, RAG / knowledge, вызовы LLM/tools, внешний старт прогона, публичный контур | HTTP к внешнему провайдеру для ветвления — нода **`ai_route`** ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)); сейчас основной фокус на **`task`**/процесс; креды (**F8**): **file-first** workspace-секреты и **`envKeys`** — там же (**«Workspace-секреты…»**); обзор vault vs JSON — **§11** / **§35**; триггеры — **§24** (**F9**) + **§12**; **REST/embed/OpenAPI** — **§25** (**F12**), BFF-эталон — **§25.3** (Vibe); **MCP** (граф как server tool / вызов внешних tools) — **§34**; RAG — **§14** / **F10**; полноценные агенты — **§23** (**F11**) |
+| **F. Интеграции** | Credentials, HTTP, внешние API, RAG / knowledge, вызовы LLM/tools, внешний старт прогона, публичный контур | HTTP к внешнему провайдеру для ветвления — нода **`ai_route`** ([`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)); сейчас основной фокус на **`task`**/процесс; креды (**F8**): **file-first** workspace-секреты и **`envKeys`** — там же (**«Workspace-секреты…»**); обзор vault vs JSON — **§11** / **§35**; триггеры — **§24** (**F9**) + **§12**; **REST/embed/OpenAPI** — **§25** (**F12**), BFF-эталон — **§25.3** (Vibe); **MCP (A)** — граф как stdio tool-server — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**«MCP stdio server»**); **MCP (B)** и сравнение с конкурентами — **§34**; RAG — **§14** / **F10**; полноценные агенты — **§23** (**F11**) |
 | **G. Наблюдаемость** | Логи исполнения, история, трейсинг, экспорт | Консоль UI + NDJSON (**§3.7**), артефакты **`runs/`**; стрим, жизненный цикл **`runId`**, **UX консоли** (фильтры, поиск, экспорт, переход к ноде — фаза 7); **offline-список прошлых прогонов + replay** (файловый журнал); **bounded queue** dev run-брокера (**SSE** / **WebSocket**, **`stream_backpressure`**) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**«Backpressure SSE»** + **Evidence**); **нормализация финала при обрыве воркера** (synthetic **`run_finished`**) — там же, строка **«Обрыв воркера»** в **«Десктоп…»**; **§17** — сравнение с конкурентами и **остаточный** **F13** (OTel, ORM-уровень **`Execution`** как у Flowise/n8n, **prod**-транспорт **§39** / буфер **§39.2** без dev-брокера), без дубля фактов UI |
 
 При добавлении фичи: выбрать строку из каталога ниже → сопоставить **основной слой** → посмотреть 1–2 референса в колонках конкурентов → зафиксировать контракт → код. **Мульти-тенант, роли и SSO** (**F14**) для облачного GC — **§20**; **что остаётся в repo** vs **хост** — **§38**; по умолчанию реализация на стороне **Aura**, не внутри `graph-caster`.
@@ -83,7 +83,7 @@
 | **Langflow** | `src/frontend` | `src/lfx` (CLI), `langflow.api.v2.workflow`, `langflow.agentic.services.flow_executor` | Объект `Graph` компонентов в backend-тестах и `lfx` |
 | **n8n** | `packages/frontend/editor-ui` | `packages/core/src/execution-engine/workflow-execute` (`WorkflowExecute`), `active-workflows.ts` | `packages/workflow`, `packages/@n8n/expression-runtime` |
 | **Vibe Workflow** | `packages/workflow-builder`, `client/` | `server/app/` — **`main.py`**, **`routers/workflow_router.py`**, **`workflow_helper.py`** → **`api.muapi.ai`** (`x-api-key`); **§3.8**, **§3.8.1**, **§25.3** | Состояние графа на клиенте; данные между нодами — в облаке MuAPI |
-| **GraphCaster** | `ui/src/graph/*`, `schemas/`; **`ui/src-tauri/`** (`run_bridge.rs`) — **§33** | `python/graph_caster/runner.py`, `process_exec.py`, `run_sessions.py`; **веб:** `graph_caster serve`, пакет **`run_broker/`** | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; реестр, отмена, **мост десктоп UI ↔ subprocess**; **SSE на `runId`** (dev web) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) («Десктоп…», «Веб без Tauri»); **MCP** — **§34** (план) |
+| **GraphCaster** | `ui/src/graph/*`, `schemas/`; **`ui/src-tauri/`** (`run_bridge.rs`) — **§33** | `python/graph_caster/runner.py`, `process_exec.py`, `run_sessions.py`; **веб:** `graph_caster serve`, пакет **`run_broker/`** | `GraphRunner` контекст (`node_outputs`), рёбра с `condition`; реестр, отмена, **мост десктоп UI ↔ subprocess**; **SSE на `runId`** (dev web) — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) («Десктоп…», «Веб без Tauri»); **MCP (A)** — stdio tools **`graph_caster mcp`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел «MCP stdio server»); вызов внешних MCP из ноды (**(B)**) — **§34** (вне текущего MVP) |
 
 ### 3.2. Уровень B+: как «тикает» движок (Dify) и что инжектится в раннер (n8n)
 
@@ -685,7 +685,7 @@
 
 ### F11 — Агенты, tools, orchestration LLM
 
-Углубление — **§23**; **MCP** как способ «подключить» граф или tool снаружи — **§34**.
+Углубление — **§23**; **MCP (A)** — экспорт графа как tools — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); обзор конкурентов и **(B)** — **§34**.
 
 | Продукт | Статус | Как устроено |
 |---------|--------|--------------|
@@ -699,7 +699,7 @@
 
 ### F12 — Публичный API и встраиваемость
 
-Углубление **F12** — **§25** (**§25.3** — BFF); **MCP** рядом с HTTP — **§34**; совместно с триггерами **F9** — **§12**.
+Углубление **F12** — **§25** (**§25.3** — BFF); **MCP (A)** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **MCP** (контуры **(B)** / публичный HTTP) — **§34**; совместно с триггерами **F9** — **§12**.
 
 | Продукт | Статус | Как устроено |
 |---------|--------|--------------|
@@ -922,7 +922,7 @@
 22. **Порядок исполнения (**F3**):** изменения в **`runner.py`**, которые влияют на **достижимость**, **порядок обхода** без смены **закона выбора ветки**, — **§31**; не путать с **очередью прогонов** (**§13**, **F6**) и с **кэшем выходов** (**§22**, **F17**).
 23. **Ветвление (**F4**):** актуальное состояние GC — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F4**) + **§32**; при смене семантики — **`graph-document.schema.json`**, **`models.py`**, **`branchWarnings`**, при необходимости **`run-event`** (**§3.7**); не путать с **DAG merge**/fork (**§31.2**) и с **`FAIL_BRANCH`** (**§16**, **F19**).
 24. **Десктоп (**F16**):** смена **Tauri**-конфига (**`tauri.conf.json`**), **capabilities**, **CSP**, установщика, обновлений, интеграции с **FS**/**диалогом выбора workspace** — **§33**; не смешивать с **F23** (модель папки проекта) и **фазой 8** (мост к раннеру) без явного ТЗ; **Python** в бандле vs системный — **§33.2**.
-25. **MCP / внешние tool-протоколы (**F11** × **F12**):** появление MCP-сервера поверх **`graph_caster`**, ноды-**клиента** MCP, смена схемы **tools** в событиях — **§34**; не смешивать с обычным **REST** (**§25**) и внутренним мостом NDJSON (**фаза 8**) без версии контракта; креды и ссылки на них в JSON — **§11** / **§35** / **§20**; публичная регистрация MCP и tenant-scoped провайдеры — **§38**.
+25. **MCP / внешние tool-протоколы (**F11** × **F12**):** MCP-сервер **(A)** stdio — факты в [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); нода-**клиент** **(B)**, публичный/streamable MCP, смена схемы **tools** в событиях — **§34**; не смешивать с обычным **REST** (**§25**) и внутренним мостом NDJSON (**фаза 8**) без версии контракта; креды и ссылки на них в JSON — **§11** / **§35** / **§20**; публичная регистрация MCP и tenant-scoped провайдеры — **§38**.
 
 ---
 
@@ -939,7 +939,7 @@
 | 7 консоль (фильтры, экспорт) | G | F13 | **Сделано (UI):** [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**F13**, фаза 7). Эталоны и незакрытый объём: **§17**; **Dify** **`ObservabilityLayer`** + persistence/trace; **n8n** **`Execution`** в БД; **Langflow** **`TracingService`** |
 | 8 мост UI ↔ Python (NDJSON/WebSocket) | B, D, G | F12, F13 | Внутренний мост ≠ **§25** / **§34** (MCP — другой контур); обзор **§12**; ось транспорта **§39** / **§39.2**; два уровня очередей (исполнение vs сокет) — **§13.3**; стабильный **`runId`** — **§17.2**, **§3.7** / **§3.7.1** (указатель), факты — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). Референсы: **ComfyUI** §3.5 / **§3.5.1** / §13.3, **n8n** §3.2.1 (Push + relay) / **§3.2.2** / **§3.2.3** / **§3.2.4** / **§3.2.5** (redaction + сервис + стратегии + инвентаризация полей), **Flowise** §3.3.1 / **§3.3.3**, **Langflow** §3.4 / §3.4.1 / **§3.4.2**, **Dify** §3.6 → Queue* → HTTP **§3.6.1** / **§3.6.2** / **§3.6.3**, **Vibe** **§3.8** / **§3.8.1** (BFF → poll) |
 | 9 Cursor CLI MVP | D, F | F7, **F8** | **Сделано:** [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) — **«Пресет Cursor Agent CLI»** и **«Workspace-секреты и `envKeys`»** (**F8** v1). Эталоны и риски (**n8n** **Execute Command**, полный vault **§11** / **§35**) — **§27** / **§11**; контракт **`gcCursorAgent`** — в **IMPLEMENTED_FEATURES**. |
-| 10 встраивание в Aura | B–E | F14, **F22**, **F8**, **F9**, **F12**, **F6**, **F10**?, **F17**?, **F11**? | **§20** (**F14**): tenant, роли, SSO — паттерны **Dify** `TenantAccountRole`, **Flowise** `enterprise/rbac` + `sso`, **n8n** `OwnershipService` / **Project**. **§19** (**F22**). **§23** (**F11**). **§34**: **MCP** vs **§25** HTTP. **§24** (**F9**). **§25** (**F12**): версии API, ключи, CORS, OpenAPI; **§25.3** (BFF). Кэш — **§22** / **§36**. Креды — **§11** / **§35**; старт — **§12**; scaling — **§13**; RAG — **§14** |
+| 10 встраивание в Aura | B–E | F14, **F22**, **F8**, **F9**, **F12**, **F6**, **F10**?, **F17**?, **F11**? | **§20** (**F14**): tenant, роли, SSO — паттерны **Dify** `TenantAccountRole`, **Flowise** `enterprise/rbac` + `sso`, **n8n** `OwnershipService` / **Project**. **§19** (**F22**). **§23** (**F11**). **MCP (A)** stdio — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); **§34** (**MCP (B)** / публичный MCP) vs **§25** HTTP. **§24** (**F9**). **§25** (**F12**): версии API, ключи, CORS, OpenAPI; **§25.3** (BFF). Кэш — **§22** / **§36**. Креды — **§11** / **§35**; старт — **§12**; scaling — **§13**; RAG — **§14** |
 
 **Fork/join** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (подраздел Merge в **F4**). **ИИ-ветвление** (**`ai_route`**) — там же («ИИ-ветвление / нода **`ai_route`**»). Эталоны merge/split — **n8n**, условный обход — **Dify**; отдельно от ретраев **`task`** в **`process_exec.py`**. **Расширения политики ошибок** (**F19**, **§16**, **§37**): in-graph **`out_error`** — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); новые стратегии — согласовать в схеме и **`run-event`** (**§3.7**).
 
@@ -1402,7 +1402,7 @@
 
 **Dify + MCP (к **F12** и **§34**):** публичный приёмник MCP для приложения — **`/mcp/server/<server_code>/mcp`**; администрирование внешних MCP tool providers — **console** **`/workspaces/current/tool-provider/mcp`**. Это **не** тот же контур, что «обычный» service API completion/workflow без отдельной интеграции.
 
-**Встраиваемость:** у **Flowise** — chatflow **embed** на сторонний сайт; у **Dify** — встраиваемые приложения / виджеты; у **Langflow** — в т.ч. **MCP** поверх flow (**§34**); у **Vibe** — страница Next.js + BFF (**§25.3**); у **GC** разумный аналог HTTP — **iframe или скрипт**, которые бьют в **Aura**; отдельно — решение по **MCP** (**§34**).
+**Встраиваемость:** у **Flowise** — chatflow **embed** на сторонний сайт; у **Dify** — встраиваемые приложения / виджеты; у **Langflow** — в т.ч. **MCP** поверх flow (**§34**); у **Vibe** — страница Next.js + BFF (**§25.3**); у **GC** разумный аналог HTTP — **iframe или скрипт**, которые бьют в **Aura**; **MCP (A)** локально — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md); публичный MCP / **(B)** — **§34**.
 
 ### 25.2. Планирование для GC
 
@@ -1680,6 +1680,8 @@
 
 **Model Context Protocol (MCP)** в контексте воркфлоу — это **два зеркальных направления**: **(A)** продукт **экспонирует** сценарий (flow, run) как **набор tools** для внешнего LLM/IDE-клиента; **(B)** граф **вызывает** удалённый **MCP tool server** как шаг исполнения (аналог HTTP-инструмента в **§23**). Это **не** замена **REST** (**§25**) и **не** то же самое, что внутренний **NDJSON-мост** UI↔раннер (**фаза 8**, **§12**): другой клиент, другие границы auth и другой жизненный цикл сессии.
 
+**Направление (A) в GraphCaster (факт кода):** stdio MCP-сервер **`python -m graph_caster mcp`**, tools **`graphcaster_*`**, тот же **`GraphRunner`** — **не дублировать контракт здесь**; единственный реестр фичи — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел **«MCP stdio server»**), детали запуска — **`python/README.md`**. Ниже в §34 — сравнение **конкурентов** и **открытый** объём (**(B)**, HTTP/streamable MCP, tenant, нода-клиент).
+
 ### 34.1. Сводка (уровень B)
 
 | Продукт | Экспорт «наружу» (A) | Вызов MCP из графа (B) | Креды / транспорт |
@@ -1690,17 +1692,17 @@
 | **Flowise** | REST/SSE predict (**§12**); **отдельного MCP HTTP-сервера «весь граф как tools»** в core нет (в отличие от **Langflow**). | Ноды категории **`Tools (MCP)`** — **`packages/components/nodes/tools/MCP/*`**: общий **`MCPToolkit`** / **`validateMCPServerConfig`** в **`core.ts`**, в т.ч. **`CustomMCP`**, провайдерные (Teradata, Slack, Github, …); в **Agentflow** — **`Agent.ts`** / **`Tool.ts`** (категории **Tools** и **Tools (MCP)**); сервер — **`CachePool.activeMCPCache`**; CLI **`CUSTOM_MCP_SECURITY_CHECK`**, **`CUSTOM_MCP_PROTOCOL`** (`packages/server/src/commands/base.ts`); assistants подмешивают **`getAllNodesForCategory('Tools (MCP)')`**. | **`/apikey`**, credentials (**§11**, **§35**). |
 | **ComfyUI** | Локальный `/prompt` | нет | — |
 | **Vibe Workflow** | BFF **`/api/workflow`** без локального MCP (**§25.3**) | нет | **`MU_API_KEY`** → заголовок к MuAPI (**§11**) |
-| **GraphCaster** | **нет** | **нет** | **§34.2:** при появлении — **Aura** ACL (**§20**, **§38**), **§11** / **§35** |
+| **GraphCaster** | **да (MVP stdio):** **`graph_caster mcp`** — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (**«MCP stdio server»**). Нет паритета с публичным streamable URL (**Langflow** / **Dify**) до **§25** / **§20** / **§38** | **нет** | **(B)** и публичный MCP — **§34.2**; локально: **§11** / **§35** / **`python/README.md`** |
 
 **Связь с obs. (**G**):** вызовы MCP должны давать **коррелируемые** события с **`runId`** (**§17.2**), иначе консоль IDE и лог хоста разъедутся.
 
 ### 34.2. Планирование для GC
 
-1. **Порядок зрелости:** сначала стабильный **HTTP run** (**§25**) и **`task`** (**§27**); MCP — когда есть сценарий «**Cursor / IDE** дергает граф как tool» или «нода шлёт в MCP-сервер документацию».
-2. **Режим A (GC как server):** тонкая обёртка над тем же **CLI/библиотекой**, что и **`POST /v1/runs`** — список tools = именованные **`graphId`** + схема входов; **не** отдавать произвольный FS через MCP до **§20** / **§38**.
+1. **Режим A (GC как MCP server):** **MVP (stdio) реализован** — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md). **Открыто:** streamable HTTP / публичный endpoint как у **Langflow** / **Dify**, проверка **`GC_MCP_TOKEN`**, tenant-scoped регистрация (**§38**), расширение списка tools / схемы входов per-graph без произвольного FS (**§20** / **§38**).
+2. **Порядок зрелости (остаточный):** стабильный **HTTP run** (**§25**) и **`task`** (**§27**) остаются базой для **Aura**; углубление **(A)** (публичный MCP) — после контрактов **§20** / **§38**. Сценарий «нода шлёт в MCP-сервер» — **(B)**.
 3. **Режим B (нода-клиент):** аналог **n8n** MCP tool node — отдельный **`kind`**, **`runner.py`** + таймаут + маскирование ошибок; секреты — только **имена** env, значения — хост (**§11**, **§35**).
 4. **Не смешивать с F11-ядром:** полноценный **ReAct** внутри `runner.py` остаётся **§23**; MCP — **транспорт**, не замена условных рёбер (**§32**).
-5. **Конкурентность:** один MCP session vs несколько параллельных tool calls — политика как у **§13** на уровне хоста (очередь воркера), не в file-first CLI по умолчанию.
+5. **Конкурентность:** один MCP session vs несколько параллельных tool calls — политика как у **§13** на уровне хоста (очередь воркера); в текущем stdio MVP — см. ограничения в **`python/README.md`** (**`workerStillRunning`**, таймаут + cooperative cancel).
 
 **Точечные углубления позже:** нюансы **Langflow** MCP при смене мажорной версии API (v1/v2); OAuth и транспорт **n8n** MCP server (прод-релиз); сравнение с **OpenAPI tools** в Dify plugin SDK — при выборе «HTTP vs MCP» для **Aura**.
 

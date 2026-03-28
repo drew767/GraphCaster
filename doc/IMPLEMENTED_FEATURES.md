@@ -16,6 +16,21 @@
 
 ---
 
+## MCP stdio server — направление **(A)** (**§34**, как Langflow/Dify tool surface)
+
+Полная **сводная таблица продуктов** (Langflow, Dify, n8n, …) по MCP, а также **направление (B)** (нода-клиент MCP в графе), streamable HTTP, tenant-scoped провайдеры и прочий **нереализованный** объём — в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§34**. Здесь — только **факты реализации (A)** в репозитории.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Внешний агент/IDE подключается по **Model Context Protocol** к каталогу графов и запускам | Подкоманда **`python -m graph_caster mcp`** (требует **`pip install -e ".[mcp]"`**): транспорт **stdio**, SDK **`mcp`** (**`FastMCP`**) — `graph_caster/mcp_server/server.py` |
+| Tools: список workflow / запуск | **`graphcaster_list_graphs`** (`limit`, `include_titles`) → индекс через **`load_graph_documents_index`** (вызов с диска в worker-thread, без блокировки asyncio-loop); **`graphcaster_run_graph`** — ровно одно из **`graphId`** или **`relativePath`** (имя файла **`.json`** в **`graphs/`**, без **`..`**); опции **`timeout_sec`**, **`dry_run_validate_only`**; ответ — **структурированный JSON** в MCP (не строка с JSON внутри): **`status`**, **`runId`**, **`eventBriefs`**, опц. **`rootRunArtifactDir`**, при таймауте ожидания tool — **`toolWaitTimedOut`**, при «застревании» после **`request_cancel`** — **`workerStillRunning`**; раннер с **`get_default_run_registry()`** для кооперативной отмены после **`timeout_sec`** |
+| Отмена прогона из MCP-процесса | **`graphcaster_cancel_run`** — заглушка (**`supported: false`**); отмена по-прежнему через брокер / **`--track-session`** на воркере |
+| Исполнение | Тот же **`GraphRunner`** + **`RunHostContext`**, события в in-memory sink (**без** NDJSON на stdout — stdio занят протоколом MCP) |
+
+Код: **`graph_caster/mcp_server/handlers.py`**, **`graph_caster/__main__.py`** (**`_cmd_mcp`**); тесты **`python/tests/test_mcp_server_tools.py`**. Детали и ограничения (таймаут, **`GC_MCP_TOKEN`** зарезервирован) — **`python/README.md`**.
+
+---
+
 ## Workspace-секреты и `envKeys` (**F8** v1, file-first)
 
 | Идея конкурента | Реализация GC |

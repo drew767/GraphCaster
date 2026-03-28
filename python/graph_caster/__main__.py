@@ -18,7 +18,7 @@ from graph_caster.run_sessions import RunSessionRegistry, get_default_run_regist
 from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_nested_run_result_json
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
-_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "serve"})
+_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "serve", "mcp"})
 
 
 def _spawn_stdin_cancel_loop(registry: RunSessionRegistry) -> None:
@@ -153,6 +153,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     srv.add_argument("--host", default="127.0.0.1", help="Bind address")
     srv.add_argument("--port", type=int, default=9847, help="Listen port")
+
+    mcp = sub.add_parser(
+        "mcp",
+        help="Model Context Protocol server (stdio): tools to list/run graphs (requires pip install -e '.[mcp]')",
+    )
+    mcp.add_argument(
+        "--graphs-dir",
+        "-g",
+        type=Path,
+        required=True,
+        help="Directory of *.json graphs (same as run -g)",
+    )
+    mcp.add_argument(
+        "--workspace-root",
+        type=Path,
+        default=None,
+        help="Workspace root for .graphcaster/workspace.secrets.env",
+    )
+    mcp.add_argument(
+        "--artifacts-base",
+        type=Path,
+        default=None,
+        help="Optional workspace root for runs/<graphId>/… (persist run-summary when set)",
+    )
 
     return parser
 
@@ -328,6 +352,26 @@ def _cmd_artifacts_clear(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        print(
+            "graph-caster mcp: install optional extra: pip install -e '.[mcp]'",
+            file=sys.stderr,
+        )
+        return 2
+    from graph_caster.mcp_server.server import host_from_cli, run_stdio
+
+    host = host_from_cli(
+        Path(args.graphs_dir),
+        Path(args.workspace_root) if args.workspace_root is not None else None,
+        Path(args.artifacts_base) if args.artifacts_base is not None else None,
+    )
+    run_stdio(host)
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -361,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_artifacts_clear(args)
     if args.command == "serve":
         return _cmd_serve(args)
+    if args.command == "mcp":
+        return _cmd_mcp(args)
     return 2
 
 
