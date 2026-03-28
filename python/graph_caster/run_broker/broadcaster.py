@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, wait as futures_wait
 from dataclasses import dataclass, field
 from typing import Literal
+
+_DELIVER_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gc_bcast")
+
+
+def _shutdown_deliver_pool() -> None:
+    _DELIVER_POOL.shutdown(wait=False)
+
+
+atexit.register(_shutdown_deliver_pool)
 
 FanKind = Literal["out", "err", "exit"]
 
@@ -34,17 +45,26 @@ class _SubscriberSlot:
 
 
 def _is_droppable_out_line(line: str) -> bool:
+    """True for process_output, invalid/unknown stdout lines; False for structured run events."""
     s = line.strip()
     if not s:
         return False
+    if not s.startswith("{"):
+        return True
     if "process_output" not in s:
+        try:
+            obj = json.loads(s)
+        except json.JSONDecodeError:
+            return True
+        if not isinstance(obj, dict):
+            return True
         return False
     try:
         obj = json.loads(s)
     except json.JSONDecodeError:
-        return False
+        return True
     if not isinstance(obj, dict):
-        return False
+        return True
     return obj.get("type") == "process_output"
 
 
@@ -131,17 +151,8 @@ class RunBroadcaster:
             for sub in subs:
                 self._deliver_to_sub(sub, msg, droppable)
             return
-        threads: list[threading.Thread] = []
-        for sub in subs:
-            t = threading.Thread(
-                target=self._deliver_to_sub,
-                args=(sub, msg, droppable),
-                daemon=False,
-            )
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+        futures = [_DELIVER_POOL.submit(self._deliver_to_sub, sub, msg, droppable) for sub in subs]
+        futures_wait(futures)
 
     async def stream_queue(self, q: queue.Queue[FanOutMsg]):
         try:

@@ -88,6 +88,21 @@ export type ParseGraphDocumentJsonResult =
   | { ok: true; doc: GraphDocumentJson }
   | { ok: false; error: GraphDocumentParseError };
 
+export function comparableSchemaVersions(doc: GraphDocumentJson): { root?: number; meta?: number } {
+  const raw = doc as Record<string, unknown>;
+  const rootRaw = raw.schemaVersion;
+  const root = rootRaw !== undefined ? normalizeSchemaVersionField(rootRaw) : undefined;
+  let meta: number | undefined;
+  const m = doc.meta;
+  if (m != null && typeof m === "object" && !Array.isArray(m)) {
+    const ms = (m as Record<string, unknown>).schemaVersion;
+    if (ms !== undefined) {
+      meta = normalizeSchemaVersionField(ms);
+    }
+  }
+  return { root, meta };
+}
+
 export function graphIdFromDocument(doc: GraphDocumentJson): string | undefined {
   const m = doc.meta?.graphId;
   if (typeof m === "string" && m.trim() !== "") {

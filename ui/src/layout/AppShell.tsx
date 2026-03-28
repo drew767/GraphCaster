@@ -167,6 +167,8 @@ export function AppShell({ onLangChange }: Props) {
   const [graphOpenError, setGraphOpenError] = useState<OpenGraphErrorPresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
+  const [autosaveFailed, setAutosaveFailed] = useState(false);
+  const lastAutosaveFailConsoleMsRef = useRef(0);
   const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
   const [runArtifactsBase, setRunArtifactsBase] = useState(
     () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
@@ -585,6 +587,7 @@ export function AppShell({ onLangChange }: Props) {
         await writeJsonFileToDir(workspaceGraphsDir, safeTarget, doc);
         setGraphDocument(doc);
         setActiveWorkspaceFile(safeTarget);
+        setAutosaveFailed(false);
         await rescanWorkspace(workspaceGraphsDir);
         return true;
       } catch {
@@ -747,15 +750,29 @@ export function AppShell({ onLangChange }: Props) {
         try {
           await writeJsonFileToDir(workspaceGraphsDir, activeWorkspaceFile, doc);
           setGraphDocument(doc);
+          setAutosaveFailed(false);
         } catch {
-          /* ignore transient autosave errors */
+          setAutosaveFailed(true);
+          const now = Date.now();
+          if (now - lastAutosaveFailConsoleMsRef.current >= 30_000) {
+            lastAutosaveFailConsoleMsRef.current = now;
+            runSessionAppendLine(t("app.editor.autosaveFailedConsole"));
+          }
         }
       })();
     }, 2000);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeWorkspaceFile, graphDocument, layoutDirtyEpoch, workspaceGraphsDir, workspaceIndex, runSessionBlocking]);
+  }, [
+    activeWorkspaceFile,
+    graphDocument,
+    layoutDirtyEpoch,
+    workspaceGraphsDir,
+    workspaceIndex,
+    runSessionBlocking,
+    t,
+  ]);
 
   const getDocumentForStepCacheDirty = useCallback((): GraphDocumentJson => {
     const api = canvasRef.current;
@@ -1243,8 +1260,14 @@ export function AppShell({ onLangChange }: Props) {
       {branchIssues.length > 0 ||
       structureIssues.length > 0 ||
       handleIssues.length > 0 ||
+      autosaveFailed ||
       (danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0) ? (
         <div className="gc-branch-warnings" role="status">
+          {autosaveFailed ? (
+            <div className="gc-branch-warnings__line">
+              <span aria-hidden="true">⚠</span> {t("app.editor.autosaveFailedBanner")}
+            </div>
+          ) : null}
           {danglingEdgesExportIds != null && danglingEdgesExportIds.length > 0 ? (
             <div className="gc-branch-warnings__line">
               <span aria-hidden="true">⚠</span>{" "}
@@ -1302,7 +1325,16 @@ export function AppShell({ onLangChange }: Props) {
                                       missing: issue.missingDescriptions,
                                       total: issue.outgoingEdges,
                                     })
-                                  : t("app.structure.startHasIncoming", { id: issue.startId })}
+                                  : issue.kind === "schema_version_mismatch"
+                                    ? t("app.structure.schemaVersionMismatch", {
+                                        root: issue.root,
+                                        meta: issue.meta,
+                                      })
+                                    : issue.kind === "start_has_incoming"
+                                      ? t("app.structure.startHasIncoming", { id: issue.startId })
+                                      : t("app.structure.unknownIssue", {
+                                          kind: String((issue as { kind: string }).kind),
+                                        })}
             </div>
           ))}
           {handleIssues.map((issue, idx) => (

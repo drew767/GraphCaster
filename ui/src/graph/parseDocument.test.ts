@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "./parseDocument";
+import {
+  comparableSchemaVersions,
+  graphIdFromDocument,
+  parseGraphDocumentJson,
+  parseGraphDocumentJsonResult,
+} from "./parseDocument";
+import type { GraphDocumentJson } from "./types";
 
 describe("parseGraphDocumentJson", () => {
   it("returns null for non-object root", () => {
@@ -86,5 +92,27 @@ describe("parseGraphDocumentJsonResult", () => {
       return;
     }
     expect(r.error).toEqual({ kind: "invalid_node", index: 0, reason: "id" });
+  });
+});
+
+describe("comparableSchemaVersions", () => {
+  it("returns both when root and meta set", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 2, graphId: "g", title: "t" },
+      nodes: [],
+      edges: [],
+    };
+    expect(comparableSchemaVersions(doc)).toEqual({ root: 1, meta: 2 });
+  });
+
+  it("omits meta when meta.schemaVersion absent", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 3,
+      meta: { graphId: "g", title: "t" },
+      nodes: [],
+      edges: [],
+    };
+    expect(comparableSchemaVersions(doc)).toEqual({ root: 3, meta: undefined });
   });
 });

@@ -109,7 +109,7 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
     const isStderr = prefixedStderr;
     return {
       rawLine,
-      displayLine: count > 0 ? `stream_backpressure dropped ${count}` : rawLine,
+      displayLine: rawLine,
       isStderr,
       parsedType,
       nodeId: null,

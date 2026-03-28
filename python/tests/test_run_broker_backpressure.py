@@ -115,6 +115,42 @@ def test_critical_out_line_not_dropped_when_queue_full() -> None:
     t1.join(timeout=2.0)
 
 
+def test_plain_text_stdout_line_is_droppable_when_queue_full() -> None:
+    cfg = RunBroadcasterConfig(max_sub_queue_depth=1, backpressure_emit_interval_sec=0.0)
+    b = RunBroadcaster(run_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", config=cfg)
+    q = b.subscribe()
+    b.broadcast(FanOutMsg("out", _process_out_line(0)))
+    assert q.full()
+    done = threading.Event()
+
+    def send_plain() -> None:
+        b.broadcast(FanOutMsg("out", "plain log line without json"))
+        done.set()
+
+    th = threading.Thread(target=send_plain, daemon=True)
+    th.start()
+    assert done.wait(timeout=2.0)
+    th.join(timeout=2.0)
+
+
+def test_malformed_json_stdout_line_is_droppable_when_queue_full() -> None:
+    cfg = RunBroadcasterConfig(max_sub_queue_depth=1, backpressure_emit_interval_sec=0.0)
+    b = RunBroadcaster(run_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", config=cfg)
+    q = b.subscribe()
+    b.broadcast(FanOutMsg("out", _process_out_line(0)))
+    assert q.full()
+    done = threading.Event()
+
+    def send_bad() -> None:
+        b.broadcast(FanOutMsg("out", '{"type":'))
+        done.set()
+
+    th = threading.Thread(target=send_bad, daemon=True)
+    th.start()
+    assert done.wait(timeout=2.0)
+    th.join(timeout=2.0)
+
+
 def test_sub_queue_depth_zero_uses_minimum_bounded_queue() -> None:
     cfg = RunBroadcasterConfig(max_sub_queue_depth=0, backpressure_emit_interval_sec=0.0)
     b = RunBroadcaster(run_id="00000000-0000-4000-8000-000000000000", config=cfg)

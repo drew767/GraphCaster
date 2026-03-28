@@ -11,7 +11,10 @@ import {
 } from "./structureWarnings";
 import type { GraphDocumentJson } from "./types";
 
-function doc(partial: Omit<GraphDocumentJson, "schemaVersion" | "meta" | "viewport"> & Partial<Pick<GraphDocumentJson, "viewport">>): GraphDocumentJson {
+function doc(
+  partial: Omit<GraphDocumentJson, "schemaVersion" | "meta" | "viewport"> &
+    Partial<Pick<GraphDocumentJson, "viewport" | "schemaVersion" | "meta">>,
+): GraphDocumentJson {
   return {
     schemaVersion: 1,
     meta: { schemaVersion: 1, graphId: "ffffffff-ffff-4fff-8fff-ffffffffffff", title: "t" },
@@ -83,6 +86,12 @@ describe("structureIssuesBlockRun", () => {
       ]),
     ).toBe(false);
   });
+
+  it("is false for schema_version_mismatch", () => {
+    expect(
+      structureIssuesBlockRun([{ kind: "schema_version_mismatch", root: 1, meta: 2 }]),
+    ).toBe(false);
+  });
 });
 
 describe("workspaceGraphRefCycleIssues", () => {
@@ -111,6 +120,37 @@ describe("workspaceGraphRefCycleIssues", () => {
 });
 
 describe("findStructureIssues", () => {
+  it("adds schema_version_mismatch when root and meta.schemaVersion differ", () => {
+    const g = doc({
+      schemaVersion: 1,
+      meta: {
+        schemaVersion: 2,
+        graphId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        title: "t",
+      },
+      nodes: [{ id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "schema_version_mismatch" && i.root === 1 && i.meta === 2)).toBe(
+      true,
+    );
+  });
+
+  it("does not add schema_version_mismatch when values match", () => {
+    const g = doc({
+      schemaVersion: 2,
+      meta: {
+        schemaVersion: 2,
+        graphId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        title: "t",
+      },
+      nodes: [{ id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    });
+    expect(findStructureIssues(g).some((i) => i.kind === "schema_version_mismatch")).toBe(false);
+  });
+
   it("adds unreachable_nodes for orphan non-comment node", () => {
     const g = doc({
       nodes: [

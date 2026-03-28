@@ -498,10 +498,7 @@
 
 Цепочка **`task`:** `process_complete` (в т.ч. `success=false`) → при исчерпании ретраев **`process_failed`**; сопоставление с политиками конкурентов — **§16** (**F19**).
 
-**Пробелы относительно фазы 8 (`DEVELOPMENT_PLAN.md`):**
-
-- **`runId`**, реестр, отмена, **мост десктоп UI ↔ subprocess** — **закрыто:** см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
-- Инкрементальный **stdout/stderr** ноды **`task`** в **`run-event`** (**`process_output`**) — **закрыто:** тот же файл, раздел «Инкрементальный вывод подпроцесса **task**». **Вне текущего паритета** GC: отдельные каналы уровня Comfy **`progress`**, Langflow **token stream** (иной слой, не NDJSON-лог subprocess **`task`**).
+**Статус фазы 8** (мост UI ↔ раннер, **`process_output`**, dev SSE **backpressure**): единственный реестр фактов — [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (разделы «Десктоп (Tauri)…», «Инкрементальный вывод подпроцесса **task**», «Backpressure SSE»). Перечень «закрыто/открыто» по этой фазе в этом файле **не** дублируется.
 
 ### 3.7.1. Стабильный **`runId`** и мост UI (фаза 8) — статус
 

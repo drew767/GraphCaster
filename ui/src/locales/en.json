@@ -63,7 +63,9 @@
       "barrierMergeNoSuccessIncoming": "Barrier merge {{id}} has no success-path (out_default) incoming edges from non-comment nodes.",
       "graphRefWorkspaceCycle": "Project graphs contain a graph_ref cycle (nested workflows would recurse): {{cycle}}. Remove or retarget graph_ref links.",
       "aiRouteNoOutgoing": "AI route node {{id}} has no outgoing branches to executable nodes (add out_default edges).",
-      "aiRouteMissingDescriptions": "AI route node {{id}}: {{missing}} of {{total}} outgoing branches lack data.routeDescription (routing quality may suffer)."
+      "aiRouteMissingDescriptions": "AI route node {{id}}: {{missing}} of {{total}} outgoing branches lack data.routeDescription (routing quality may suffer).",
+      "schemaVersionMismatch": "Root schemaVersion is {{root}} but meta.schemaVersion is {{meta}}. Use Save to align them (export uses a single version).",
+      "unknownIssue": "Graph structure: {{kind}}"
     },
     "inspector": {
       "heading": "Inspector",
@@ -123,7 +125,9 @@
       "stepCacheHint": "Like n8n dirtyNodeNames: the next successful desktop run start sends every affected task id in --step-cache-dirty (transitive downstream along success edges, not out_error). Editing node data does the same. Node ids must not contain commas (CSV). Toggle “Step cache” in the Run bar and set workspace root (runs/). Tasks must use data.stepCache to participate."
     },
     "editor": {
-      "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}."
+      "removedDanglingEdges": "Removed {{count}} edge(s) with missing endpoints (not in document): {{ids}}.",
+      "autosaveFailedBanner": "Autosave to workspace failed (disk full, permissions, or transient I/O). Fix the issue and use File → Save, or retry after fixing access.",
+      "autosaveFailedConsole": "[editor] Autosave failed — workspace write error (see banner). Not more than once per 30s."
     },
     "warnings": {
       "multipleUnconditional": "Node {{sourceId}}: more than one outgoing edge with no condition (runner uses JSON order).",
@@ -194,7 +198,7 @@
       "focusRunLabel": "Focused run (console and live canvas updates)",
       "hostConcurrencyHint": "Raise GC_RUN_BROKER_MAX_RUNS (web broker) or GC_TAURI_MAX_RUNS (desktop) to match or exceed gc.run.maxConcurrent in localStorage.",
       "console": {
-        "outputTruncated": "Console: {{count}} process output line(s) dropped (SSE subscriber queue full). If run events are persisted to disk, that file is unchanged."
+        "outputTruncated": "Console: {{count}} process_output event(s) dropped (SSE subscriber queue full; one NDJSON line ≈ one event). Persisted run log on disk is unchanged."
       }
     },
     "lang": {

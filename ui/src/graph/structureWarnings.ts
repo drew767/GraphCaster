@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
+import { comparableSchemaVersions } from "./parseDocument";
 import { findUnreachableWorkflowNodeIds } from "./reachability";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 import { findWorkspaceGraphRefCycle } from "./workspaceGraphRefCycles";
@@ -23,7 +24,8 @@ export type StructureIssue =
       nodeId: string;
       outgoingEdges: number;
       missingDescriptions: number;
-    };
+    }
+  | { kind: "schema_version_mismatch"; root: number; meta: number };
 
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
   if (data == null || typeof data !== "object" || Array.isArray(data)) {
@@ -75,6 +77,7 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
       return true;
     case "ai_route_no_outgoing":
     case "ai_route_missing_route_descriptions":
+    case "schema_version_mismatch":
       return false;
   }
 }
@@ -101,6 +104,10 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
   const edges = doc.edges ?? [];
   const starts = nodes.filter((n) => n.type === "start");
   const issues: StructureIssue[] = [];
+  const sv = comparableSchemaVersions(doc);
+  if (sv.root !== undefined && sv.meta !== undefined && sv.root !== sv.meta) {
+    issues.push({ kind: "schema_version_mismatch", root: sv.root, meta: sv.meta });
+  }
   if (starts.length === 0) {
     issues.push({ kind: "no_start" });
   } else if (starts.length > 1) {

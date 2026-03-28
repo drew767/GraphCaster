@@ -72,7 +72,7 @@ describe("buildConsoleLineMeta", () => {
     expect(m.parsedType).toBe("stream_backpressure");
     expect(m.streamBackpressureDropped).toBe(15);
     expect(m.isErrorLike).toBe(false);
-    expect(m.displayLine).toBe("stream_backpressure dropped 15");
+    expect(m.displayLine).toBe(line);
     expect(consoleLineMatchesSearch(m, "dropped")).toBe(true);
   });
 

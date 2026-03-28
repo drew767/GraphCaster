@@ -63,7 +63,9 @@
       "barrierMergeNoSuccessIncoming": "У barrier-merge {{id}} нет входящих рёбер успешного пути (out_default) от не-comment нод.",
       "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки.",
       "aiRouteNoOutgoing": "У ноды ai_route {{id}} нет исходящих веток к исполняемым нодам (добавьте рёбра out_default).",
-      "aiRouteMissingDescriptions": "У ноды ai_route {{id}}: у {{missing}} из {{total}} исходящих веток нет data.routeDescription (качество маршрутизации может упасть)."
+      "aiRouteMissingDescriptions": "У ноды ai_route {{id}}: у {{missing}} из {{total}} исходящих веток нет data.routeDescription (качество маршрутизации может упасть).",
+      "schemaVersionMismatch": "Корневой schemaVersion = {{root}}, а meta.schemaVersion = {{meta}}. Сохраните граф (Save), чтобы выровнять значения.",
+      "unknownIssue": "Структура графа: {{kind}}"
     },
     "inspector": {
       "heading": "Инспектор",
@@ -123,7 +125,9 @@
       "stepCacheHint": "Как n8n dirtyNodeNames: при успешном старте run все затронутые task id уходят в --step-cache-dirty (транзитивно вниз по успешным рёбрам, не out_error). Правка data ноды в инспекторе делает то же. Id без запятой (CSV). «Step cache» в Run и корень воркспейса (runs/). Участвуют только task с data.stepCache."
     },
     "editor": {
-      "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}."
+      "removedDanglingEdges": "Удалено рёбер: {{count}} (конец не на ноде в документе): {{ids}}.",
+      "autosaveFailedBanner": "Автосохранение в workspace не удалось (диск, права или временный сбой I/O). Устраните причину и сохраните через Файл → Сохранить.",
+      "autosaveFailedConsole": "[editor] Ошибка автосохранения — см. предупреждение выше (не чаще раза в 30 с)."
     },
     "warnings": {
       "multipleUnconditional": "Нода {{sourceId}}: несколько исходящих рёбер без условия (порядок как в JSON).",
@@ -194,7 +198,7 @@
       "focusRunLabel": "Активный запуск (консоль и обновления на холсте)",
       "hostConcurrencyHint": "Увеличьте GC_RUN_BROKER_MAX_RUNS (брокер веб) или GC_TAURI_MAX_RUNS (десктоп), чтобы было не меньше gc.run.maxConcurrent в localStorage.",
       "console": {
-        "outputTruncated": "Консоль: отброшено {{count}} строк(и) вывода process_output (переполнена очередь SSE-подписчика). Если события прогона пишутся на диск, файл не затронут."
+        "outputTruncated": "Консоль: отброшено {{count}} событий process_output (переполнена очередь SSE-подписчика; одна строка NDJSON ≈ одно событие). Запись прогона на диск не меняется."
       }
     },
     "lang": {

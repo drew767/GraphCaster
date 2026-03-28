@@ -96,12 +96,14 @@
 - **Симптом:** в JSON могли различаться корень и `meta.schemaVersion`; после **Save** выравнивается, но до сохранения редактор показывает «как в файле».
 - **Цель:** одно предупреждение в блоке статуса (рядом с предупреждениями структуры), если после парса оба поля присутствуют и численно различаются.
 - **Гейт:** один пример JSON с `schemaVersion: 1` и `meta.schemaVersion: 2` → видим ⚠ один раз до первого сохранения.
+- **Сделано:** `findStructureIssues` → **`schema_version_mismatch`** (не блокирует Run); `comparableSchemaVersions` в `parseDocument.ts`; i18n **`app.structure.schemaVersionMismatch`**; Vitest **`structureWarnings.test.ts`**, **`parseDocument.test.ts`**.
 
 ### P3 — Автосохранение в workspace при ошибке записи
 
 - **Симптом:** в `AppShell` ошибка `writeJsonFileToDir` при autosave глотается (`catch` пустой для «transient» ошибок).
 - **Цель:** минимум — счётчик/флаг «последняя автосохранение не удалась» + одно сообщение в UI или консоль (без спама: debounce показа).
 - **Гейт:** имитация отказа записи (только dev) → пользователь видит сигнал.
+- **Сделано:** баннер **`app.editor.autosaveFailedBanner`** в полосе предупреждений; строка в консоль **`app.editor.autosaveFailedConsole`** не чаще **1 раза / 30 с**; сброс флага при успешном autosave или **Save** в workspace (`saveDocumentToWorkspace`).
 
 ### Уже закрыто (контекст для плана)
 
