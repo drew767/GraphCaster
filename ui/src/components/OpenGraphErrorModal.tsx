@@ -26,8 +26,14 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
   }, [onClose]);
 
   useEffect(() => {
-    if (open) {
+    if (!open) {
+      copyBusyRef.current = false;
+      setCopyBusy(false);
       setCopyDone(false);
+      return;
+    }
+    setCopyDone(false);
+    if (!copyBusyRef.current) {
       setCopyBusy(false);
       copyBusyRef.current = false;
     }
@@ -58,7 +64,7 @@ export function OpenGraphErrorModal({ open, presentation, onClose }: Props) {
   );
 
   const onCopy = useCallback(async () => {
-    if (!presentation) {
+    if (!presentation || copyBusyRef.current) {
       return;
     }
     copyBusyRef.current = true;

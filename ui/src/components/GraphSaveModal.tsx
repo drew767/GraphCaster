@@ -59,9 +59,14 @@ export function GraphSaveModal({
   }, [onClose]);
 
   useEffect(() => {
-    if (open) {
-      setFileName(suggestedFileName);
-      setSaveIssue(null);
+    if (!open) {
+      copyBusyRef.current = false;
+      setCopyBusy(false);
+      return;
+    }
+    setFileName(suggestedFileName);
+    setSaveIssue(null);
+    if (!copyBusyRef.current) {
       setCopyBusy(false);
       copyBusyRef.current = false;
     }
