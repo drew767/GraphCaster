@@ -351,3 +351,106 @@ export async function fetchPersistedRunSummary(
   }
   return typeof j.text === "string" ? j.text : null;
 }
+
+export type WebRunCatalogRow = {
+  runId: string;
+  rootGraphId: string;
+  runDirName: string;
+  status: string;
+  startedAt: string | null;
+  finishedAt: string;
+  artifactRelPath: string;
+};
+
+/** Normalize broker JSON for run-catalog list (shared with tests). */
+export function parseRunCatalogListJson(data: unknown): WebRunCatalogRow[] {
+  if (typeof data !== "object" || data === null) {
+    return [];
+  }
+  const raw = data as { items?: unknown };
+  if (!Array.isArray(raw.items)) {
+    return [];
+  }
+  const out: WebRunCatalogRow[] = [];
+  for (const it of raw.items) {
+    if (typeof it !== "object" || it === null) {
+      continue;
+    }
+    const o = it as Record<string, unknown>;
+    const runId = typeof o.runId === "string" ? o.runId.trim() : "";
+    const rootGraphId = typeof o.rootGraphId === "string" ? o.rootGraphId.trim() : "";
+    const runDirName =
+      typeof o.runDirName === "string"
+        ? o.runDirName.trim()
+        : typeof o.run_dir_name === "string"
+          ? o.run_dir_name.trim()
+          : "";
+    const status = typeof o.status === "string" ? o.status.trim() : "";
+    const finishedAt = typeof o.finishedAt === "string" ? o.finishedAt.trim() : "";
+    const artifactRelPath = typeof o.artifactRelPath === "string" ? o.artifactRelPath.trim() : "";
+    let startedAt: string | null = null;
+    if (o.startedAt != null && typeof o.startedAt === "string" && o.startedAt.trim() !== "") {
+      startedAt = o.startedAt.trim();
+    }
+    if (!runId || !rootGraphId || !runDirName || !status || !finishedAt) {
+      continue;
+    }
+    out.push({ runId, rootGraphId, runDirName, status, startedAt, finishedAt, artifactRelPath });
+  }
+  return out;
+}
+
+export async function fetchRunCatalogList(
+  artifactsBase: string,
+  options?: {
+    graphId?: string | null;
+    status?: string | null;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<WebRunCatalogRow[]> {
+  const base = getRunBrokerBasePath();
+  const body: Record<string, unknown> = {
+    artifactsBase,
+    limit: options?.limit ?? 500,
+    offset: options?.offset ?? 0,
+  };
+  const gid = options?.graphId != null ? String(options.graphId).trim() : "";
+  if (gid !== "") {
+    body.graphId = gid;
+  }
+  const st = options?.status != null ? String(options.status).trim() : "";
+  if (st !== "") {
+    body.status = st;
+  }
+  const r = await fetch(`${base}/run-catalog/list`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...brokerHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    throw new Error((await r.text()) || `HTTP ${r.status}`);
+  }
+  return parseRunCatalogListJson(await r.json());
+}
+
+/** Decimal count as string (same as CLI stdout); avoids precision loss for huge integers in JSON. */
+export async function fetchRunCatalogRebuild(artifactsBase: string): Promise<string> {
+  const base = getRunBrokerBasePath();
+  const r = await fetch(`${base}/run-catalog/rebuild`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...brokerHeaders() },
+    body: JSON.stringify({ artifactsBase }),
+  });
+  if (!r.ok) {
+    throw new Error((await r.text()) || `HTTP ${r.status}`);
+  }
+  const j = (await r.json()) as { rebuilt?: unknown };
+  if (typeof j.rebuilt === "number" && Number.isFinite(j.rebuilt)) {
+    return String(Math.trunc(j.rebuilt));
+  }
+  if (typeof j.rebuilt === "string" && j.rebuilt.trim() !== "") {
+    return j.rebuilt.trim();
+  }
+  throw new Error("broker: rebuilt count missing");
+}

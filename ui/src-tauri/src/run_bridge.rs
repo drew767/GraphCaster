@@ -1,5 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -514,6 +515,42 @@ fn default_max_bytes() -> u64 {
     1_000_000
 }
 
+fn default_catalog_limit() -> i64 {
+    500
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListRunCatalogRequest {
+    pub artifacts_base: String,
+    #[serde(default)]
+    pub graph_id: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default = "default_catalog_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCatalogRow {
+    pub run_id: String,
+    pub root_graph_id: String,
+    pub run_dir_name: String,
+    pub status: String,
+    pub started_at: Option<String>,
+    pub finished_at: String,
+    pub artifact_rel_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildRunCatalogRequest {
+    pub artifacts_base: String,
+}
+
 #[tauri::command]
 pub fn gc_list_persisted_runs(req: ListPersistedRunsRequest) -> Result<Vec<PersistedRunListItem>, String> {
     let base = PathBuf::from(req.artifacts_base.trim());
@@ -581,6 +618,154 @@ pub fn gc_read_persisted_run_summary(req: ReadPersistedTextRequest) -> Result<Op
     fs::read_to_string(&path)
         .map(Some)
         .map_err(|e| e.to_string())
+}
+
+// SQLite layout must stay in sync with `python/graph_caster/run_catalog.py`:
+// `_CATALOG_SCHEMA_VERSION`, table `runs` columns
+// `run_id`, `root_graph_id`, `run_dir_name`, `status`, `started_at`, `finished_at`, `artifact_relpath`,
+// and index order `ORDER BY finished_at DESC`. Bump the Python schema + migration before changing SQL here.
+fn catalog_db_path(artifacts_base: &Path) -> PathBuf {
+    artifacts_base.join(".graphcaster").join("runs_catalog.sqlite3")
+}
+
+fn map_catalog_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunCatalogRow> {
+    Ok(RunCatalogRow {
+        run_id: row.get(0)?,
+        root_graph_id: row.get(1)?,
+        run_dir_name: row.get(2)?,
+        status: row.get(3)?,
+        started_at: row.get(4)?,
+        finished_at: row.get(5)?,
+        artifact_rel_path: row.get::<_, String>(6)?.replace('\\', "/"),
+    })
+}
+
+fn collect_catalog_rows<P: rusqlite::Params>(
+    stmt: &mut rusqlite::Statement<'_>,
+    params: P,
+) -> Result<Vec<RunCatalogRow>, String> {
+    let mut out = Vec::new();
+    let rows = stmt.query_map(params, map_catalog_row).map_err(|e| e.to_string())?;
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn gc_list_run_catalog(req: ListRunCatalogRequest) -> Result<Vec<RunCatalogRow>, String> {
+    let base = PathBuf::from(req.artifacts_base.trim());
+    if base.as_os_str().is_empty() {
+        return Err("artifactsBase required".into());
+    }
+    let db_path = catalog_db_path(&base);
+    if !db_path.is_file() {
+        return Ok(vec![]);
+    }
+    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| format!("open catalog db: {e}"))?;
+
+    let mut lim = req.limit;
+    if lim < 0 {
+        lim = 0;
+    }
+    if lim > 10_000 {
+        lim = 10_000;
+    }
+    let mut off = req.offset;
+    if off < 0 {
+        off = 0;
+    }
+
+    let graph_f: Option<String> = if let Some(ref s) = req.graph_id {
+        let t = s.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(normalize_graph_id_for_fs(t)?)
+        }
+    } else {
+        None
+    };
+
+    let status_f: Option<String> = req
+        .status
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let out: Vec<RunCatalogRow> = match (graph_f.as_ref(), status_f.as_ref()) {
+        (Some(g), Some(s)) => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT run_id, root_graph_id, run_dir_name, status, started_at, finished_at, artifact_relpath \
+                     FROM runs WHERE root_graph_id = ? AND status = ? ORDER BY finished_at DESC LIMIT ? OFFSET ?",
+                )
+                .map_err(|e| e.to_string())?;
+            collect_catalog_rows(
+                &mut stmt,
+                rusqlite::params![g.as_str(), s.as_str(), lim, off],
+            )?
+        }
+        (Some(g), None) => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT run_id, root_graph_id, run_dir_name, status, started_at, finished_at, artifact_relpath \
+                     FROM runs WHERE root_graph_id = ? ORDER BY finished_at DESC LIMIT ? OFFSET ?",
+                )
+                .map_err(|e| e.to_string())?;
+            collect_catalog_rows(&mut stmt, rusqlite::params![g.as_str(), lim, off])?
+        }
+        (None, Some(s)) => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT run_id, root_graph_id, run_dir_name, status, started_at, finished_at, artifact_relpath \
+                     FROM runs WHERE status = ? ORDER BY finished_at DESC LIMIT ? OFFSET ?",
+                )
+                .map_err(|e| e.to_string())?;
+            collect_catalog_rows(&mut stmt, rusqlite::params![s.as_str(), lim, off])?
+        }
+        (None, None) => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT run_id, root_graph_id, run_dir_name, status, started_at, finished_at, artifact_relpath \
+                     FROM runs ORDER BY finished_at DESC LIMIT ? OFFSET ?",
+                )
+                .map_err(|e| e.to_string())?;
+            collect_catalog_rows(&mut stmt, rusqlite::params![lim, off])?
+        }
+    };
+
+    Ok(out)
+}
+
+/// Returns the decimal count printed by `graph_caster catalog-rebuild` (ASCII digits only).
+/// String avoids JSON number precision loss for very large counts in the JS bridge.
+#[tauri::command]
+pub fn gc_rebuild_run_catalog(req: RebuildRunCatalogRequest) -> Result<String, String> {
+    let ab = req.artifacts_base.trim();
+    if ab.is_empty() {
+        return Err("artifactsBase required".into());
+    }
+    let python = resolve_python();
+    let mut cmd = python_command_base(&python);
+    cmd.arg("-m").arg("graph_caster");
+    cmd.arg("catalog-rebuild");
+    cmd.arg("--artifacts-base").arg(ab);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let out = cmd.output().map_err(|e| format!("catalog-rebuild: failed to spawn {python}: {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(format!("catalog-rebuild failed: {stderr}"));
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let line = stdout.trim();
+    if line.is_empty() || !line.chars().all(|c| c.is_ascii_digit()) {
+        return Err(format!("catalog-rebuild: unexpected output: {line:?}"));
+    }
+    Ok(line.to_string())
 }
 
 fn read_file_tail_utf8(path: &Path, max_bytes: usize) -> Result<(String, bool), String> {

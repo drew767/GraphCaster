@@ -13,6 +13,9 @@ import {
   fetchPersistedRunEvents,
   fetchPersistedRunList,
   fetchPersistedRunSummary,
+  fetchRunCatalogList,
+  fetchRunCatalogRebuild,
+  type WebRunCatalogRow,
 } from "./webRunBroker";
 
 export type RunEnvInfo = {
@@ -175,4 +178,55 @@ export async function gcReadPersistedRunSummary(
     });
   }
   return fetchPersistedRunSummary(ab, gid, rd);
+}
+
+export type RunCatalogRow = WebRunCatalogRow;
+
+export async function gcListRunCatalog(
+  artifactsBase: string,
+  options?: {
+    graphId?: string | null;
+    status?: string | null;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<RunCatalogRow[]> {
+  const ab = artifactsBase.trim();
+  if (!ab) {
+    return [];
+  }
+  const gidOpt = options?.graphId;
+  const graphId =
+    gidOpt != null && String(gidOpt).trim() !== "" ? String(gidOpt).trim() : null;
+  const stOpt = options?.status;
+  const status = stOpt != null && String(stOpt).trim() !== "" ? String(stOpt).trim() : null;
+  if (isTauriRuntime()) {
+    return await invoke<RunCatalogRow[]>("gc_list_run_catalog", {
+      req: {
+        artifactsBase: ab,
+        graphId,
+        status,
+        limit: options?.limit ?? 500,
+        offset: options?.offset ?? 0,
+      },
+    });
+  }
+  return fetchRunCatalogList(ab, {
+    limit: options?.limit ?? 500,
+    offset: options?.offset ?? 0,
+    graphId,
+    status,
+  });
+}
+
+/** Decimal count string from CLI / broker (stable for display and arbitrarily large integers). */
+export async function gcRebuildRunCatalog(artifactsBase: string): Promise<string> {
+  const ab = artifactsBase.trim();
+  if (!ab) {
+    throw new Error("artifactsBase required");
+  }
+  if (isTauriRuntime()) {
+    return await invoke<string>("gc_rebuild_run_catalog", { req: { artifactsBase: ab } });
+  }
+  return fetchRunCatalogRebuild(ab);
 }

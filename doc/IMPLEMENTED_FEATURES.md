@@ -589,10 +589,11 @@
 | Запись после завершения корневого прогона | После **`write_run_summary`** — **`upsert_run_from_summary`** в **`runner.py`**; ошибки SQLite **не** меняют статус прогона |
 | Отключение | **`GC_RUN_CATALOG=0`** / **`false`** / **`no`** — upsert не выполняется, БД не создаётся |
 | HTTP (dev-брокер) | **`POST /run-catalog/list`** (тело: **`artifactsBase`**, опц. **`graphId`**, **`status`**, **`limit`**, **`offset`**) → **`{ items: [...] }`** с camelCase полями; **`POST /run-catalog/rebuild`** → **`{ rebuilt: N }`** (игнорирует **`GC_RUN_CATALOG`**) — **`run_broker/app.py`**, те же правила токена, что **`/persisted-runs/*`** |
+| UI (модалка History) | Вкладки **«Этот граф»** (скан **`runs/<graphId>/`**) и **«Все графы»** (чтение SQLite-каталога); replay по **`rootGraphId`** + **`runDirName`**; кнопка **Rebuild index** → **`catalog-rebuild`**; веб — **`webRunBroker.fetchRunCatalogList` / `fetchRunCatalogRebuild`**; Tauri — **`rusqlite`** read-only + subprocess **`gc_rebuild_run_catalog`** — **`RunHistoryModal.tsx`**, **`runCommands.ts`**, **`run_bridge.rs`** |
 | Офлайн-ремонт | **`python -m graph_caster catalog-rebuild --artifacts-base <path>`** — полная пересборка из **`run-summary.json`** на диске |
 | Миграции схемы | **`PRAGMA user_version`**, без **`DROP TABLE`** при bump; опционально **`PRAGMA journal_mode=WAL`** |
 
-Код: **`python/graph_caster/run_catalog.py`**, **`runner.py`**, **`graph_caster/__main__.py`**. Тесты: **`python/tests/test_run_catalog.py`**, **`test_run_persistence.py`**, **`test_run_broker.py`**.
+Код: **`python/graph_caster/run_catalog.py`**, **`runner.py`**, **`graph_caster/__main__.py`**, UI — выше. Тесты: **`python/tests/test_run_catalog.py`**, **`test_run_persistence.py`**, **`test_run_broker.py`**, **`ui/src/run/webRunCatalog.test.ts`** (разбор JSON списка).
 
 Сводка для [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§17**: конкурентное сравнение и **остаток** F13 (OTel, облачный ORM, prod-транспорт **§39**) — там; факты локального индекса — **только здесь**.
 
