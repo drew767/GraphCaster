@@ -15,6 +15,7 @@ import {
   isGraphDocumentFrameType,
 } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
+import { coercePortKindOverride } from "./portDataKinds";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 import type { NodeRunPhase } from "../run/nodeRunOverlay";
 
@@ -146,8 +147,22 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
       edge.label = String(e.condition);
     }
     const er = e as GraphEdgeJson;
-    if (isPlainRecord(er.data) && typeof er.data.routeDescription === "string") {
-      edge.data = { routeDescription: er.data.routeDescription };
+    if (isPlainRecord(er.data)) {
+      const dataOut: Record<string, unknown> = {};
+      if (typeof er.data.routeDescription === "string") {
+        dataOut.routeDescription = er.data.routeDescription;
+      }
+      const sk = coercePortKindOverride(er.data.sourcePortKind);
+      if (sk !== undefined) {
+        dataOut.sourcePortKind = sk;
+      }
+      const tk = coercePortKindOverride(er.data.targetPortKind);
+      if (tk !== undefined) {
+        dataOut.targetPortKind = tk;
+      }
+      if (Object.keys(dataOut).length > 0) {
+        edge.data = dataOut;
+      }
     }
     return edge;
   });

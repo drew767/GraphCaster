@@ -27,6 +27,24 @@ import {
 
 export type PortDataKind = "any" | "json" | "primitive";
 
+/** Must match `_PORT_KIND_SET` in `python/graph_caster/port_data_kinds.py` when adding kinds. */
+const PORT_KINDS: ReadonlySet<string> = new Set(["any", "json", "primitive"]);
+
+/** F18 phase 2: parse edge `data` override; invalid values ignored (parity with `coerce_port_kind_override` in Python). */
+export function coercePortKindOverride(value: unknown): PortDataKind | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const s = value.trim();
+  if (PORT_KINDS.has(s)) {
+    return s as PortDataKind;
+  }
+  return undefined;
+}
+
 /** Node types allowed to emit `out_default` (per handle contract), excluding `out_error`. */
 export function portDataKindForSource(nodeType: string, handle: string): PortDataKind {
   if (handle === HANDLE_OUT_ERROR) {

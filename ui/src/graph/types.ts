@@ -18,8 +18,14 @@ export type GraphEdgeJson = {
   targetHandle?: string | null;
   target_handle?: string | null;
   condition?: string | null;
-  /** Optional per-edge metadata (e.g. routeDescription for ai_route branches). */
-  data?: { routeDescription?: string };
+  /** Optional per-edge metadata (e.g. routeDescription for ai_route branches; F18 overrides sourcePortKind/targetPortKind). */
+  data?: {
+    routeDescription?: string;
+    /** F18 phase 2: optional override of effective port kind on source side (invalid values ignored). */
+    sourcePortKind?: string;
+    /** F18 phase 2: optional override on target side. */
+    targetPortKind?: string;
+  };
 };
 
 export type GraphDocumentJson = {

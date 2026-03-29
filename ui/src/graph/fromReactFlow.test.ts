@@ -124,6 +124,31 @@ describe("graphDocumentToFlow", () => {
     expect(e2?.data?.routeDescription).toBe("Right exit");
   });
 
+  it("roundtrips edge.data F18 port kind overrides through flow export", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      nodes: [
+        { id: "a", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "b", type: "task", position: { x: 100, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source: "a",
+          target: "b",
+          sourceHandle: "out_default",
+          targetHandle: "in_default",
+          data: { sourcePortKind: "json", targetPortKind: "primitive" },
+        },
+      ],
+    };
+    const { nodes, edges } = graphDocumentToFlow(doc);
+    const back = flowToDocument(nodes, edges, doc);
+    const e1 = back.edges?.find((e) => e.id === "e1");
+    expect(e1?.data?.sourcePortKind).toBe("json");
+    expect(e1?.data?.targetPortKind).toBe("primitive");
+  });
+
   it("ai_route document edge maps to canvas pill text via routeDescription", () => {
     const { edges } = graphDocumentToFlow({
       nodes: [

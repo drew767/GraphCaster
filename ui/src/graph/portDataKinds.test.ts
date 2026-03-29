@@ -7,7 +7,19 @@ import {
   HANDLE_OUT_DEFAULT,
   HANDLE_OUT_ERROR,
 } from "./handleContract";
-import { portDataKindForSource, portDataKindForTarget } from "./portDataKinds";
+import { coercePortKindOverride, portDataKindForSource, portDataKindForTarget } from "./portDataKinds";
+
+describe("coercePortKindOverride (F18 phase 2)", () => {
+  it("accepts enum and trims", () => {
+    expect(coercePortKindOverride("json")).toBe("json");
+    expect(coercePortKindOverride("  primitive  ")).toBe("primitive");
+  });
+  it("returns undefined for invalid", () => {
+    expect(coercePortKindOverride(undefined)).toBeUndefined();
+    expect(coercePortKindOverride("nope")).toBeUndefined();
+    expect(coercePortKindOverride(3)).toBeUndefined();
+  });
+});
 
 describe("portDataKind registry", () => {
   it("start out_default and task in_default are json", () => {

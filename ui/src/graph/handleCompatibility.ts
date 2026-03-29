@@ -91,8 +91,11 @@ export function findHandleCompatibilityIssues(doc: GraphDocumentJson): HandleCom
       });
     }
     if (asrc.has(sh) && atgt.has(th)) {
-      const outK = portKinds.portDataKindForSource(src.type, sh);
-      const inK = portKinds.portDataKindForTarget(tgt.type, th);
+      const d = e.data;
+      const outK =
+        portKinds.coercePortKindOverride(d?.sourcePortKind) ?? portKinds.portDataKindForSource(src.type, sh);
+      const inK =
+        portKinds.coercePortKindOverride(d?.targetPortKind) ?? portKinds.portDataKindForTarget(tgt.type, th);
       const ok = portKindCompat.classifyPortKindPair(outK, inK);
       if (ok === "warn") {
         issues.push({

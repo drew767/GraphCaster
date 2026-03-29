@@ -185,6 +185,55 @@ describe("findHandleCompatibilityIssues", () => {
     expect(issues.some((i) => i.kind === "invalid_source_handle")).toBe(true);
   });
 
+  it("edge data targetPortKind json clears mismatch when registry would be primitive", () => {
+    const orig = portKinds.portDataKindForTarget;
+    const spy = vi.spyOn(portKinds, "portDataKindForTarget").mockImplementation((nodeType, handle) => {
+      if (nodeType === "task" && handle === "in_default") {
+        return "primitive";
+      }
+      return orig(nodeType, handle);
+    });
+    try {
+      const doc = baseDoc();
+      doc.edges = [
+        {
+          id: "e1",
+          source: "start1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+          data: { targetPortKind: "json" },
+        },
+      ];
+      expect(findHandleCompatibilityIssues(doc)).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("edge data targetPortKind primitive introduces mismatch on otherwise-json path", () => {
+    const doc = baseDoc();
+    doc.edges = [
+      {
+        id: "e1",
+        source: "start1",
+        sourceHandle: "out_default",
+        target: "t1",
+        targetHandle: "in_default",
+        condition: null,
+        data: { targetPortKind: "primitive" },
+      },
+    ];
+    const issues = findHandleCompatibilityIssues(doc);
+    expect(issues.some((i) => i.kind === "port_data_kind_mismatch")).toBe(true);
+    const m = issues.find((i) => i.kind === "port_data_kind_mismatch");
+    if (m && m.kind === "port_data_kind_mismatch") {
+      expect(m.sourceKind).toBe("json");
+      expect(m.targetKind).toBe("primitive");
+    }
+  });
+
   it("emits port_data_kind_mismatch when registry maps target in to primitive", () => {
     const orig = portKinds.portDataKindForTarget;
     const spy = vi.spyOn(portKinds, "portDataKindForTarget").mockImplementation((nodeType, handle) => {

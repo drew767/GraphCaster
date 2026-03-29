@@ -144,11 +144,22 @@
     "edgeData": {
       "type": "object",
       "additionalProperties": true,
+      "description": "Per-edge metadata. F18 port-kind overrides must use camelCase keys sourcePortKind and targetPortKind; snake_case aliases are not read by the runner or UI. Export from the canvas (fromReactFlow) persists routeDescription and validated port-kind keys only—other keys may be dropped after an edit/save roundtrip.",
       "properties": {
         "routeDescription": {
           "type": "string",
           "maxLength": 1024,
           "description": "Human-readable branch label for ai_route outgoing edges (sent to routing provider)."
+        },
+        "sourcePortKind": {
+          "type": "string",
+          "enum": ["any", "json", "primitive"],
+          "description": "Optional F18 phase 2: camelCase only; override effective PortDataKind on the source side of this edge; if omitted, registry uses node.type + sourceHandle (see port_data_kinds.py / portDataKinds.ts)."
+        },
+        "targetPortKind": {
+          "type": "string",
+          "enum": ["any", "json", "primitive"],
+          "description": "Optional F18 phase 2: camelCase only; override effective PortDataKind on the target side of this edge; if omitted, registry uses node.type + targetHandle."
         }
       }
     },

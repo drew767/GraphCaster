@@ -6,6 +6,7 @@ import { flowEdgeLabelToCondition } from "./edgeCanvasLabel";
 import { getCommentNodeSize, sanitizeNodeParents, sortNodesParentsFirst } from "./flowHierarchy";
 import { GRAPH_NODE_TYPE_GROUP } from "./nodeKinds";
 import { flowConnectionHandle } from "./normalizeHandles";
+import { coercePortKindOverride } from "./portDataKinds";
 import type { GraphDocumentJson, GraphEdgeJson, GraphNodeJson } from "./types";
 import type { GcNodeData } from "./toReactFlow";
 
@@ -104,7 +105,9 @@ export function flowToDocument(
   const outEdges: GraphEdgeJson[] = edges.map((e) => {
     const sh = flowConnectionHandle(e.sourceHandle, "out_default");
     const th = flowConnectionHandle(e.targetHandle, "in_default");
-    const ed = e.data as { routeDescription?: string } | undefined;
+    const ed = e.data as
+      | { routeDescription?: string; sourcePortKind?: unknown; targetPortKind?: unknown }
+      | undefined;
     const rd = typeof ed?.routeDescription === "string" ? ed.routeDescription.trim() : "";
     const row: GraphEdgeJson = {
       id: e.id,
@@ -114,11 +117,20 @@ export function flowToDocument(
       targetHandle: th,
       condition: flowEdgeLabelToCondition(e.label),
     };
-    if (rd !== "") {
-      row.data = {
-        routeDescription:
-          rd.length > AI_ROUTE_EDGE_DESCRIPTION_MAX ? rd.slice(0, AI_ROUTE_EDGE_DESCRIPTION_MAX) : rd,
-      };
+    const sk = coercePortKindOverride(ed?.sourcePortKind);
+    const tk = coercePortKindOverride(ed?.targetPortKind);
+    if (rd !== "" || sk !== undefined || tk !== undefined) {
+      row.data = {};
+      if (rd !== "") {
+        row.data.routeDescription =
+          rd.length > AI_ROUTE_EDGE_DESCRIPTION_MAX ? rd.slice(0, AI_ROUTE_EDGE_DESCRIPTION_MAX) : rd;
+      }
+      if (sk !== undefined) {
+        row.data.sourcePortKind = sk;
+      }
+      if (tk !== undefined) {
+        row.data.targetPortKind = tk;
+      }
     }
     return row;
   });
