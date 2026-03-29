@@ -33,6 +33,7 @@ import "@xyflow/react/dist/style.css";
 
 import { flowToDocument } from "../graph/fromReactFlow";
 import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
+import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
@@ -344,6 +345,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       }),
       [t, i18n.language],
     );
+
+    const minimapNodeColor = useCallback((node: Node<GcNodeData>) => minimapNodeFill(node), []);
+    const minimapNodeStrokeColor = useCallback((node: Node<GcNodeData>) => minimapNodeStroke(node), []);
 
     const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
@@ -794,7 +798,12 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           />
           <Background gap={16} size={1} />
           <Controls />
-          <MiniMap pannable zoomable />
+          <MiniMap
+            pannable
+            zoomable
+            nodeColor={minimapNodeColor}
+            nodeStrokeColor={minimapNodeStrokeColor}
+          />
         </ReactFlow>
         <CanvasAddNodeMenu
           open={addMenu != null}
