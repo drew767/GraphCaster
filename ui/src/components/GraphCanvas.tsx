@@ -41,6 +41,11 @@ import {
 } from "../graph/canvasRunMotion";
 import { usePrefersColorSchemeDark } from "../lib/usePrefersColorSchemeDark";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
+import {
+  connectionLineStyleForTheme,
+  GC_CONNECTION_RADIUS,
+  gcConnectionLineType,
+} from "../graph/canvasConnectionUi";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
 import {
@@ -550,6 +555,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       () => minimapChromeForTheme(prefersColorSchemeDark),
       [prefersColorSchemeDark],
     );
+    const connectionLineStyle = useMemo(
+      () => connectionLineStyleForTheme(prefersColorSchemeDark),
+      [prefersColorSchemeDark],
+    );
 
     const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
@@ -1009,6 +1018,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             colorMode="system"
             ariaLabelConfig={flowAriaLabels}
             onlyRenderVisibleElements
+            connectionRadius={GC_CONNECTION_RADIUS}
+            connectionLineType={gcConnectionLineType}
+            connectionLineStyle={connectionLineStyle}
             snapToGrid={snapToGridEnabled}
             snapGrid={[CANVAS_GRID_STEP, CANVAS_GRID_STEP]}
             nodes={nodes}
