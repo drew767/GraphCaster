@@ -560,7 +560,8 @@
           "graphId": { "type": "string", "minLength": 1 },
           "attempt": { "type": "integer", "minimum": 0 },
           "phase": { "type": "string" },
-          "message": { "type": "string" }
+          "message": { "type": "string" },
+          "step": { "type": "integer", "description": "Optional monotonic step index from the child agent." }
         }
       }
     },

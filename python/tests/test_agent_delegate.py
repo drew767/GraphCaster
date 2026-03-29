@@ -89,6 +89,46 @@ def test_parse_hook_unknown_type() -> None:
     assert err == "unknown_type"
 
 
+def test_stdout_ignored_after_agent_finished() -> None:
+    state = AgentDelegateRuntimeState()
+    proc = MagicMock()
+    emitted: list[tuple[str, dict]] = []
+
+    def emit(etype: str, **kw: object) -> None:
+        emitted.append((etype, kw))
+
+    apply_agent_delegate_stdout_line(
+        '{"type":"agent_finished","result":{"done":true}}',
+        state,
+        node_id="n1",
+        graph_id="g1",
+        emit=emit,
+        max_steps=0,
+        proc=proc,
+    )
+    n = len(emitted)
+    apply_agent_delegate_stdout_line(
+        '{"type":"agent_step","phase":"late","message":"ignored"}',
+        state,
+        node_id="n1",
+        graph_id="g1",
+        emit=emit,
+        max_steps=0,
+        proc=proc,
+    )
+    apply_agent_delegate_stdout_line(
+        "not-json-after-finish",
+        state,
+        node_id="n1",
+        graph_id="g1",
+        emit=emit,
+        max_steps=0,
+        proc=proc,
+    )
+    assert len(emitted) == n
+    assert len(state.bad_lines) == 0
+
+
 def test_apply_stdout_strips_unknown_emit_keys() -> None:
     state = AgentDelegateRuntimeState()
     proc = MagicMock()

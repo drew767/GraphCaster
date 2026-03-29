@@ -25,7 +25,7 @@ function GcFlowNodeInner(props: NodeProps) {
     (raw as { gcPin?: { enabled?: unknown } }).gcPin !== null &&
     (raw as { gcPin?: { enabled?: unknown } }).gcPin?.enabled === true;
   const stepCacheOn =
-    (kind === "task" || kind === "mcp_tool") &&
+    (kind === "task" || kind === "mcp_tool" || kind === "llm_agent" || kind === "ai_route") &&
     raw != null &&
     typeof raw === "object" &&
     !Array.isArray(raw) &&

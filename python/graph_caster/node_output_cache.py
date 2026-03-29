@@ -103,6 +103,14 @@ def _coerce_step_cache_entry(raw: dict[str, Any]) -> dict[str, Any] | None:
         if not isinstance(eid, str) or not eid.strip():
             return None
         return raw
+    if nt == "llm_agent":
+        pr = raw.get("processResult")
+        if not isinstance(pr, dict) or pr.get("success") is not True:
+            return None
+        ar = raw.get("agentResult")
+        if not isinstance(ar, dict) or ar.get("success") is not True:
+            return None
+        return raw
     return None
 
 

@@ -41,9 +41,12 @@ def test_compute_step_cache_key_node_kind_separates_task_and_mcp() -> None:
     kt = compute_step_cache_key(**shared, cache_node_kind="task")
     km = compute_step_cache_key(**shared, cache_node_kind="mcp_tool")
     kar = compute_step_cache_key(**shared, cache_node_kind="ai_route")
+    kllm = compute_step_cache_key(**shared, cache_node_kind="llm_agent")
     assert kt != km
     assert kt != kar
     assert km != kar
+    assert kllm not in (kt, km, kar)
+    assert len({kt, km, kar, kllm}) == 4
 
 
 def test_compute_step_cache_key_workspace_secrets_fp_changes_key() -> None:
@@ -127,6 +130,36 @@ def test_step_cache_store_mcp_tool_roundtrip(tmp_path) -> None:
     }
     store.put(key, payload)
     assert store.get(key) == payload
+
+
+def test_step_cache_store_llm_agent_roundtrip(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "f" * 64
+    payload = {
+        "nodeType": "llm_agent",
+        "data": {"command": "x"},
+        "processResult": {"success": True, "exitCode": 0},
+        "agentResult": {"success": True, "result": {"n": 1}, "stepCount": 1},
+    }
+    store.put(key, payload)
+    assert store.get(key) == payload
+
+
+def test_step_cache_get_rejects_llm_agent_without_agent_success(tmp_path) -> None:
+    root = tmp_path / "cache"
+    store = StepCacheStore(root)
+    key = "0" * 63 + "l"
+    store.put(
+        key,
+        {
+            "nodeType": "llm_agent",
+            "data": {},
+            "processResult": {"success": True, "exitCode": 0},
+            "agentResult": {"success": False},
+        },
+    )
+    assert store.get(key) is None
 
 
 def test_step_cache_get_rejects_unsuccessful_mcp_tool(tmp_path) -> None:

@@ -8,6 +8,17 @@ export const STDERR_PREFIX = "[stderr] ";
 const STREAM_BACKPRESSURE_SEARCH_EXTRA =
   "Console process_output dropped subscriber queue SSE persisted Консоль отброшено очередь подписчика NDJSON stream_backpressure";
 
+/** Cap agent_step message in console display (raw NDJSON line stays full in `rawLine`). */
+const AGENT_STEP_MESSAGE_DISPLAY_MAX = 240;
+
+function truncateForRunConsoleDisplay(s: string, maxLen: number): string {
+  if (s.length <= maxLen) {
+    return s;
+  }
+  const cut = Math.max(0, maxLen - 3);
+  return cut === 0 ? "..." : `${s.slice(0, cut)}...`;
+}
+
 export type ConsoleLineMeta = {
   rawLine: string;
   displayLine: string;
@@ -136,7 +147,9 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
           ? nodeId
           : "?";
     const phase = typeof o.phase === "string" && o.phase.trim() !== "" ? o.phase.trim() : "";
-    const message = typeof o.message === "string" ? o.message.trim() : "";
+    const rawMsg = typeof o.message === "string" ? o.message.trim() : "";
+    const message =
+      rawMsg !== "" ? truncateForRunConsoleDisplay(rawMsg, AGENT_STEP_MESSAGE_DISPLAY_MAX) : "";
     const detail = [phase && `phase=${phase}`, message && `message=${message}`].filter(Boolean).join(" ");
     const body = detail ? `[${nid}] agent_step ${detail}` : `[${nid}] agent_step`;
     return {

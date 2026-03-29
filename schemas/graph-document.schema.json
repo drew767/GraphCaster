@@ -122,9 +122,10 @@
     "llmAgentNodeData": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Delegated LLM / agent subprocess (F11): one JSON line on stdin (upstreamOutputs, optional inputPayload); child stdout must be NDJSON with types agent_delegate_start, agent_step, agent_tool_call, agent_finished, agent_failed. Uses same env/envKeys/CWD patterns as task (F8 secrets). No F17 step-cache in v1.",
+      "description": "Delegated LLM / agent subprocess (F11): one JSON line on stdin (upstreamOutputs, optional inputPayload); child stdout must be NDJSON with types agent_delegate_start, agent_step, agent_tool_call, agent_finished, agent_failed. Uses same env/envKeys/CWD patterns as task (F8 secrets). Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task / mcp_tool).",
       "properties": {
         "title": { "type": "string" },
+        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
         "command": { "type": ["string", "array"] },
         "argv": { "type": "array", "items": { "type": "string" } },
         "cwd": { "type": "string" },

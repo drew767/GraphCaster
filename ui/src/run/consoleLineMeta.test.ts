@@ -124,6 +124,23 @@ describe("buildConsoleLineMeta", () => {
     expect(m.isErrorLike).toBe(false);
   });
 
+  it("truncates long agent_step message in displayLine", () => {
+    const msg = "x".repeat(400);
+    const line = JSON.stringify({
+      type: "agent_step",
+      nodeId: "la1",
+      graphId: "g1",
+      attempt: 0,
+      phase: "llm",
+      message: msg,
+    });
+    const m = buildConsoleLineMeta(line);
+    expect(m.rawLine).toBe(line);
+    expect(m.displayLine.length).toBeLessThan(line.length);
+    expect(m.displayLine.endsWith("...")).toBe(true);
+    expect(m.displayLine.startsWith("[la1] agent_step phase=llm message=")).toBe(true);
+  });
+
   it("treats empty line as non-json meta", () => {
     const m = buildConsoleLineMeta("");
     expect(m.parsedType).toBeNull();

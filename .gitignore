@@ -62,3 +62,6 @@ agent-queue/agent-queue.monitor-status.json
 
 # Local Windows shortcut from build.bat (next to repo root)
 GraphCaster.lnk
+
+# Agent queue / executing-plans drafts (not project SSOT)
+doc/plans/

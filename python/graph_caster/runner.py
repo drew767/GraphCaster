@@ -667,6 +667,10 @@ class GraphRunner:
     ) -> tuple[Literal["ok", "continue", "break"], bool]:
         from graph_caster.process_exec import run_llm_agent_process
 
+        # gcPin short-circuit is implemented only for task (see gc_pin.py); keep False here so the
+        # visit signature still returns (used_pin) like _run_task_visit; extend when llm_agent supports pin.
+        llm_exit_used_pin = False
+        outs_map = ctx.setdefault("node_outputs", {})
         sess = ctx.get("_gc_run_session")
 
         def _should_cancel() -> bool:
@@ -674,20 +678,119 @@ class GraphRunner:
                 return True
             return sess is not None and sess.cancel_event.is_set()
 
-        up, _inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
-        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
-        ok = run_llm_agent_process(
-            node_id=node.id,
-            graph_id=self._doc.graph_id,
-            data=dict(node.data),
-            ctx=ctx,
-            upstream_outputs=up,
-            emit=self.emit,
-            should_cancel=cancel_fn,
-            workspace_secrets=self._get_workspace_secrets(),
+        up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+        ok = True
+        used_step_cache = False
+        cache_key: str | None = None
+        pol = self._step_cache
+        store = self._ensure_step_cache_store()
+        want_cache = _node_wants_step_cache(node)
+        cache_active = (
+            want_cache
+            and pol is not None
+            and pol.enabled
+            and store is not None
+        )
+        gid = self._doc.graph_id
+        graph_rev = str(ctx.get("graph_rev") or "")
+        tenant_id = ctx.get("tenant_id")
+        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
+        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
+        dirty = bool(
+            pol
+            and pol.enabled
+            and (
+                node.id in pol.dirty_nodes
+                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
+            )
+        )
+        upstream_incomplete = False
+        cache_ws_fp: str | None = (
+            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
         )
 
-        outs_map = ctx.setdefault("node_outputs", {})
+        if cache_active:
+            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
+            if inc_reason:
+                upstream_incomplete = True
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    reason=inc_reason,
+                )
+            elif dirty:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="llm_agent",
+                )
+                self.emit(
+                    "node_cache_miss",
+                    nodeId=node.id,
+                    graphId=gid,
+                    keyPrefix=_cache_key_prefix(cache_key),
+                    reason="dirty",
+                )
+            else:
+                cache_key = compute_step_cache_key(
+                    graph_rev=graph_rev,
+                    graph_id=gid,
+                    node_id=node.id,
+                    node_data=node.data,
+                    upstream_outputs=up,
+                    tenant_id=tenant_s,
+                    workspace_secrets_file_fp=cache_ws_fp,
+                    graph_ref_upstream_revisions=gr_pairs,
+                    cache_node_kind="llm_agent",
+                )
+                cached = store.get(cache_key)
+                if cached is not None:
+                    outs_map[node.id] = copy.deepcopy(cached)
+                    pr = cached.get("processResult")
+                    ctx["last_result"] = last_result_from_process_result(pr)
+                    self.emit(
+                        "node_cache_hit",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+                    used_step_cache = True
+                else:
+                    self.emit(
+                        "node_cache_miss",
+                        nodeId=node.id,
+                        graphId=gid,
+                        keyPrefix=_cache_key_prefix(cache_key),
+                    )
+
+        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
+        if not used_step_cache:
+            ok = run_llm_agent_process(
+                node_id=node.id,
+                graph_id=self._doc.graph_id,
+                data=dict(node.data),
+                ctx=ctx,
+                upstream_outputs=up,
+                emit=self.emit,
+                should_cancel=cancel_fn,
+                workspace_secrets=self._get_workspace_secrets(),
+            )
+        if (
+            ok
+            and not used_step_cache
+            and cache_active
+            and cache_key is not None
+            and store is not None
+            and not upstream_incomplete
+        ):
+            store.put(cache_key, copy.deepcopy(outs_map[node.id]))
         snap_o = outs_map.get(node.id)
         if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
             self.emit(
@@ -705,15 +808,17 @@ class GraphRunner:
                 "nodeType": node.type,
                 "graphId": self._doc.graph_id,
             }
+            if llm_exit_used_pin:
+                ne_task["usedPin"] = True
             self.emit("node_exit", **ne_task)
             if ctx.get("_gc_process_cancelled"):
-                return "break", False
+                return "break", llm_exit_used_pin
             ctx["last_result"] = False
             if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                return "continue", False
-            return "break", False
+                return "continue", llm_exit_used_pin
+            return "break", llm_exit_used_pin
 
-        return "ok", False
+        return "ok", llm_exit_used_pin
 
     def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
         if ctx.get("_run_cancelled"):

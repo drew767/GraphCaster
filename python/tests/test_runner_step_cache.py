@@ -117,6 +117,126 @@ def test_step_cache_dirty_skips_hit(tmp_path: Path) -> None:
     assert sum(1 for e in ev if e.get("type") == "process_spawn" and e.get("nodeId") == "t1") == 1
 
 
+def _llm_agent_ok_script() -> str:
+    return (
+        "import json,sys\n"
+        "j=json.loads(sys.stdin.readline())\n"
+        "sys.stdout.write(json.dumps({'type':'agent_delegate_start'})+'\\n')\n"
+        "sys.stdout.write(json.dumps({'type':'agent_finished','result':{'k':j.get('inputPayload',{}).get('v')}})+'\\n')\n"
+        "sys.stdout.flush()\n"
+    )
+
+
+def _linear_llm_agent_step_cache_doc(
+    gid: str,
+    tmp: Path,
+    *,
+    input_v: int | None = None,
+    step_cache: bool = True,
+) -> GraphDocument:
+    data: dict = {
+        "title": "Agent",
+        "command": [sys.executable, "-c", _llm_agent_ok_script()],
+        "cwd": str(tmp),
+        "timeoutSec": 30,
+        "maxAgentSteps": 0,
+    }
+    if step_cache:
+        data["stepCache"] = True
+    if input_v is not None:
+        data["inputPayload"] = {"v": input_v}
+    return GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": gid, "title": "llm step-cache"},
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+            "nodes": [
+                {"id": "s1", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "a1", "type": "llm_agent", "position": {"x": 0, "y": 0}, "data": data},
+                {"id": "x1", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "source": "s1",
+                    "sourceHandle": "out_default",
+                    "target": "a1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+                {
+                    "id": "e2",
+                    "source": "a1",
+                    "sourceHandle": "out_default",
+                    "target": "x1",
+                    "targetHandle": "in_default",
+                    "condition": None,
+                },
+            ],
+        }
+    )
+
+
+def test_second_run_llm_agent_step_cache_hit_skips_spawn(tmp_path: Path) -> None:
+    gid = "b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2"
+    doc = _linear_llm_agent_step_cache_doc(gid, tmp_path, input_v=1)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    host = RunHostContext(artifacts_base=tmp_path)
+    ev1: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev1.append(e), host=host, step_cache=pol).run()
+    sp1 = sum(1 for e in ev1 if e.get("type") == "process_spawn" and e.get("nodeId") == "a1")
+    assert sp1 == 1
+    assert not any(e.get("type") == "node_cache_hit" for e in ev1)
+
+    ev2: list[dict] = []
+    GraphRunner(doc, sink=lambda e: ev2.append(e), host=host, step_cache=pol).run()
+    sp2 = sum(1 for e in ev2 if e.get("type") == "process_spawn" and e.get("nodeId") == "a1")
+    assert sp2 == 0
+    hits = [e for e in ev2 if e.get("type") == "node_cache_hit"]
+    assert len(hits) == 1
+    assert hits[0].get("nodeId") == "a1"
+    assert hits[0].get("keyPrefix")
+
+
+def test_llm_agent_step_cache_input_payload_change_invalidates(tmp_path: Path) -> None:
+    gid = "c2c2c2c2-c2c2-42c2-82c2-c2c2c2c2c2c2"
+    doc_a = _linear_llm_agent_step_cache_doc(gid, tmp_path, input_v=1)
+    pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
+    host = RunHostContext(artifacts_base=tmp_path)
+    GraphRunner(doc_a, sink=lambda _: None, host=host, step_cache=pol).run()
+
+    doc_b = _linear_llm_agent_step_cache_doc(gid, tmp_path, input_v=2)
+    ev: list[dict] = []
+    GraphRunner(doc_b, sink=lambda e: ev.append(e), host=host, step_cache=pol).run()
+    assert any(e.get("type") == "node_cache_miss" for e in ev)
+    assert not any(e.get("type") == "node_cache_hit" for e in ev)
+    assert sum(1 for e in ev if e.get("type") == "process_spawn" and e.get("nodeId") == "a1") == 1
+
+
+def test_llm_agent_step_cache_dirty_skips_hit(tmp_path: Path) -> None:
+    gid = "d2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2"
+    doc = _linear_llm_agent_step_cache_doc(gid, tmp_path, input_v=0)
+    host = RunHostContext(artifacts_base=tmp_path)
+    GraphRunner(
+        doc,
+        sink=lambda _: None,
+        host=host,
+        step_cache=StepCachePolicy(enabled=True, dirty_nodes=frozenset()),
+    ).run()
+
+    ev: list[dict] = []
+    GraphRunner(
+        doc,
+        sink=lambda e: ev.append(e),
+        host=host,
+        step_cache=StepCachePolicy(enabled=True, dirty_nodes=frozenset({"a1"})),
+    ).run()
+    miss = [e for e in ev if e.get("type") == "node_cache_miss"]
+    assert any(m.get("reason") == "dirty" for m in miss)
+    assert not any(e.get("type") == "node_cache_hit" for e in ev)
+    assert sum(1 for e in ev if e.get("type") == "process_spawn" and e.get("nodeId") == "a1") == 1
+
+
 def test_step_cache_disabled_always_spawns(tmp_path: Path) -> None:
     gid = "10101010-1010-4101-8101-101010101010"
     doc = _linear_task_doc(gid, tmp_path)

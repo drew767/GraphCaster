@@ -261,6 +261,7 @@ def test_process_like_events_validate() -> None:
             "attempt": 0,
             "phase": "llm",
             "message": "thinking",
+            "step": 2,
         },
         {
             "type": "agent_tool_call",

@@ -112,6 +112,9 @@ def apply_agent_delegate_stdout_line(
 ) -> None:
     """Parse one NDJSON line from the child; emit GraphCaster run events; update ``state``."""
 
+    if state.finished:
+        return
+
     try:
         obj = json.loads(line)
     except json.JSONDecodeError:

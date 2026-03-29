@@ -120,6 +120,7 @@ export function wantsStepCacheOnNode(node: GraphNodeJson | undefined): boolean {
   if (
     t !== GRAPH_NODE_TYPE_TASK &&
     t !== GRAPH_NODE_TYPE_MCP_TOOL &&
+    t !== GRAPH_NODE_TYPE_LLM_AGENT &&
     t !== GRAPH_NODE_TYPE_AI_ROUTE
   ) {
     return false;
