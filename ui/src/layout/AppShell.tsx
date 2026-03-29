@@ -1739,12 +1739,28 @@ export function AppShell({ onLangChange }: Props) {
                     nodeType: issue.sourceType,
                     handle: issue.handle,
                   })
-                : t("app.warnings.invalidTargetHandle", {
-                    edgeId: issue.edgeId,
-                    nodeId: issue.targetId,
-                    nodeType: issue.targetType,
-                    handle: issue.handle,
-                  })}
+                : issue.kind === "invalid_target_handle"
+                  ? t("app.warnings.invalidTargetHandle", {
+                      edgeId: issue.edgeId,
+                      nodeId: issue.targetId,
+                      nodeType: issue.targetType,
+                      handle: issue.handle,
+                    })
+                  : issue.kind === "port_data_kind_mismatch"
+                    ? t("app.warnings.portDataKindMismatch", {
+                        edgeId: issue.edgeId,
+                        sourceId: issue.sourceId,
+                        targetId: issue.targetId,
+                        sourceKind: issue.sourceKind,
+                        targetKind: issue.targetKind,
+                      })
+                    : t("app.warnings.portDataKindIncompatible", {
+                        edgeId: issue.edgeId,
+                        sourceId: issue.sourceId,
+                        targetId: issue.targetId,
+                        sourceKind: issue.sourceKind,
+                        targetKind: issue.targetKind,
+                      })}
             </div>
           ))}
           {branchIssues.map((issue, idx) => (

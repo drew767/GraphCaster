@@ -3,9 +3,10 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { findHandleCompatibilityIssues } from "./handleCompatibility";
+import * as portKinds from "./portDataKinds";
 import type { GraphDocumentJson } from "./types";
 
 const FIXTURE_DIR = join(
@@ -182,5 +183,61 @@ describe("findHandleCompatibilityIssues", () => {
   it("flags merge node with out_error source handle", () => {
     const issues = findHandleCompatibilityIssues(loadFixture("handle-bad-merge-out-error.json"));
     expect(issues.some((i) => i.kind === "invalid_source_handle")).toBe(true);
+  });
+
+  it("emits port_data_kind_mismatch when registry maps target in to primitive", () => {
+    const orig = portKinds.portDataKindForTarget;
+    const spy = vi.spyOn(portKinds, "portDataKindForTarget").mockImplementation((nodeType, handle) => {
+      if (nodeType === "task" && handle === "in_default") {
+        return "primitive";
+      }
+      return orig(nodeType, handle);
+    });
+    try {
+      const doc = baseDoc();
+      doc.edges = [
+        {
+          id: "e1",
+          source: "start1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ];
+      const issues = findHandleCompatibilityIssues(doc);
+      expect(issues.some((i) => i.kind === "port_data_kind_mismatch")).toBe(true);
+      const m = issues.find((i) => i.kind === "port_data_kind_mismatch");
+      expect(m && m.kind === "port_data_kind_mismatch").toBeTruthy();
+      if (m && m.kind === "port_data_kind_mismatch") {
+        expect(m.sourceKind).toBe("json");
+        expect(m.targetKind).toBe("primitive");
+        expect(m.edgeId).toBe("e1");
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("emits port_data_kind_incompatible when classify returns block", async () => {
+    const portKindCompat = await import("./portDataKindCompat");
+    const spy = vi.spyOn(portKindCompat, "classifyPortKindPair").mockReturnValue("block");
+    try {
+      const doc = baseDoc();
+      doc.edges = [
+        {
+          id: "e1",
+          source: "start1",
+          sourceHandle: "out_default",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ];
+      const issues = findHandleCompatibilityIssues(doc);
+      expect(issues.some((i) => i.kind === "port_data_kind_incompatible")).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

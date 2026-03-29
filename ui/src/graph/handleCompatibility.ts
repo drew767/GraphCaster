@@ -5,6 +5,9 @@ import {
   allowedTargetHandles,
   isExecutableCommentOrDecorativeNodeType,
 } from "./handleContract";
+import * as portKindCompat from "./portDataKindCompat";
+import type { PortDataKind } from "./portDataKinds";
+import * as portKinds from "./portDataKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphNodeJson } from "./types";
 
@@ -22,6 +25,26 @@ export type HandleCompatibilityIssue =
       targetId: string;
       targetType: string;
       handle: string;
+    }
+  | {
+      kind: "port_data_kind_mismatch";
+      edgeId: string;
+      sourceId: string;
+      targetId: string;
+      sourceHandle: string;
+      targetHandle: string;
+      sourceKind: PortDataKind;
+      targetKind: PortDataKind;
+    }
+  | {
+      kind: "port_data_kind_incompatible";
+      edgeId: string;
+      sourceId: string;
+      targetId: string;
+      sourceHandle: string;
+      targetHandle: string;
+      sourceKind: PortDataKind;
+      targetKind: PortDataKind;
     };
 
 function indexNodes(nodes: GraphNodeJson[] | undefined): Map<string, GraphNodeJson> {
@@ -66,6 +89,35 @@ export function findHandleCompatibilityIssues(doc: GraphDocumentJson): HandleCom
         targetType: tgt.type,
         handle: th,
       });
+    }
+    if (asrc.has(sh) && atgt.has(th)) {
+      const outK = portKinds.portDataKindForSource(src.type, sh);
+      const inK = portKinds.portDataKindForTarget(tgt.type, th);
+      const ok = portKindCompat.classifyPortKindPair(outK, inK);
+      if (ok === "warn") {
+        issues.push({
+          kind: "port_data_kind_mismatch",
+          edgeId: e.id,
+          sourceId: src.id,
+          targetId: tgt.id,
+          sourceHandle: sh,
+          targetHandle: th,
+          sourceKind: outK,
+          targetKind: inK,
+        });
+      } else if (ok === "block") {
+        // Future kinds: UI warns only (parity with Python); not a GraphStructureError in v1.
+        issues.push({
+          kind: "port_data_kind_incompatible",
+          edgeId: e.id,
+          sourceId: src.id,
+          targetId: tgt.id,
+          sourceHandle: sh,
+          targetHandle: th,
+          sourceKind: outK,
+          targetKind: inK,
+        });
+      }
     }
   }
   return issues;

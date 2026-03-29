@@ -50,6 +50,7 @@ from graph_caster.mcp_client import (
     run_mcp_tool_call,
 )
 from graph_caster.process_exec import redact_task_data_for_node_execute, task_declares_env_keys
+from graph_caster.port_data_kinds import find_port_data_kind_warnings
 from graph_caster.validate import (
     find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
@@ -1546,6 +1547,9 @@ class GraphRunner:
             for w in find_mcp_tool_structure_warnings(self._doc):
                 self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             for w in find_llm_agent_structure_warnings(self._doc):
+                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+            # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
+            for w in find_port_data_kind_warnings(self._doc):
                 self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             ctx["graph_rev"] = graph_document_revision(self._doc)
             step_q = StepQueue(start_node_id)

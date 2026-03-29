@@ -251,6 +251,8 @@
       "outErrorUnreachable": "Нода {{sourceId}}: out_error не используется раннером (переход только после сбоя task с command/argv или graph_ref).",
       "invalidSourceHandle": "Ребро {{edgeId}}: недопустимая исходящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф.",
       "invalidTargetHandle": "Ребро {{edgeId}}: недопустимая входящая ручка «{{handle}}» у ноды {{nodeId}} ({{nodeType}}). Запуск Python отклонит граф.",
+      "portDataKindMismatch": "Ребро {{edgeId}}: несовпадение типа данных порта ({{sourceKind}} → {{targetKind}}) от ноды {{sourceId}} к {{targetId}}. Сохранение и запуск разрешены; проверьте форму данных.",
+      "portDataKindIncompatible": "Ребро {{edgeId}}: несовместимые типы данных порта ({{sourceKind}} → {{targetKind}}) от ноды {{sourceId}} к {{targetId}}. Структурная валидация не блокирует сохранение и запуск (в отличие от неверных ручек); исправьте связь для предсказуемого потока данных.",
       "templateConditionUnclosed": "Ребро {{edgeId}} (от ноды {{sourceId}}): шаблон условия неполный (нет закрытия или неверный путь).",
       "templateConditionTooMany": "Ребро {{edgeId}} (от ноды {{sourceId}}): больше 32 подстановок пути в одном условии.",
       "templateConditionTooLong": "Ребро {{edgeId}} (от ноды {{sourceId}}): условие длиннее допустимого (65536 символов после trim).",

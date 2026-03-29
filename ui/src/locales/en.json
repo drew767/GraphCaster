@@ -251,6 +251,8 @@
       "outErrorUnreachable": "Node {{sourceId}}: out_error is never used (runner only fails over from task with command/argv or graph_ref).",
       "invalidSourceHandle": "Edge {{edgeId}}: invalid source handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph.",
       "invalidTargetHandle": "Edge {{edgeId}}: invalid target handle \"{{handle}}\" on node {{nodeId}} ({{nodeType}}). Python run will reject the graph.",
+      "portDataKindMismatch": "Edge {{edgeId}}: port data kind mismatch ({{sourceKind}} → {{targetKind}}) from node {{sourceId}} to {{targetId}}. Save and run are allowed; check payload shape.",
+      "portDataKindIncompatible": "Edge {{edgeId}}: incompatible port data kinds ({{sourceKind}} → {{targetKind}}) from node {{sourceId}} to {{targetId}}. Structure validate does not block save or run (unlike invalid handles); fix the connection for reliable data flow.",
       "templateConditionUnclosed": "Edge {{edgeId}} (from node {{sourceId}}): template is incomplete (unclosed delimiter or invalid dotted path).",
       "templateConditionTooMany": "Edge {{edgeId}} (from node {{sourceId}}): more than 32 path placeholders in one condition.",
       "templateConditionTooLong": "Edge {{edgeId}} (from node {{sourceId}}): condition exceeds maximum length (65536 characters after trim).",

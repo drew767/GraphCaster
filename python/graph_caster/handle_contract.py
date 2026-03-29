@@ -53,6 +53,13 @@ def _node_by_id(nodes: list[Node]) -> dict[str, Node]:
     return {n.id: n for n in nodes}
 
 
+def edge_handles_allowed(source_type: str, source_handle: str, target_type: str, target_handle: str) -> bool:
+    """True if both handles are in the static F18 contract for the node types (before port-kind checks)."""
+    return source_handle in _allowed_source_handles(source_type) and target_handle in _allowed_target_handles(
+        target_type
+    )
+
+
 def find_handle_compatibility_violations(doc: GraphDocument) -> list[dict[str, str]]:
     """
     Static handle/port compatibility (F18). Skips edges whose source or target
