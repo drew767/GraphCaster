@@ -59,6 +59,11 @@ describe("nodeDragDrop", () => {
       } as unknown as React.DragEvent;
       expect(isGcNodeDragEvent(mockEvent)).toBe(false);
     });
+
+    it("returns false when dataTransfer is null", () => {
+      const mockEvent = { dataTransfer: null } as unknown as React.DragEvent;
+      expect(isGcNodeDragEvent(mockEvent)).toBe(false);
+    });
   });
 
   describe("GC_DRAG_NODE_MIME_TYPE", () => {

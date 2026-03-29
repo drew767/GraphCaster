@@ -33,6 +33,7 @@
       "nodePaletteToggle": "Переключить панель нод (Ctrl+Shift+N)",
       "addNodeFilterPh": "Фильтр по типу…",
       "addNodeNoMatch": "Нет подходящего типа.",
+      "addNodeNoGraphs": "Нет графов в workspace. Добавьте графы в привязанную папку.",
       "addNodeCategoryGroup": "Фильтр по категории",
       "addNodeCategory": {
         "all": "Все",

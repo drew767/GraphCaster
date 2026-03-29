@@ -691,4 +691,19 @@
 
 ---
 
+## Sidebar Node Palette with Drag & Drop (n8n/Langflow-style)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Persistent left sidebar с node types (n8n / Langflow) | **`NodePaletteSidebar.tsx`**: collapsible sidebar, category tabs (All/Flow/Run&AI/Nested/Notes), search filter, реиспользует **`computeAddNodeMenuLists`** из **`addNodeMenu.ts`** |
+| HTML5 native drag-and-drop (n8n `NodeItem.vue`, Langflow `sidebarDraggableComponent`) | Custom MIME type **`application/x-gc-node`** (**`GC_DRAG_NODE_MIME_TYPE`**); payload = **`AddNodeMenuPick`**; **`DraggableNodeItem.tsx`** с `draggable`, `tabIndex`, ARIA |
+| Screen-to-flow coordinate conversion on drop | **`GraphCanvas.tsx`**: **`onDragOver`** / **`onDrop`** через **`reactFlowInstance.screenToFlowPosition`**; вызов **`onAddNode`** с flow coords |
+| Click to add (fallback) | Click на item → node at viewport center (через усреднение позиций существующих nodes + offset) |
+| Visual drop zone feedback | **`gc-flow-wrap--drop-active`** class при drag-over; inset box-shadow + subtle overlay |
+| Keyboard shortcut | **Ctrl+Shift+N** toggle sidebar; **Enter** / **Space** на item = click; focus trapping |
+
+Код: **`ui/src/graph/nodeDragDrop.ts`** (**`encodeNodeDragData`**, **`decodeNodeDragData`**, **`isGcNodeDragEvent`**), **`ui/src/components/DraggableNodeItem.tsx`**, **`ui/src/components/NodePaletteSidebar.tsx`** + **`.css`**, **`ui/src/components/GraphCanvas.tsx`** (drop handlers, `isDraggingOver` state), **`ui/src/layout/AppShell.tsx`** (sidebar state, keyboard shortcut), **`ui/src/styles/app.css`** (`.gc-flow-wrap--drop-active`). Vitest: **`nodeDragDrop.test.ts`**, **`DraggableNodeItem.test.tsx`**, **`NodePaletteSidebar.test.tsx`**. Locales: **`app.canvas.nodePaletteToggle`** (en/ru).
+
+---
+
 *Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** в **`.gitignore`**, локально у разработчика). Удаляйте файл плана **после того, как поведение есть в коде** (и зафиксировано здесь при необходимости); незавершённые планы оставляйте. Временные **`doc/*-plan.md`** в корне **`doc/`** — по тому же правилу. Коммиты по плану не обязательны.*

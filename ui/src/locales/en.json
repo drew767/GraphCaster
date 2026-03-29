@@ -33,6 +33,7 @@
       "nodePaletteToggle": "Toggle node palette (Ctrl+Shift+N)",
       "addNodeFilterPh": "Filter by type…",
       "addNodeNoMatch": "No matching node type.",
+      "addNodeNoGraphs": "No graphs in workspace. Add graphs to the linked folder.",
       "addNodeCategoryGroup": "Filter by category",
       "addNodeCategory": {
         "all": "All",
