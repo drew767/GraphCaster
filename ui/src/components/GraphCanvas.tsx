@@ -39,6 +39,7 @@ import {
   effectiveRunNodePulse,
   type RunMotionPreference,
 } from "../graph/canvasRunMotion";
+import { usePrefersColorSchemeDark } from "../lib/usePrefersColorSchemeDark";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
@@ -48,6 +49,7 @@ import {
   getWorldTopLeft,
   reparentDraggedNode,
 } from "../graph/flowHierarchy";
+import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
@@ -543,6 +545,11 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
     const minimapNodeColor = useCallback((node: Node<GcNodeData>) => minimapNodeFill(node), []);
     const minimapNodeStrokeColor = useCallback((node: Node<GcNodeData>) => minimapNodeStroke(node), []);
+    const prefersColorSchemeDark = usePrefersColorSchemeDark();
+    const minimapChrome = useMemo(
+      () => minimapChromeForTheme(prefersColorSchemeDark),
+      [prefersColorSchemeDark],
+    );
 
     const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
@@ -1049,6 +1056,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             <MiniMap
               pannable
               zoomable
+              bgColor={minimapChrome.bgColor}
+              maskColor={minimapChrome.maskColor}
+              maskStrokeColor={minimapChrome.maskStrokeColor}
+              maskStrokeWidth={minimapChrome.maskStrokeWidth}
               nodeColor={minimapNodeColor}
               nodeStrokeColor={minimapNodeStrokeColor}
             />

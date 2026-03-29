@@ -582,14 +582,15 @@
 
 ## MiniMap и панель управления полотном (навигация, @xyflow)
 
-Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): в таблице **F1** — без дублирования реализации; **факты мини-карты** (в т.ч. **цвет по типу ноды**, **`minimapNodeColors.ts`**, оверлей рана на executable-нодах) — **только здесь**, в таблице ниже. **Производительность очень больших графов** (волна **onlyRenderVisible** + оверлей + рёбра) и **ленивое превью `graph_ref`** — раздел **«Canvas: большие графы»** выше. Статус **F1** «**частично**» в competitive — из‑за **остатка** (**§15**, **§29**); не миникарта и не п.7 **`group`** (опциональный **ghost** off-viewport — в таблице выше).
+Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): в таблице **F1** — без дублирования реализации; перечень «уже закрыто» и отсылка к маске/рамке вьюпорта — также §1 и строка **GraphCaster** у **F1** в том файле. **Факты мини-карты** (в т.ч. **`minimapChrome.ts`**, **цвет по типу ноды**, **`minimapNodeColors.ts`**, оверлей рана на executable-нодах) — **только здесь**, в таблице ниже. **Производительность очень больших графов** (волна **onlyRenderVisible** + оверлей + рёбра) и **ленивое превью `graph_ref`** — раздел **«Canvas: большие графы»** выше. Статус **F1** «**частично**» в competitive — из‑за **остатка** (**§15**, **§29**); не миникарта и не п.7 **`group`** (опциональный **ghost** off-viewport — в таблице выше).
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | **n8n** / **Dify** / **Langflow** — обзорная миникарта и кнопки масштаба | Виджеты **`MiniMap`** (**`pannable`**, **`zoomable`**) и **`Controls`** (**zoom in/out**, **fit view**, переключатель интерактивности) из **@xyflow/react** на **`GraphCanvas`** (`ui/src/components/GraphCanvas.tsx`); подписи **`aria-*`** через **`reactFlowTranslations`** и **`app.canvas.flowControls.*`** (локали **en/ru**) |
+| Те же продукты — затемнение области вне вьюпорта и явная рамка вьюпорта на миникарте (как в **React Flow** `maskColor` / `maskStrokeColor`) | Пропсы **`bgColor`**, **`maskColor`**, **`maskStrokeColor`**, **`maskStrokeWidth`** на **`MiniMap`**: **`minimapChromeForTheme`** (`ui/src/graph/minimapChrome.ts`), выбор light/dark по **`usePrefersColorSchemeDark`** (`ui/src/lib/usePrefersColorSchemeDark.ts`); палитра согласована с **`tokens.css`** (**`--gc-surface-1`**, рамка: **`--gc-accent`** в light, **`--gc-accent-hover`** в dark для контраста); Vitest **`minimapChrome.test.ts`** |
 | Те же продукты — цвет прямоугольников миникарты по типу ноды (как у **React Flow** `nodeColor`) | Колбэки **`nodeColor`** / **`nodeStrokeColor`** на **`MiniMap`**: **`minimapNodeFill`** / **`minimapNodeStroke`** (`ui/src/graph/minimapNodeColors.ts`) — палитра согласована с **`app.css`** (бордеры **`.gc-flow-node--*`**); **comment** / **group** — приглушённые заливки; при **`data.runOverlayPhase`** на **исполняемых** нодах — лёгкий оттенок фазы рана (фреймы **comment** / **group** без оверлей-тинта); Vitest **`minimapNodeColors.test.ts`** |
 
-Код: `GraphCanvas.tsx`, **`minimapNodeColors.ts`**, `app.css` (классы полотна при необходимости), локали **`app.canvas.flowControls`**.
+Код: `GraphCanvas.tsx`, **`minimapChrome.ts`**, **`minimapNodeColors.ts`**, `app.css` (классы полотна при необходимости), локали **`app.canvas.flowControls`**.
 
 ---
 
