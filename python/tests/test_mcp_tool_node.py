@@ -14,7 +14,7 @@ from graph_caster.mcp_client.client import McpToolCallOutcome
 from graph_caster.models import GraphDocument
 from graph_caster.node_output_cache import StepCachePolicy
 from graph_caster.runner import GraphRunner
-import graph_caster.runner as runner_mod
+import graph_caster.runner.node_visits as node_visits_impl
 from graph_caster.validate import find_mcp_tool_structure_warnings, find_unreachable_out_error_sources
 
 GRAPH_CASTER_ROOT = Path(__file__).resolve().parents[2]
@@ -35,7 +35,7 @@ def test_mcp_tool_step_cache_second_run_hit(monkeypatch: pytest.MonkeyPatch, tmp
         calls.append(1)
         return McpToolCallOutcome(ok=True, result={"cached_test": True}, error=None, code=None)
 
-    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    monkeypatch.setattr(node_visits_impl, "run_mcp_tool_call", _fake_run_mcp_tool_call)
     pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
     host = RunHostContext(artifacts_base=tmp_path)
     ev1: list[dict] = []
@@ -95,7 +95,7 @@ def test_mcp_tool_step_cache_dirty_then_repopulate_hit(
         calls.append(1)
         return McpToolCallOutcome(ok=True, result={"n": len(calls)}, error=None, code=None)
 
-    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    monkeypatch.setattr(node_visits_impl, "run_mcp_tool_call", _fake_run_mcp_tool_call)
     host = RunHostContext(artifacts_base=tmp_path)
     pol_clean = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
     GraphRunner(doc, sink=lambda _e: None, host=host, step_cache=pol_clean).run(
@@ -134,7 +134,7 @@ def test_mcp_tool_step_cache_arguments_change_misses(monkeypatch: pytest.MonkeyP
     def _fake_run_mcp_tool_call(**_kwargs: object) -> McpToolCallOutcome:
         return McpToolCallOutcome(ok=True, result={"ok": True}, error=None, code=None)
 
-    monkeypatch.setattr(runner_mod, "run_mcp_tool_call", _fake_run_mcp_tool_call)
+    monkeypatch.setattr(node_visits_impl, "run_mcp_tool_call", _fake_run_mcp_tool_call)
     pol = StepCachePolicy(enabled=True, dirty_nodes=frozenset())
     host = RunHostContext(artifacts_base=tmp_path)
     GraphRunner(doc_a, sink=lambda _e: None, host=host, step_cache=pol).run(context={"last_result": True})

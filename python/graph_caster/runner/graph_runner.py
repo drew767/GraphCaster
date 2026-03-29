@@ -15,15 +15,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from graph_caster.document_revision import graph_document_revision
-from graph_caster.fork_parallel import ForkBranchPlan, build_fork_parallel_plans
-from graph_caster.edge_conditions import eval_edge_condition
+from graph_caster.fork_parallel import EDGE_SOURCE_OUT_ERROR, ForkBranchPlan, build_fork_parallel_plans
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 from graph_caster.nested_run_subprocess import graph_ref_subprocess_enabled, run_nested_graph_ref_subprocess
 from graph_caster.node_output_cache import (
     StepCachePolicy,
     StepCacheStore,
-    compute_step_cache_key,
     step_cache_root,
     validate_ai_route_step_cache_entry,
 )
@@ -39,17 +37,8 @@ from graph_caster.step_queue import ExecutionFrame, StepQueue
 from graph_caster.gc_pin import (
     apply_gc_pins_to_document_context,
     find_gc_pin_empty_payload_warnings,
-    gc_pin_valid_for_short_circuit,
-    last_result_from_process_result,
-    merged_process_result_for_pin_short_circuit,
-    snapshot_for_pin_event,
 )
-from graph_caster.mcp_client import (
-    format_mcp_result_preview,
-    redact_mcp_tool_arguments_for_event,
-    redact_mcp_tool_data_for_execute,
-    run_mcp_tool_call,
-)
+from graph_caster.mcp_client import redact_mcp_tool_data_for_execute
 from graph_caster.process_exec import redact_task_data_for_node_execute, task_declares_env_keys
 from graph_caster.port_data_kinds import find_port_data_kind_warnings
 from graph_caster.validate import (
@@ -60,128 +49,25 @@ from graph_caster.validate import (
     find_mcp_tool_structure_warnings,
     merge_mode,
 )
+from graph_caster.runner.edge_routing import edges_from_source, evaluate_next_edge, fork_unconditional_edges
+from graph_caster.runner.node_visits import execute_mcp_tool_node, run_llm_agent_visit, run_subprocess_task_visit
+from graph_caster.runner.step_cache_lookup import plan_step_cache_key
+from graph_caster.runner.run_helpers import (
+    cache_key_prefix,
+    llm_agent_has_executable_command,
+    normalize_run_id_candidate,
+    node_wants_step_cache,
+    prepare_context,
+    run_mode_wire,
+    task_has_process_command,
+)
 
 EventSink = Callable[[RunEventDict], None] | RunEventSink
 
 BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
 BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED = "ai_route_not_selected"
 
-EDGE_SOURCE_OUT_ERROR = "out_error"
-
 _LOG = logging.getLogger(__name__)
-
-
-def _fork_unconditional_edges(doc: GraphDocument, fork_id: str, by_id: dict[str, Node]) -> list[Edge]:
-    out: list[Edge] = []
-    for e in doc.edges:
-        if e.source != fork_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
-            continue
-        tgt = by_id.get(e.target)
-        if tgt is None or is_editor_frame_node_type(tgt.type):
-            continue
-        c = e.condition
-        if c is not None and str(c).strip() != "":
-            continue
-        out.append(e)
-    return out
-
-
-def _edges_from_source(node_id: str, doc: GraphDocument, *, error_route: bool) -> list[Edge]:
-    out: list[Edge] = []
-    for e in doc.edges:
-        if e.source != node_id:
-            continue
-        is_err = e.source_handle == EDGE_SOURCE_OUT_ERROR
-        if error_route:
-            if is_err:
-                out.append(e)
-        else:
-            if not is_err:
-                out.append(e)
-    return out
-
-
-def _evaluate_next_edge(edges: list[Edge], context: dict[str, Any]) -> tuple[Edge | None, list[Edge]]:
-    skipped: list[Edge] = []
-    if not edges:
-        return None, skipped
-    for e in edges:
-        if e.condition is None or e.condition.strip() == "":
-            return e, skipped
-        if eval_edge_condition(e.condition, context):
-            return e, skipped
-        skipped.append(e)
-    return None, skipped
-
-
-def _task_has_process_command(node: Node) -> bool:
-    d = node.data
-    if d.get("command") is not None or d.get("argv") is not None:
-        return True
-    # Key present (even {} or invalid value): run process_exec so validation / spawn_error surfaces.
-    return "gcCursorAgent" in d
-
-
-def _llm_agent_has_executable_command(node: Node) -> bool:
-    from graph_caster.process_exec import _argv_from_data
-
-    return bool(_argv_from_data(node.data or {}))
-
-
-def _node_wants_step_cache(node: Node) -> bool:
-    v = node.data.get("stepCache")
-    if v is True:
-        return True
-    if v in (1, "1", "true", "True", "yes", "Yes"):
-        return True
-    return False
-
-
-def _cache_key_prefix(key_hex: str) -> str:
-    if len(key_hex) >= 16:
-        return key_hex[:16]
-    return key_hex
-
-
-_RUN_MODE_MAX_LEN = 128
-
-
-def _normalize_run_id_candidate(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        t = value.strip()
-        return t if t else None
-    s = str(value).strip()
-    return s if s else None
-
-
-def _run_mode_wire(ctx: dict[str, Any]) -> str:
-    rm = ctx.get("run_mode", "manual")
-    if isinstance(rm, str):
-        s = rm.strip()
-        out = s if s else "manual"
-    elif rm is None:
-        out = "manual"
-    else:
-        out = str(rm).strip() or "manual"
-    if len(out) > _RUN_MODE_MAX_LEN:
-        return out[:_RUN_MODE_MAX_LEN]
-    return out
-
-
-def _prepare_context(ctx: dict[str, Any] | None) -> dict[str, Any]:
-    c: dict[str, Any] = {} if ctx is None else ctx
-    c.pop("graphs_root", None)
-    c.pop("artifacts_base", None)
-    c.pop("_gc_process_cancelled", None)
-    c.pop("_run_cancelled", None)
-    c.setdefault("nesting_depth", 0)
-    c.setdefault("node_outputs", {})
-    c.setdefault("max_nesting_depth", 16)
-    c.setdefault("last_result", True)
-    c.setdefault("_gc_nested_doc_revisions", {})
-    return c
 
 
 class GraphRunner:
@@ -441,9 +327,9 @@ class GraphRunner:
             n = self._node_by_id.get(p.node_ids[0])
             if n is None:
                 return False
-            if n.type == "task" and _task_has_process_command(n):
+            if n.type == "task" and task_has_process_command(n):
                 continue
-            if n.type == "llm_agent" and _llm_agent_has_executable_command(n):
+            if n.type == "llm_agent" and llm_agent_has_executable_command(n):
                 continue
             return False
         return True
@@ -494,172 +380,9 @@ class GraphRunner:
         *,
         fork_parallel_worker: bool = False,
     ) -> tuple[Literal["ok", "continue", "break"], bool]:
-        from graph_caster.process_exec import run_task_process
-
-        task_exit_used_pin = False
-        outs_map = ctx.setdefault("node_outputs", {})
-        sess = ctx.get("_gc_run_session")
-
-        def _should_cancel() -> bool:
-            if fork_parallel_worker and ctx.get("_run_cancelled"):
-                return True
-            return sess is not None and sess.cancel_event.is_set()
-
-        pr_pin = merged_process_result_for_pin_short_circuit(outs_map.get(node.id))
-        pin_short = gc_pin_valid_for_short_circuit(node) and pr_pin is not None
-        if pin_short:
-            task_exit_used_pin = True
-            ctx["last_result"] = last_result_from_process_result(pr_pin)
-            self.emit(
-                "node_pinned_skip",
-                nodeId=node.id,
-                graphId=self._doc.graph_id,
-            )
-            ok = ctx["last_result"]
-        else:
-            ok = True
-
-        used_step_cache = False
-        cache_key: str | None = None
-        pol = self._step_cache
-        store = self._ensure_step_cache_store()
-        want_cache = _node_wants_step_cache(node)
-        cache_active = (
-            not pin_short
-            and want_cache
-            and pol is not None
-            and pol.enabled
-            and store is not None
+        return run_subprocess_task_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
-        gid = self._doc.graph_id
-        graph_rev = str(ctx.get("graph_rev") or "")
-        tenant_id = ctx.get("tenant_id")
-        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
-        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
-        dirty = bool(
-            pol
-            and pol.enabled
-            and (
-                node.id in pol.dirty_nodes
-                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
-            )
-        )
-        upstream_incomplete = False
-        cache_ws_fp: str | None = (
-            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
-        )
-
-        if not pin_short and cache_active:
-            up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
-            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
-            if inc_reason:
-                upstream_incomplete = True
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    reason=inc_reason,
-                )
-            elif dirty:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="task",
-                )
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    keyPrefix=_cache_key_prefix(cache_key),
-                    reason="dirty",
-                )
-            else:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="task",
-                )
-                cached = store.get(cache_key)
-                if cached is not None:
-                    outs_map[node.id] = copy.deepcopy(cached)
-                    pr = cached.get("processResult")
-                    ctx["last_result"] = last_result_from_process_result(pr)
-                    self.emit(
-                        "node_cache_hit",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-                    used_step_cache = True
-                else:
-                    self.emit(
-                        "node_cache_miss",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-
-        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
-        if not pin_short:
-            if not used_step_cache:
-                ok = run_task_process(
-                    node_id=node.id,
-                    graph_id=self._doc.graph_id,
-                    data=dict(node.data),
-                    ctx=ctx,
-                    emit=self.emit,
-                    should_cancel=cancel_fn,
-                    workspace_secrets=self._get_workspace_secrets(),
-                )
-            if (
-                ok
-                and not used_step_cache
-                and cache_active
-                and cache_key is not None
-                and store is not None
-                and not upstream_incomplete
-            ):
-                store.put(cache_key, copy.deepcopy(outs_map[node.id]))
-            snap_o = outs_map.get(node.id)
-            if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-                self.emit(
-                    "node_outputs_snapshot",
-                    nodeId=node.id,
-                    graphId=self._doc.graph_id,
-                    snapshot=snapshot_for_pin_event(snap_o),
-                )
-
-        if not ok:
-            if ctx.get("_gc_process_cancelled"):
-                ctx["_run_cancelled"] = True
-            ne_task: dict[str, Any] = {
-                "nodeId": node.id,
-                "nodeType": node.type,
-                "graphId": self._doc.graph_id,
-            }
-            if task_exit_used_pin:
-                ne_task["usedPin"] = True
-            self.emit("node_exit", **ne_task)
-            if ctx.get("_gc_process_cancelled"):
-                return "break", task_exit_used_pin
-            ctx["last_result"] = False
-            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                return "continue", task_exit_used_pin
-            return "break", task_exit_used_pin
-
-        return "ok", task_exit_used_pin
 
     def _run_llm_agent_visit(
         self,
@@ -669,160 +392,9 @@ class GraphRunner:
         *,
         fork_parallel_worker: bool = False,
     ) -> tuple[Literal["ok", "continue", "break"], bool]:
-        from graph_caster.process_exec import run_llm_agent_process
-
-        # gcPin short-circuit is implemented only for task (see gc_pin.py); keep False here so the
-        # visit signature still returns (used_pin) like _run_task_visit; extend when llm_agent supports pin.
-        llm_exit_used_pin = False
-        outs_map = ctx.setdefault("node_outputs", {})
-        sess = ctx.get("_gc_run_session")
-
-        def _should_cancel() -> bool:
-            if fork_parallel_worker and ctx.get("_run_cancelled"):
-                return True
-            return sess is not None and sess.cancel_event.is_set()
-
-        up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
-        ok = True
-        used_step_cache = False
-        cache_key: str | None = None
-        pol = self._step_cache
-        store = self._ensure_step_cache_store()
-        want_cache = _node_wants_step_cache(node)
-        cache_active = (
-            want_cache
-            and pol is not None
-            and pol.enabled
-            and store is not None
+        return run_llm_agent_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
-        gid = self._doc.graph_id
-        graph_rev = str(ctx.get("graph_rev") or "")
-        tenant_id = ctx.get("tenant_id")
-        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
-        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
-        dirty = bool(
-            pol
-            and pol.enabled
-            and (
-                node.id in pol.dirty_nodes
-                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
-            )
-        )
-        upstream_incomplete = False
-        cache_ws_fp: str | None = (
-            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
-        )
-
-        if cache_active:
-            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
-            if inc_reason:
-                upstream_incomplete = True
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    reason=inc_reason,
-                )
-            elif dirty:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="llm_agent",
-                )
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    keyPrefix=_cache_key_prefix(cache_key),
-                    reason="dirty",
-                )
-            else:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="llm_agent",
-                )
-                cached = store.get(cache_key)
-                if cached is not None:
-                    outs_map[node.id] = copy.deepcopy(cached)
-                    pr = cached.get("processResult")
-                    ctx["last_result"] = last_result_from_process_result(pr)
-                    self.emit(
-                        "node_cache_hit",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-                    used_step_cache = True
-                else:
-                    self.emit(
-                        "node_cache_miss",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-
-        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
-        if not used_step_cache:
-            ok = run_llm_agent_process(
-                node_id=node.id,
-                graph_id=self._doc.graph_id,
-                data=dict(node.data),
-                ctx=ctx,
-                upstream_outputs=up,
-                emit=self.emit,
-                should_cancel=cancel_fn,
-                workspace_secrets=self._get_workspace_secrets(),
-            )
-        if (
-            ok
-            and not used_step_cache
-            and cache_active
-            and cache_key is not None
-            and store is not None
-            and not upstream_incomplete
-        ):
-            store.put(cache_key, copy.deepcopy(outs_map[node.id]))
-        snap_o = outs_map.get(node.id)
-        if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-            self.emit(
-                "node_outputs_snapshot",
-                nodeId=node.id,
-                graphId=self._doc.graph_id,
-                snapshot=snapshot_for_pin_event(snap_o),
-            )
-
-        if not ok:
-            if ctx.get("_gc_process_cancelled"):
-                ctx["_run_cancelled"] = True
-            ne_task: dict[str, Any] = {
-                "nodeId": node.id,
-                "nodeType": node.type,
-                "graphId": self._doc.graph_id,
-            }
-            if llm_exit_used_pin:
-                ne_task["usedPin"] = True
-            self.emit("node_exit", **ne_task)
-            if ctx.get("_gc_process_cancelled"):
-                return "break", llm_exit_used_pin
-            ctx["last_result"] = False
-            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                return "continue", llm_exit_used_pin
-            return "break", llm_exit_used_pin
-
-        return "ok", llm_exit_used_pin
 
     def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
         if ctx.get("_run_cancelled"):
@@ -843,7 +415,7 @@ class GraphRunner:
                 node_type=str(node.type),
             ):
                 self._fork_worker_begin_task_visit(node, ctx)
-                if node.type == "task" and _task_has_process_command(node):
+                if node.type == "task" and task_has_process_command(node):
                     outcome, used_pin = self._run_subprocess_task_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
@@ -886,7 +458,7 @@ class GraphRunner:
                 fut.result()
 
     def _enqueue_fork_branches(self, fork_id: str, ctx: dict[str, Any], step_q: StepQueue) -> bool:
-        edges = _fork_unconditional_edges(self._doc, fork_id, self._node_by_id)
+        edges = fork_unconditional_edges(self._doc, fork_id, self._node_by_id)
         if not edges:
             self.emit("run_end", reason="fork_no_unconditional_outgoing")
             return False
@@ -964,7 +536,7 @@ class GraphRunner:
         parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
         pol = self._step_cache
         store = self._ensure_step_cache_store()
-        want_cache = _node_wants_step_cache(node)
+        want_cache = node_wants_step_cache(node)
         prov = ctx.get("ai_route_provider")
         provider_override = prov if callable(prov) else None
         dirty = bool(
@@ -994,46 +566,24 @@ class GraphRunner:
         if cache_active:
             up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
             gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
-            if inc_reason:
-                upstream_incomplete = True
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    reason=inc_reason,
-                )
-            elif dirty:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="ai_route",
-                )
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    keyPrefix=_cache_key_prefix(cache_key),
-                    reason="dirty",
-                )
-            else:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="ai_route",
-                )
-                cached = store.get(cache_key) if store is not None else None
+            plan = plan_step_cache_key(
+                self.emit,
+                node_id=node.id,
+                graph_id=gid,
+                graph_rev=graph_rev,
+                node_data=node.data,
+                upstream_outputs=up,
+                inc_reason=inc_reason,
+                graph_ref_upstream_revisions=gr_pairs,
+                dirty=dirty,
+                tenant_id=tenant_s,
+                workspace_secrets_file_fp=cache_ws_fp,
+                cache_node_kind="ai_route",
+            )
+            cache_key = plan.cache_key
+            upstream_incomplete = plan.upstream_incomplete
+            if plan.try_read_cache and cache_key is not None and store is not None:
+                cached = store.get(cache_key)
                 if cached is not None and validate_ai_route_step_cache_entry(self._doc, node.id, cached):
                     ar = cached["aiRoute"]
                     idx_1based = int(ar["choiceIndex"])
@@ -1044,7 +594,7 @@ class GraphRunner:
                             "node_cache_miss",
                             nodeId=node.id,
                             graphId=gid,
-                            keyPrefix=_cache_key_prefix(cache_key),
+                            keyPrefix=cache_key_prefix(cache_key),
                             reason="stale_structure",
                         )
                     else:
@@ -1053,7 +603,7 @@ class GraphRunner:
                             "node_cache_hit",
                             nodeId=node.id,
                             graphId=gid,
-                            keyPrefix=_cache_key_prefix(cache_key),
+                            keyPrefix=cache_key_prefix(cache_key),
                         )
                         self.emit(
                             "ai_route_decided",
@@ -1089,7 +639,7 @@ class GraphRunner:
                         "node_cache_miss",
                         nodeId=node.id,
                         graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
+                        keyPrefix=cache_key_prefix(cache_key),
                         reason="stale_structure",
                     )
                 else:
@@ -1097,7 +647,7 @@ class GraphRunner:
                         "node_cache_miss",
                         nodeId=node.id,
                         graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
+                        keyPrefix=cache_key_prefix(cache_key),
                     )
 
         req_bytes = 0
@@ -1209,211 +759,7 @@ class GraphRunner:
         return True
 
     def _execute_mcp_tool(self, node: Node, ctx: dict[str, Any]) -> bool:
-        sess = ctx.get("_gc_run_session")
-        if sess is not None and sess.cancel_event.is_set():
-            ctx["_run_cancelled"] = True
-            return False
-
-        d = dict(node.data)
-        tool_name = str(d.get("toolName") or "").strip()
-        raw_args = d.get("arguments")
-        arguments: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
-
-        to = float(d.get("timeoutSec") if d.get("timeoutSec") is not None else 60.0)
-        if to < 1.0:
-            to = 1.0
-        if to > 600.0:
-            to = 600.0
-
-        transport = str(d.get("transport") or "stdio").strip()
-        outs_map = ctx.setdefault("node_outputs", {})
-        gid = self._doc.graph_id
-
-        if not tool_name:
-            self.emit(
-                "mcp_tool_failed",
-                nodeId=node.id,
-                graphId=gid,
-                toolName=tool_name,
-                transport=transport,
-                errorMessage="empty_tool_name",
-                errorCode="config",
-            )
-            outs_map[node.id]["mcpTool"] = {
-                "success": False,
-                "error": "empty_tool_name",
-                "code": "config",
-            }
-            ctx["last_result"] = False
-            return False
-
-        graph_rev = str(ctx.get("graph_rev") or "")
-        tenant_id = ctx.get("tenant_id")
-        tenant_s = str(tenant_id).strip() if tenant_id is not None else None
-        parent_ref = str(ctx.get("_parent_graph_ref_node_id") or "").strip()
-        pol = self._step_cache
-        store = self._ensure_step_cache_store()
-        want_cache = _node_wants_step_cache(node)
-        prov = ctx.get("mcp_tool_provider")
-        provider_override = prov if callable(prov) else None
-        dirty = bool(
-            pol
-            and pol.enabled
-            and (
-                node.id in pol.dirty_nodes
-                or (parent_ref != "" and parent_ref in pol.dirty_nodes)
-            )
-        )
-        cache_active = (
-            provider_override is None
-            and want_cache
-            and pol is not None
-            and pol.enabled
-            and store is not None
-        )
-        used_step_cache = False
-        cache_key: str | None = None
-        upstream_incomplete = False
-        cache_ws_fp: str | None = (
-            self._step_cache_workspace_secrets_fp(node.data) if cache_active else None
-        )
-
-        if cache_active:
-            up, inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
-            gr_pairs = self._graph_ref_upstream_revision_pairs(node.id, ctx)
-            if inc_reason:
-                upstream_incomplete = True
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    reason=inc_reason,
-                )
-            elif dirty:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="mcp_tool",
-                )
-                self.emit(
-                    "node_cache_miss",
-                    nodeId=node.id,
-                    graphId=gid,
-                    keyPrefix=_cache_key_prefix(cache_key),
-                    reason="dirty",
-                )
-            else:
-                cache_key = compute_step_cache_key(
-                    graph_rev=graph_rev,
-                    graph_id=gid,
-                    node_id=node.id,
-                    node_data=node.data,
-                    upstream_outputs=up,
-                    tenant_id=tenant_s,
-                    workspace_secrets_file_fp=cache_ws_fp,
-                    graph_ref_upstream_revisions=gr_pairs,
-                    cache_node_kind="mcp_tool",
-                )
-                cached = store.get(cache_key)
-                if cached is not None:
-                    outs_map[node.id] = copy.deepcopy(cached)
-                    mt = cached.get("mcpTool")
-                    ctx["last_result"] = bool(isinstance(mt, dict) and mt.get("success"))
-                    self.emit(
-                        "node_cache_hit",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-                    self.emit(
-                        "mcp_tool_result",
-                        nodeId=node.id,
-                        graphId=gid,
-                        toolName=tool_name,
-                        transport=transport,
-                        resultPreview=format_mcp_result_preview(
-                            mt.get("result") if isinstance(mt, dict) else None
-                        ),
-                        fromStepCache=True,
-                    )
-                    used_step_cache = True
-                else:
-                    self.emit(
-                        "node_cache_miss",
-                        nodeId=node.id,
-                        graphId=gid,
-                        keyPrefix=_cache_key_prefix(cache_key),
-                    )
-
-        if used_step_cache:
-            return bool(ctx["last_result"])
-
-        inv_args = redact_mcp_tool_arguments_for_event(arguments)
-        self.emit(
-            "mcp_tool_invoke",
-            nodeId=node.id,
-            graphId=gid,
-            toolName=tool_name,
-            transport=transport,
-            arguments=inv_args,
-        )
-
-        override = provider_override
-        outcome = run_mcp_tool_call(
-            data=d,
-            ctx=ctx,
-            graph_id=gid,
-            node_id=node.id,
-            workspace_secrets=self._get_workspace_secrets(),
-            tool_name=tool_name,
-            arguments=arguments,
-            timeout_sec=to,
-            provider=override,
-        )
-
-        if outcome.ok:
-            self.emit(
-                "mcp_tool_result",
-                nodeId=node.id,
-                graphId=gid,
-                toolName=tool_name,
-                transport=transport,
-                resultPreview=format_mcp_result_preview(outcome.result),
-            )
-            outs_map[node.id]["mcpTool"] = {"success": True, "result": outcome.result}
-            ctx["last_result"] = True
-            if (
-                cache_active
-                and cache_key is not None
-                and store is not None
-                and not upstream_incomplete
-            ):
-                store.put(cache_key, copy.deepcopy(outs_map[node.id]))
-            return True
-
-        self.emit(
-            "mcp_tool_failed",
-            nodeId=node.id,
-            graphId=gid,
-            toolName=tool_name,
-            transport=transport,
-            errorMessage=outcome.error or "error",
-            errorCode=outcome.code,
-        )
-        outs_map[node.id]["mcpTool"] = {
-            "success": False,
-            "error": outcome.error,
-            "code": outcome.code,
-            "result": outcome.result,
-        }
-        ctx["last_result"] = False
-        return False
+        return execute_mcp_tool_node(self, node, ctx)
 
     def _follow_edges_from(
         self,
@@ -1423,8 +769,8 @@ class GraphRunner:
         error_route: bool,
         step_q: StepQueue,
     ) -> bool:
-        outs = _edges_from_source(node_id, self._doc, error_route=error_route)
-        chosen, skipped_edges = _evaluate_next_edge(outs, ctx)
+        outs = edges_from_source(node_id, self._doc, error_route=error_route)
+        chosen, skipped_edges = evaluate_next_edge(outs, ctx)
         gid = self._doc.graph_id
         for e in skipped_edges:
             self.emit(
@@ -1606,7 +952,7 @@ class GraphRunner:
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("llm_agent_break_non_ok")
                         break
-                elif node.type == "task" and _task_has_process_command(node):
+                elif node.type == "task" and task_has_process_command(node):
                     outcome, task_exit_used_pin = self._run_subprocess_task_visit(
                         node, ctx, step_q, fork_parallel_worker=False
                     )
@@ -1721,7 +1067,7 @@ class GraphRunner:
     def run(self, context: dict[str, Any] | None = None, start_node_id: str | None = None) -> None:
         from graph_caster.validate import validate_graph_structure
 
-        ctx = _prepare_context(context)
+        ctx = prepare_context(context)
         if start_node_id is not None:
             entry = start_node_id
         else:
@@ -1729,7 +1075,7 @@ class GraphRunner:
         self.run_from(entry, ctx)
 
     def run_from(self, start_node_id: str, context: dict[str, Any] | None = None) -> None:
-        ctx = _prepare_context(context)
+        ctx = prepare_context(context)
         gr = self._host.graphs_root
         if gr is not None:
             ctx["_gc_graphs_root"] = str(gr.resolve())
@@ -1743,13 +1089,13 @@ class GraphRunner:
             if self._run_id is None:
                 ctx.setdefault("run_id", str(uuid.uuid4()))
             cand = self._run_id if self._run_id is not None else ctx.get("run_id")
-            norm = _normalize_run_id_candidate(cand)
+            norm = normalize_run_id_candidate(cand)
             if norm is None:
                 norm = str(uuid.uuid4())
             self._run_id = norm
             ctx["run_id"] = norm
         elif self._run_id is None:
-            n = _normalize_run_id_candidate(ctx.get("run_id"))
+            n = normalize_run_id_candidate(ctx.get("run_id"))
             if n:
                 self._run_id = n
         if nd0 == 0 and self._run_id:
@@ -1773,7 +1119,7 @@ class GraphRunner:
             started_payload: dict[str, Any] = {
                 "rootGraphId": self._doc.graph_id,
                 "startedAt": started_at,
-                "mode": _run_mode_wire(ctx),
+                "mode": run_mode_wire(ctx),
             }
             if self._doc.title:
                 started_payload["graphTitle"] = self._doc.title

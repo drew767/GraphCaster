@@ -12,30 +12,13 @@ import {
   type NodeTypes,
   useEdgesState,
   useNodesState,
-  useReactFlow,
-  useStore,
 } from "@xyflow/react";
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
+import { forwardRef, useCallback, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
-import {
-  effectiveFollowRunCameraPanAnimated,
-  effectiveRunEdgeAnimated,
-  effectiveRunNodePulse,
-  type RunMotionPreference,
-} from "../graph/canvasRunMotion";
+import { effectiveRunEdgeAnimated, effectiveRunNodePulse, type RunMotionPreference } from "../graph/canvasRunMotion";
 import { usePrefersColorSchemeDark } from "../lib/usePrefersColorSchemeDark";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 import {
@@ -44,16 +27,9 @@ import {
   gcConnectionLineType,
 } from "../graph/canvasConnectionUi";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
-import { flowToDocument } from "../graph/fromReactFlow";
-import {
-  getCommentNodeSize,
-  getFlowNodeSize,
-  getWorldTopLeft,
-  reparentDraggedNode,
-} from "../graph/flowHierarchy";
+import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
 import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
-import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
@@ -63,19 +39,23 @@ import {
   isGcNodeDragEvent,
 } from "../graph/nodeDragDrop";
 import { GRAPH_NODE_TYPE_START, isReactFlowFrameNodeType } from "../graph/nodeKinds";
-import {
-  gcFlowEdgeDocumentPayloadEqual,
-  gcFlowEdgesSyncKeepSelection,
-} from "../graph/gcFlowEdgeSync";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
-import { type GcCanvasLodLevel, lodLevelWithHysteresis } from "../graph/canvasLod";
 import {
-  computeVisibilityByNodeId,
-  EMPTY_NODE_VISIBILITY_BY_ID,
-  VIEWPORT_OFFSCREEN_PADDING_PX,
-} from "../graph/viewportNodeTier";
+  FlowCanvasHandleBridge,
+  FlowProjectionBridge,
+  FollowActiveRunCamera,
+  RefitOnLayoutEpoch,
+} from "./canvas/GraphCanvasFlowBridges";
+import { flowStateAfterRemovingNodeIds } from "./canvas/graphCanvasFlowRemove";
+import type { GraphCanvasHandle } from "./canvas/graphCanvasHandleTypes";
+
+export type { ExportDocumentOptions, GraphCanvasHandle } from "./canvas/graphCanvasHandleTypes";
 import { useGraphCanvasConnections } from "./canvas/hooks/useGraphCanvasConnections";
+import { useGraphCanvasDocumentRunOverlaySync } from "./canvas/hooks/useGraphCanvasDocumentRunOverlaySync";
 import { useGraphCanvasNodesEdgesChangeGuards } from "./canvas/hooks/useGraphCanvasNodesEdgesChangeGuards";
+import { useGraphCanvasSelectionChange } from "./canvas/hooks/useGraphCanvasSelectionChange";
+import { useGraphCanvasViewportLod } from "./canvas/hooks/useGraphCanvasViewportLod";
+import type { GraphCanvasSelection, GraphNodeSelection } from "./canvas/graphCanvasSelection";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { GcConnectionDragContext, type GcConnectionDragOrigin } from "./GcConnectionDragContext";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
@@ -86,134 +66,11 @@ import { GcBranchEdgeUiContext } from "./edges/GcBranchEdgeUiContext";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
-import {
-  nodeRunOverlayMapsEqual,
-  type NodeRunOverlayEntry,
-  type NodeRunPhase,
-} from "../run/nodeRunOverlay";
+import { nodeRunOverlayMapsEqual, type NodeRunOverlayEntry } from "../run/nodeRunOverlay";
 
 const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
 
-const GC_NODE_RUN_CLASS_RE = /\bgc-node--run-(active|running|success|failed|skipped)\b/g;
-
-const GC_EDGE_WARN_CLASS = "gc-edge--warning";
-const GC_EDGE_RUN_ACTIVE_CLASS = "gc-edge--run-active";
-
-const GC_NODE_RUN_PULSE_RE = /\bgc-node--run-motion-pulse\b/g;
-
-function runHighlightClassNameForNode(
-  n: Node<GcNodeData>,
-  nodeRunOverlayById: Readonly<Record<string, NodeRunOverlayEntry>>,
-  hl: string | null,
-  runMotionPulse: boolean,
-): { className: string | undefined; effectivePhase: NodeRunPhase | null } {
-  const strip = (n.className ?? "")
-    .replace(GC_NODE_RUN_CLASS_RE, "")
-    .replace(GC_NODE_RUN_PULSE_RE, "")
-    .trim();
-  const phase = nodeRunOverlayById[n.id]?.phase;
-  const hlHere = hl !== null && n.id === hl;
-  const effectivePhase = phase ?? (hlHere ? ("running" as const) : null);
-  let runClass: string | undefined;
-  if (phase === "failed") {
-    runClass = "gc-node--run-failed";
-  } else if (phase === "skipped") {
-    runClass = "gc-node--run-skipped";
-  } else if (phase === "success") {
-    runClass = "gc-node--run-success";
-  } else if (phase === "running") {
-    runClass = "gc-node--run-running";
-  } else if (hlHere) {
-    runClass = "gc-node--run-active";
-  }
-  if (runMotionPulse && phase === "running") {
-    runClass = runClass != null ? `${runClass} gc-node--run-motion-pulse` : "gc-node--run-motion-pulse";
-  }
-  const className = runClass != null ? (strip ? `${strip} ${runClass}` : runClass) : strip || undefined;
-  return { className, effectivePhase };
-}
-
-function mergeEdgeWarningHighlight(edges: Edge[], warnIds: ReadonlySet<string>): Edge[] {
-  return edges.map((e) => {
-    const want = warnIds.has(e.id);
-    const strip = (e.className ?? "").replace(/\bgc-edge--warning\b/g, "").trim();
-    const className = want
-      ? strip
-        ? `${strip} ${GC_EDGE_WARN_CLASS}`
-        : GC_EDGE_WARN_CLASS
-      : strip || undefined;
-    return { ...e, className };
-  });
-}
-
-function mergeRunEdgeHighlight(
-  edges: Edge[],
-  highlightedEdgeId: string | null,
-  edgeAnimated: boolean,
-): Edge[] {
-  const hilite =
-    highlightedEdgeId != null && highlightedEdgeId.trim() !== ""
-      ? highlightedEdgeId.trim()
-      : null;
-  return edges.map((e) => {
-    const stripRun = (e.className ?? "").replace(/\bgc-edge--run-active\b/g, "").trim();
-    const want = hilite != null && e.id === hilite;
-    const className = want
-      ? stripRun
-        ? `${stripRun} ${GC_EDGE_RUN_ACTIVE_CLASS}`
-        : GC_EDGE_RUN_ACTIVE_CLASS
-      : stripRun || undefined;
-    const animated = want && edgeAnimated ? true : Boolean(e.animated);
-    return { ...e, className, animated };
-  });
-}
-
-export type GraphCanvasSelection =
-  | {
-      kind: "node";
-      id: string;
-      graphNodeType: string;
-      label: string;
-      raw: Record<string, unknown>;
-    }
-  | {
-      kind: "multiNode";
-      ids: string[];
-      nodes: { id: string; graphNodeType: string; label: string }[];
-    }
-  | {
-      kind: "edge";
-      id: string;
-      source: string;
-      target: string;
-      condition: string | null;
-      routeDescription: string;
-    };
-
-/** @deprecated Prefer `GraphCanvasSelection` with `kind: "node"`. */
-export type GraphNodeSelection = Extract<GraphCanvasSelection, { kind: "node" }>;
-
-function conditionFromEdgeLabel(label: Edge["label"]): string | null {
-  if (label == null) {
-    return null;
-  }
-  if (typeof label === "string") {
-    const s = label.trim();
-    return s === "" ? null : s;
-  }
-  return null;
-}
-
-export type ExportDocumentOptions = {
-  /** When false, do not call onExportRemovedDanglingEdges (history / internal snapshots). Default true. */
-  notifyRemovedDanglingEdges?: boolean;
-};
-
-export type GraphCanvasHandle = {
-  exportDocument: (options?: ExportDocumentOptions) => GraphDocumentJson;
-  focusNode: (nodeId: string) => void;
-  removeNodesById: (ids: readonly string[]) => void;
-};
+export type { GraphCanvasSelection, GraphNodeSelection };
 
 type Props = {
   graphDocument: GraphDocumentJson;
@@ -278,194 +135,6 @@ const gcEdgeTypes = {
   gcBranch: GcBranchEdge,
 } as const satisfies EdgeTypes;
 
-function flowStateAfterRemovingNodeIds(
-  nds: Node<GcNodeData>[],
-  eds: Edge[],
-  removeIds: Set<string>,
-): { nodes: Node<GcNodeData>[]; edges: Edge[] } {
-  const oldById = new Map(nds.map((n) => [n.id, n]));
-  let next = nds.filter((n) => !removeIds.has(n.id));
-  next = next.map((n) => {
-    if (n.parentId && removeIds.has(n.parentId)) {
-      const p = oldById.get(n.parentId);
-      if (p && isReactFlowFrameNodeType(p.type)) {
-        const abs = getWorldTopLeft(n as Node<GcNodeData>, oldById);
-        const { parentId: _p, extent: _e, ...rest } = n as Node<GcNodeData> & {
-          parentId?: string;
-          extent?: unknown;
-        };
-        return { ...rest, position: abs } as Node<GcNodeData>;
-      }
-    }
-    return n;
-  });
-  next = next.filter((n) => !removeIds.has(n.id));
-  const nextEdges = eds.filter((e) => !removeIds.has(e.source) && !removeIds.has(e.target));
-  return { nodes: next, edges: nextEdges };
-}
-
-type BridgeProps = {
-  baseDocument: GraphDocumentJson;
-  onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
-  removeNodesByIdRef: MutableRefObject<(ids: readonly string[]) => void>;
-};
-
-const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, BridgeProps>(
-  function FlowCanvasHandleBridge(
-    { baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef },
-    ref,
-  ) {
-    const { getNodes, getEdges, getNode, fitView } = useReactFlow();
-    useImperativeHandle(
-      ref,
-      () => ({
-        exportDocument(options?: ExportDocumentOptions) {
-          const doc = flowToDocument(getNodes() as Node<GcNodeData>[], getEdges(), baseDocument);
-          const { document, removedEdgeIds } = sanitizeGraphConnectivity(doc);
-          const notify = options?.notifyRemovedDanglingEdges !== false;
-          if (removedEdgeIds.length > 0 && notify) {
-            onExportRemovedDanglingEdges?.(removedEdgeIds);
-          }
-          return document;
-        },
-        focusNode(nodeId: string) {
-          const id = nodeId.trim();
-          if (id === "") {
-            return;
-          }
-          const n = getNode(id);
-          if (!n) {
-            return;
-          }
-          void fitView({
-            nodes: [{ id }],
-            padding: 0.28,
-            duration: 220,
-            minZoom: 0.12,
-            maxZoom: 1.85,
-          });
-        },
-        removeNodesById(ids: readonly string[]) {
-          removeNodesByIdRef.current(ids);
-        },
-      }),
-      [getNodes, getEdges, getNode, fitView, baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef],
-    );
-    return null;
-  },
-);
-
-function FlowProjectionBridge({
-  projectRef,
-}: {
-  projectRef: MutableRefObject<((clientX: number, clientY: number) => { x: number; y: number }) | null>;
-}) {
-  const rf = useReactFlow();
-  useLayoutEffect(() => {
-    projectRef.current = (clientX, clientY) => rf.screenToFlowPosition({ x: clientX, y: clientY });
-    return () => {
-      projectRef.current = null;
-    };
-  }, [rf, projectRef]);
-  return null;
-}
-
-function RefitOnLayoutEpoch({ epoch }: { epoch: number }) {
-  const { fitView } = useReactFlow();
-  useEffect(() => {
-    if (epoch <= 0) {
-      return;
-    }
-    const handle = requestAnimationFrame(() => {
-      void fitView({ padding: 0.15, duration: 200 });
-    });
-    return () => {
-      cancelAnimationFrame(handle);
-    };
-  }, [epoch, fitView]);
-  return null;
-}
-
-const FOLLOW_RUN_CAMERA_DEBOUNCE_MS = 85;
-/** After `layoutEpoch` bumps, `RefitOnLayoutEpoch` runs `fitView` with duration 200ms — wait longer before `setCenter` to avoid fighting the refit animation. */
-const FOLLOW_RUN_AFTER_REFIT_MS = 220;
-
-function FollowActiveRunCamera({
-  runHighlightNodeId,
-  followEnabled,
-  followActive,
-  runMotionPreference,
-  layoutEpoch,
-}: {
-  runHighlightNodeId: string | null;
-  followEnabled: boolean;
-  followActive: boolean;
-  runMotionPreference: RunMotionPreference;
-  layoutEpoch: number;
-}) {
-  const { getNodes, getNode, setCenter, getViewport } = useReactFlow();
-  const prefersReduced = usePrefersReducedMotion();
-  const layoutEpochRef = useRef(layoutEpoch);
-
-  useEffect(() => {
-    if (!followEnabled || !followActive) {
-      return;
-    }
-    const id = runHighlightNodeId?.trim() ?? "";
-    if (id === "") {
-      return;
-    }
-
-    const prevEpoch = layoutEpochRef.current;
-    layoutEpochRef.current = layoutEpoch;
-    const epochBumped = prevEpoch !== layoutEpoch && layoutEpoch > 0;
-    const delay = epochBumped
-      ? FOLLOW_RUN_CAMERA_DEBOUNCE_MS + FOLLOW_RUN_AFTER_REFIT_MS
-      : FOLLOW_RUN_CAMERA_DEBOUNCE_MS;
-
-    const handle = window.setTimeout(() => {
-      const n = getNode(id);
-      if (!n) {
-        if (import.meta.env.DEV) {
-          console.debug("[gc-follow-run] node not on canvas", id);
-        }
-        return;
-      }
-      const all = getNodes();
-      const byId = new Map(all.map((x) => [x.id, x]));
-      const topLeft = getWorldTopLeft(n as Node<GcNodeData>, byId);
-      const dims = isReactFlowFrameNodeType(n.type)
-        ? getCommentNodeSize(n as Node<GcNodeData>)
-        : getFlowNodeSize(n);
-      const x = topLeft.x + dims.w / 2;
-      const y = topLeft.y + dims.h / 2;
-      const zoom = getViewport().zoom;
-      const animate = effectiveFollowRunCameraPanAnimated(runMotionPreference, prefersReduced);
-      void setCenter(x, y, {
-        zoom,
-        duration: animate ? 220 : 0,
-      });
-    }, delay);
-
-    return () => {
-      window.clearTimeout(handle);
-    };
-  }, [
-    runHighlightNodeId,
-    followEnabled,
-    followActive,
-    runMotionPreference,
-    layoutEpoch,
-    getNode,
-    getNodes,
-    setCenter,
-    getViewport,
-    prefersReduced,
-  ]);
-
-  return null;
-}
-
 const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
   function GraphCanvasInner(
     {
@@ -525,33 +194,21 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [t, i18n.language],
     );
 
-    const zoom = useStore((s) => s.transform[2]);
-    const flowPane = useStore(
-      useCallback(
-        (s) => ({
-          tx: s.transform[0],
-          ty: s.transform[1],
-          z: s.transform[2],
-          width: s.width,
-          height: s.height,
-        }),
-        [],
-      ),
-    );
-    const lodStickyRef = useRef<GcCanvasLodLevel>("full");
-    const canvasLod = (() => {
-      const next = lodLevelWithHysteresis(zoom, lodStickyRef.current);
-      lodStickyRef.current = next;
-      return next;
-    })();
+    const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
+    const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(flowFromDocument.edges);
+    const nodesRef = useRef(nodes);
+    nodesRef.current = nodes;
+    const edgesRef = useRef(edges);
+    edgesRef.current = edges;
+    const removeNodesByIdRef = useRef<(ids: readonly string[]) => void>(() => {});
 
-    const branchEdgeUiValue = useMemo(
-      () => ({
-        showEdgeLabels: edgeLabelsEnabled,
-        lodCompact: canvasLod === "compact",
-      }),
-      [edgeLabelsEnabled, canvasLod],
+    const { canvasLod, branchEdgeUiValue, viewportTierValue } = useGraphCanvasViewportLod(
+      nodes,
+      ghostOffViewportEnabled,
+      edgeLabelsEnabled,
     );
+
     const minimapNodeColor = useCallback((node: Node<GcNodeData>) => minimapNodeFill(node), []);
     const minimapNodeStrokeColor = useCallback((node: Node<GcNodeData>) => minimapNodeStroke(node), []);
     const prefersColorSchemeDark = usePrefersColorSchemeDark();
@@ -562,40 +219,6 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const connectionLineStyle = useMemo(
       () => connectionLineStyleForTheme(prefersColorSchemeDark),
       [prefersColorSchemeDark],
-    );
-
-    const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
-    const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(flowFromDocument.edges);
-    const nodesRef = useRef(nodes);
-    nodesRef.current = nodes;
-    const edgesRef = useRef(edges);
-    edgesRef.current = edges;
-    const removeNodesByIdRef = useRef<(ids: readonly string[]) => void>(() => {});
-
-    const visibilityById = useMemo(() => {
-      if (!ghostOffViewportEnabled) {
-        return EMPTY_NODE_VISIBILITY_BY_ID;
-      }
-      return computeVisibilityByNodeId(
-        nodes,
-        [flowPane.tx, flowPane.ty, flowPane.z],
-        flowPane.width,
-        flowPane.height,
-        VIEWPORT_OFFSCREEN_PADDING_PX,
-      );
-    }, [
-      ghostOffViewportEnabled,
-      nodes,
-      flowPane.tx,
-      flowPane.ty,
-      flowPane.z,
-      flowPane.width,
-      flowPane.height,
-    ]);
-    const viewportTierValue = useMemo(
-      () => ({ ghostOffViewportEnabled, visibilityById }),
-      [ghostOffViewportEnabled, visibilityById],
     );
 
     // Stabilize overlay map reference for effect deps when semantics are unchanged (see `useMemo` deps).
@@ -718,98 +341,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const runMotionPulseEnabled = effectiveRunNodePulse(runMotionPreference, prefersReducedMotion);
     const runEdgeAnimated = effectiveRunEdgeAnimated(runMotionPreference, prefersReducedMotion);
 
-    useEffect(() => {
-      const base = flowFromDocument;
-      const hl = runHighlightNodeId != null && runHighlightNodeId.trim() !== "" ? runHighlightNodeId.trim() : null;
-
-      setNodes((prev) => {
-        const prevById = new Map(prev.map((x) => [x.id, x]));
-        const orderMatches =
-          prev.length === base.nodes.length && base.nodes.every((n, i) => n.id === prev[i]?.id);
-
-        if (!orderMatches) {
-          return base.nodes.map((n) => {
-            const d = n.data as GcNodeData;
-            const { className, effectivePhase } = runHighlightClassNameForNode(
-              n as Node<GcNodeData>,
-              nodeRunOverlayForSync,
-              hl,
-              runMotionPulseEnabled,
-            );
-            return {
-              ...n,
-              className,
-              data: { ...d, runOverlayPhase: effectivePhase },
-            };
-          });
-        }
-
-        let changed = false;
-        const out = base.nodes.map((n) => {
-          const d = n.data as GcNodeData;
-          const cur = prevById.get(n.id);
-          const { className, effectivePhase } = runHighlightClassNameForNode(
-            n as Node<GcNodeData>,
-            nodeRunOverlayForSync,
-            hl,
-            runMotionPulseEnabled,
-          );
-          if (
-            cur &&
-            cur.position.x === n.position.x &&
-            cur.position.y === n.position.y &&
-            cur.parentId === n.parentId &&
-            cur.type === n.type &&
-            (cur.data as GcNodeData).graphNodeType === d.graphNodeType &&
-            (cur.data as GcNodeData).label === d.label &&
-            (cur.data as GcNodeData).raw === d.raw
-          ) {
-            const cd = cur.data as GcNodeData;
-            if (cur.className === className && cd.runOverlayPhase === effectivePhase) {
-              return cur;
-            }
-            changed = true;
-            return {
-              ...cur,
-              className,
-              data: { ...cd, runOverlayPhase: effectivePhase },
-            };
-          }
-          changed = true;
-          return {
-            ...n,
-            className,
-            data: { ...d, runOverlayPhase: effectivePhase },
-          };
-        });
-        return changed ? out : prev;
-      });
-
-      setEdges((prev) => {
-        const warned = mergeEdgeWarningHighlight(base.edges, warningEdgeIds);
-        const he =
-          highlightedRunEdgeId != null && highlightedRunEdgeId.trim() !== ""
-            ? highlightedRunEdgeId.trim()
-            : null;
-        const next = mergeRunEdgeHighlight(warned, he, runEdgeAnimated);
-        if (prev.length !== next.length) {
-          return next;
-        }
-        const nextById = new Map(next.map((e) => [e.id, e]));
-        if (prev.some((e) => !nextById.has(e.id))) {
-          return next;
-        }
-        let same = true;
-        for (const a of prev) {
-          const b = nextById.get(a.id)!;
-          if (a.className !== b.className || !gcFlowEdgeDocumentPayloadEqual(a, b)) {
-            same = false;
-            break;
-          }
-        }
-        return same ? prev : gcFlowEdgesSyncKeepSelection(prev, next);
-      });
-    }, [
+    useGraphCanvasDocumentRunOverlaySync({
       flowFromDocument,
       runHighlightNodeId,
       nodeRunOverlayForSync,
@@ -821,56 +353,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       runEdgeAnimated,
       setNodes,
       setEdges,
-    ]);
+    });
 
-    const onSelectionChange = useCallback(
-      ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
-        if (selNodes.length >= 2) {
-          const rows = selNodes.map((node) => {
-            const d = node.data as GcNodeData | undefined;
-            return {
-              id: node.id,
-              graphNodeType: d?.graphNodeType ?? "unknown",
-              label: d?.label ?? node.id,
-            };
-          });
-          onSelect({ kind: "multiNode", ids: rows.map((r) => r.id), nodes: rows });
-          return;
-        }
-        if (selNodes.length === 1) {
-          const node = selNodes[0];
-          const d = node.data as GcNodeData | undefined;
-          if (!d) {
-            onSelect(null);
-            return;
-          }
-          onSelect({
-            kind: "node",
-            id: node.id,
-            graphNodeType: d.graphNodeType,
-            label: d.label,
-            raw: d.raw,
-          });
-          return;
-        }
-        if (selEdges.length >= 1) {
-          const edge = selEdges[0];
-          const ed = edge.data as { routeDescription?: string } | undefined;
-          const rd = typeof ed?.routeDescription === "string" ? ed.routeDescription : "";
-          onSelect({
-            kind: "edge",
-            id: edge.id,
-            source: edge.source,
-            target: edge.target,
-            condition: conditionFromEdgeLabel(edge.label),
-            routeDescription: rd,
-          });
-          return;
-        }
-        onSelect(null);
-      },
-      [onSelect],
-    );
+    const onSelectionChange = useGraphCanvasSelectionChange(onSelect);
 
     const applyRemoveNodeIds = useCallback(
       (rawIds: readonly string[]) => {
