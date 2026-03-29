@@ -180,8 +180,8 @@ def test_run_broker_emits_synthetic_when_worker_exits_without_run_finished(
 
     reg = RunBrokerRegistry()
     doc = json.dumps(_minimal_valid_doc(gid))
-    out_rid = reg.spawn_from_body({"documentJson": doc, "runId": rid})
-    assert out_rid == rid
+    sp = reg.spawn_from_body({"documentJson": doc, "runId": rid})
+    assert sp.run_id == rid
     entry = reg.get(rid)
     assert entry is not None
     q: queue.Queue[object] = entry.broadcaster.subscribe()

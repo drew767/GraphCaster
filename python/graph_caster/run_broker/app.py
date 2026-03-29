@@ -25,8 +25,9 @@ from graph_caster.artifacts import (
     read_persisted_events_ndjson_capped,
     read_persisted_run_summary_text,
 )
+from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.idempotency import IdempotencyCache
-from graph_caster.run_broker.registry import RunBrokerRegistry
+from graph_caster.run_broker.registry import RunBrokerRegistry, SpawnResult
 from graph_caster.run_broker.webhook_signature import verify_webhook_signature
 from graph_caster.run_transport.ws_envelope import broker_ws_payload_from_fanout
 
@@ -43,6 +44,21 @@ def _const_time_str_eq(left: str, right: str) -> bool:
     return secrets.compare_digest(left.encode("utf-8"), right.encode("utf-8"))
 
 _MAX_PERSISTED_EVENTS_BYTES = 16 * 1024 * 1024
+
+
+def _new_run_json(sp: SpawnResult) -> dict:
+    return {
+        "runId": sp.run_id,
+        "viewerToken": sp.viewer_token,
+        "runBroker": {"phase": sp.phase, "queuePosition": sp.queue_position},
+    }
+
+
+def _pending_queue_full_response() -> JSONResponse:
+    return JSONResponse(
+        {"error": "pending_queue_full", "message": PendingQueueFullError.default_message},
+        status_code=503,
+    )
 
 
 def _broker_token_ok(request: Request, secret: str) -> bool:
@@ -89,13 +105,15 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
         if not isinstance(body, dict):
             return JSONResponse({"error": "body must be object"}, status_code=400)
         try:
-            rid = reg.spawn_from_body(body)
+            sp = reg.spawn_from_body(body)
+        except PendingQueueFullError:
+            return _pending_queue_full_response()
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
-        entry = reg.get(rid)
+        entry = reg.get(sp.run_id)
         if entry is None:
             return JSONResponse({"error": "run lost after spawn"}, status_code=500)
-        return JSONResponse({"runId": rid, "viewerToken": entry.viewer_token})
+        return JSONResponse(_new_run_json(sp))
 
     async def webhook_run(request: Request) -> Response:
         wh_secret = os.environ.get("GC_RUN_BROKER_WEBHOOK_SECRET", "").strip()
@@ -119,8 +137,14 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
             idem_key = key
             cached = _WEBHOOK_IDEMPOTENCY.get(key)
             if cached is not None:
-                rid_c, vt_c = cached
-                return JSONResponse({"runId": rid_c, "viewerToken": vt_c})
+                rid_c, vt_c, phase_c, pos_c = cached
+                return JSONResponse(
+                    {
+                        "runId": rid_c,
+                        "viewerToken": vt_c,
+                        "runBroker": {"phase": phase_c, "queuePosition": pos_c},
+                    }
+                )
 
         try:
             parsed = json.loads(raw.decode("utf-8"))
@@ -129,15 +153,23 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
         if not isinstance(parsed, dict):
             return JSONResponse({"error": "body must be object"}, status_code=400)
         try:
-            rid = reg.spawn_from_body(parsed)
+            sp = reg.spawn_from_body(parsed)
+        except PendingQueueFullError:
+            return _pending_queue_full_response()
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
-        entry = reg.get(rid)
+        entry = reg.get(sp.run_id)
         if entry is None:
             return JSONResponse({"error": "run lost after spawn"}, status_code=500)
         if idem_key is not None:
-            _WEBHOOK_IDEMPOTENCY.remember(idem_key, rid, entry.viewer_token)
-        return JSONResponse({"runId": rid, "viewerToken": entry.viewer_token})
+            _WEBHOOK_IDEMPOTENCY.remember(
+                idem_key,
+                sp.run_id,
+                sp.viewer_token,
+                run_broker_phase=sp.phase,
+                run_broker_queue_position=sp.queue_position,
+            )
+        return JSONResponse(_new_run_json(sp))
 
     async def stream_run(request: Request) -> Response:
         run_id = request.path_params["run_id"]

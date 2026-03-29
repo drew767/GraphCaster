@@ -258,6 +258,8 @@
       "queuedHost": "[host] Run {{runId}} queued — {{position}} in the start queue.",
       "pendingQueueHint": "{{count}} run(s) waiting for a free slot (FIFO).",
       "focusRunLabel": "Focused run (console and live canvas updates)",
+      "brokerFifoQueued": "[host] Run broker: queued (FIFO position {{position}}). Streaming starts now; the worker begins when a slot is free.",
+      "brokerPendingQueueFullHint": "Raise GC_RUN_BROKER_PENDING_MAX or reduce burst load; the broker pending FIFO is full.",
       "hostConcurrencyHint": "Raise GC_RUN_BROKER_MAX_RUNS (web broker) or GC_TAURI_MAX_RUNS (desktop) to match or exceed gc.run.maxConcurrent in localStorage.",
       "console": {
         "outputTruncated": "Console: {{count}} process_output event(s) dropped (SSE subscriber queue full; one NDJSON line ≈ one event). Persisted run log on disk is unchanged."

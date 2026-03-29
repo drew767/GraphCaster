@@ -444,3 +444,21 @@ def test_process_output_schema_requires_seq() -> None:
     }
     with pytest.raises(jsonschema.ValidationError):
         validator.validate(bad)
+
+
+def test_run_broker_queued_validates() -> None:
+    validator = _validator()
+    validator.validate(
+        {
+            "type": "run_broker_queued",
+            "runId": "550e8400-e29b-41d4-a716-446655440099",
+            "queuePosition": 2,
+        }
+    )
+
+
+def test_run_broker_queued_requires_queue_position() -> None:
+    validator = _validator()
+    bad = {"type": "run_broker_queued", "runId": "550e8400-e29b-41d4-a716-446655440099"}
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(bad)

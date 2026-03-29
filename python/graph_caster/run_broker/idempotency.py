@@ -13,6 +13,8 @@ class _Entry:
     run_id: str
     viewer_token: str
     expires_at: float
+    run_broker_phase: str
+    run_broker_queue_position: int
 
 
 class IdempotencyCache:
@@ -24,7 +26,9 @@ class IdempotencyCache:
         self._data: OrderedDict[str, _Entry] = OrderedDict()
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> tuple[str, str] | None:
+    def get(
+        self, key: str
+    ) -> tuple[str, str, str, int] | None:
         now = time.monotonic()
         with self._lock:
             self._purge_expired_unlocked(now)
@@ -32,9 +36,22 @@ class IdempotencyCache:
             if ent is None or ent.expires_at <= now:
                 return None
             self._data.move_to_end(key)
-            return (ent.run_id, ent.viewer_token)
+            return (
+                ent.run_id,
+                ent.viewer_token,
+                ent.run_broker_phase,
+                ent.run_broker_queue_position,
+            )
 
-    def remember(self, key: str, run_id: str, viewer_token: str) -> None:
+    def remember(
+        self,
+        key: str,
+        run_id: str,
+        viewer_token: str,
+        *,
+        run_broker_phase: str,
+        run_broker_queue_position: int,
+    ) -> None:
         now = time.monotonic()
         with self._lock:
             self._purge_expired_unlocked(now)
@@ -44,6 +61,8 @@ class IdempotencyCache:
                 run_id=run_id,
                 viewer_token=viewer_token,
                 expires_at=now + self._ttl,
+                run_broker_phase=run_broker_phase,
+                run_broker_queue_position=run_broker_queue_position,
             )
             self._data.move_to_end(key)
 

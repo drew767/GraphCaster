@@ -134,6 +134,8 @@ def test_webhook_idempotency_returns_same_run_id(monkeypatch: pytest.MonkeyPatch
     j2 = r2.json()
     assert j1["runId"] == j2["runId"]
     assert j1["viewerToken"] == j2["viewerToken"]
+    assert j1.get("runBroker") == j2.get("runBroker")
+    assert j1.get("runBroker", {}).get("phase") == "running"
 
 
 def test_webhook_bypasses_broker_dev_token(monkeypatch: pytest.MonkeyPatch) -> None:

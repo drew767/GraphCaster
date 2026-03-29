@@ -1,5 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import i18n from "../i18n";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
 import { dispatchBrokerWebSocketJson } from "./webRunBrokerDispatch";
@@ -189,9 +190,24 @@ export async function startWebBrokerRun(args: {
     const t = await r.text();
     throw new Error(t || `HTTP ${r.status}`);
   }
-  const j = (await r.json()) as { runId?: string; viewerToken?: string };
+  const j = (await r.json()) as {
+    runId?: string;
+    viewerToken?: string;
+    runBroker?: { phase?: string; queuePosition?: number };
+  };
   const rid = typeof j.runId === "string" ? j.runId : args.runId;
   const viewerToken = typeof j.viewerToken === "string" ? j.viewerToken : "";
+  const rb = j.runBroker;
+  if (
+    rb?.phase === "queued" &&
+    typeof rb.queuePosition === "number" &&
+    Number.isFinite(rb.queuePosition)
+  ) {
+    store.runSessionAppendLineForRun(
+      rid,
+      i18n.t("app.run.brokerFifoQueued", { position: String(rb.queuePosition) }),
+    );
+  }
 
   closeWebRunBrokerStreamForRun(rid);
 

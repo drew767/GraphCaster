@@ -59,6 +59,10 @@ def test_run_broker_stream_minimal_graph() -> None:
     rid = j["runId"]
     assert rid == payload["runId"]
     assert isinstance(j.get("viewerToken"), str) and len(j["viewerToken"]) >= 8
+    rb = j.get("runBroker")
+    assert isinstance(rb, dict)
+    assert rb.get("phase") == "running"
+    assert rb.get("queuePosition") == 0
 
     buf = ""
     with client.stream("GET", f"/runs/{rid}/stream") as response:
@@ -73,7 +77,7 @@ def test_run_broker_stream_minimal_graph() -> None:
     assert "run_finished" in buf
 
 
-def test_run_broker_rejects_when_max_concurrent_reached(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_broker_queues_second_run_when_max_concurrent_reached(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GC_RUN_BROKER_MAX_RUNS", "1")
     reg = RunBrokerRegistry()
     client = TestClient(create_app(reg))
@@ -83,9 +87,12 @@ def test_run_broker_rejects_when_max_concurrent_reached(monkeypatch: pytest.Monk
     rid2 = "33333333-3333-4333-8333-333333333333"
     r1 = client.post("/runs", json={"documentJson": doc, "runId": rid1})
     assert r1.status_code == 200, r1.text
+    assert r1.json()["runBroker"]["phase"] == "running"
     r2 = client.post("/runs", json={"documentJson": doc, "runId": rid2})
-    assert r2.status_code == 400
-    assert "max concurrent" in (r2.json().get("error") or "").lower()
+    assert r2.status_code == 200, r2.text
+    j2 = r2.json()
+    assert j2["runBroker"]["phase"] == "queued"
+    assert j2["runBroker"]["queuePosition"] == 1
 
     buf = ""
     with client.stream("GET", f"/runs/{rid1}/stream") as response:
@@ -93,6 +100,29 @@ def test_run_broker_rejects_when_max_concurrent_reached(monkeypatch: pytest.Monk
             buf += chunk
             if "exit" in buf:
                 break
+
+    buf2 = ""
+    with client.stream("GET", f"/runs/{rid2}/stream") as response:
+        assert response.status_code == 200
+        for chunk in response.iter_text():
+            buf2 += chunk
+            if "run_finished" in buf2:
+                break
+    assert "run_started" in buf2
+
+
+def test_run_broker_pending_queue_full_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GC_RUN_BROKER_MAX_RUNS", "1")
+    monkeypatch.setenv("GC_RUN_BROKER_PENDING_MAX", "1")
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "99999999-9999-4999-8999-999999999999"
+    doc = json.dumps(_minimal_valid_doc(gid))
+    assert client.post("/runs", json={"documentJson": doc, "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}).status_code == 200
+    assert client.post("/runs", json={"documentJson": doc, "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}).status_code == 200
+    r3 = client.post("/runs", json={"documentJson": doc, "runId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"})
+    assert r3.status_code == 503
+    assert r3.json().get("error") == "pending_queue_full"
 
 
 def test_run_broker_rejects_duplicate_active_run_id() -> None:

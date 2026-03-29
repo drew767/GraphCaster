@@ -11,10 +11,14 @@ import tempfile
 import threading
 import time
 import uuid
+from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
+from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.worker_lost import (
     build_coordinator_worker_lost_run_finished_line,
     new_run_stdout_tracker,
@@ -41,6 +45,15 @@ def _max_concurrent_runs() -> int:
     return max(1, min(32, n))
 
 
+def _pending_max() -> int:
+    raw = os.environ.get("GC_RUN_BROKER_PENDING_MAX", "128").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 128
+    return max(1, min(1024, n))
+
+
 def _merge_pythonpath_from_env(env: dict[str, str], package_root: str | None) -> None:
     if not package_root or not str(package_root).strip():
         return
@@ -49,30 +62,51 @@ def _merge_pythonpath_from_env(env: dict[str, str], package_root: str | None) ->
     env["PYTHONPATH"] = package_root if not prev else f"{package_root}{sep}{prev}"
 
 
+@dataclass(frozen=True)
+class SpawnResult:
+    """Outcome of :meth:`RunBrokerRegistry.spawn_from_body`.
+
+    ``queue_position``: for ``phase == "queued"``, 1-based index at enqueue time only;
+    it does not shrink when earlier queued runs finish or are cancelled. Always ``0``
+    when ``phase == "running"``. Matches ``runBroker.queuePosition`` in HTTP responses.
+    """
+
+    run_id: str
+    viewer_token: str
+    phase: Literal["running", "queued"]
+    queue_position: int
+
+
 class RegisteredRun:
     def __init__(
         self,
         run_id: str,
-        proc: subprocess.Popen[str],
+        proc: subprocess.Popen[str] | None,
         broadcaster: RunBroadcaster,
         temp_paths: list[Path],
         viewer_token: str,
+        worker_argv: list[str],
     ) -> None:
         self.run_id = run_id
         self.proc = proc
         self.broadcaster = broadcaster
         self.temp_paths = temp_paths
         self.viewer_token = viewer_token
+        self.worker_argv = worker_argv
 
 
 class RunBrokerRegistry:
     def __init__(self) -> None:
         self._runs: dict[str, RegisteredRun] = {}
+        self._pending_fifo: deque[str] = deque()
         self._lock = threading.Lock()
 
     def get(self, run_id: str) -> RegisteredRun | None:
         with self._lock:
             return self._runs.get(run_id)
+
+    def _running_count(self) -> int:
+        return sum(1 for r in self._runs.values() if r.proc is not None)
 
     def _cleanup_temp(self, paths: list[Path]) -> None:
         for p in paths:
@@ -81,91 +115,30 @@ class RunBrokerRegistry:
             except OSError:
                 pass
 
-    def spawn_from_body(self, body: dict) -> str:
-        doc_json = body.get("documentJson")
-        if not isinstance(doc_json, str) or not doc_json.strip():
-            raise ValueError("documentJson required")
-
-        run_id = str(body.get("runId") or "").strip() or str(uuid.uuid4())
-        merged = {**body, "runId": run_id}
-
-        with self._lock:
-            if len(self._runs) >= _max_concurrent_runs():
-                raise ValueError("max concurrent runs reached")
-
-        temp_paths: list[Path] = []
+    def _remove_from_pending_fifo_unlocked(self, run_id: str) -> None:
         try:
-            tmp_doc = (
-                Path(tempfile.gettempdir())
-                / f"gc-broker-doc-{run_id}-{os.getpid()}-{time.time_ns()}.json"
-            )
-            tmp_doc.write_text(doc_json, encoding="utf-8")
-            temp_paths.append(tmp_doc)
+            self._pending_fifo.remove(run_id)
+        except ValueError:
+            pass
 
-            ctx_path: Path | None = None
-            ctx_disk = merged.get("contextJsonPath")
-            if ctx_disk is not None and str(ctx_disk).strip():
-                ctx_path = Path(str(ctx_disk).strip())
-            else:
-                ctx_raw = merged.get("contextJson")
-                if ctx_raw is not None and str(ctx_raw).strip():
-                    tmp_ctx = (
-                        Path(tempfile.gettempdir())
-                        / f"gc-broker-ctx-{run_id}-{os.getpid()}-{time.time_ns()}.json"
-                    )
-                    if isinstance(ctx_raw, (dict, list)):
-                        tmp_ctx.write_text(json.dumps(ctx_raw), encoding="utf-8")
-                    else:
-                        tmp_ctx.write_text(str(ctx_raw), encoding="utf-8")
-                    ctx_path = tmp_ctx
-                    temp_paths.append(tmp_ctx)
+    @staticmethod
+    def _build_queued_notice_line(run_id: str, queue_position: int) -> str:
+        return json.dumps(
+            {
+                "type": "run_broker_queued",
+                "runId": run_id,
+                "queuePosition": queue_position,
+            },
+            separators=(",", ":"),
+        )
 
-            argv = run_start_body_to_argv_paths(merged, document_path=tmp_doc, context_json_path=ctx_path)
-
-            env = os.environ.copy()
-            _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
-
-            broadcaster = RunBroadcaster(
-                run_id=run_id,
-                config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
-            )
-            viewer_token = secrets.token_urlsafe(24)
-            cmd = [sys.executable, "-m", "graph_caster", *argv]
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=env,
-            )
-        except Exception:
-            self._cleanup_temp(temp_paths)
-            raise
-        with self._lock:
-            if run_id in self._runs:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait(timeout=5.0)
-                self._cleanup_temp(temp_paths)
-                raise ValueError("runId already active")
-            cap = _max_concurrent_runs()
-            if len(self._runs) >= cap:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait(timeout=5.0)
-                self._cleanup_temp(temp_paths)
-                raise ValueError("max concurrent runs reached")
-            self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths, viewer_token)
-
+    def _attach_worker_pumps(
+        self,
+        run_id: str,
+        proc: subprocess.Popen[str],
+        broadcaster: RunBroadcaster,
+        temp_paths: list[Path],
+    ) -> None:
         tracker = new_run_stdout_tracker()
 
         def pump_out() -> None:
@@ -217,21 +190,223 @@ class RunBrokerRegistry:
                 with self._lock:
                     self._runs.pop(run_id, None)
                 self._cleanup_temp(temp_paths)
+                self._promote_fill()
 
         threading.Thread(target=waiter, daemon=True).start()
-        return run_id
+
+    def _promote_fill(self) -> None:
+        while True:
+            promote_id: str | None = None
+            entry: RegisteredRun | None = None
+            with self._lock:
+                if self._running_count() >= _max_concurrent_runs():
+                    return
+                while self._pending_fifo:
+                    nid = self._pending_fifo[0]
+                    ent = self._runs.get(nid)
+                    if ent is None:
+                        self._pending_fifo.popleft()
+                        continue
+                    if ent.proc is not None:
+                        self._pending_fifo.popleft()
+                        continue
+                    self._pending_fifo.popleft()
+                    promote_id = nid
+                    entry = ent
+                    break
+                else:
+                    return
+
+            assert promote_id is not None and entry is not None
+            env = os.environ.copy()
+            _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
+            cmd = [sys.executable, "-m", "graph_caster", *entry.worker_argv]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=env,
+                )
+            except OSError:
+                with self._lock:
+                    if self._runs.get(promote_id) is entry and entry.proc is None:
+                        self._pending_fifo.appendleft(promote_id)
+                continue
+
+            with self._lock:
+                cur = self._runs.get(promote_id)
+                if cur is not entry or entry.proc is not None:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=5.0)
+                    if cur is entry and entry.proc is None:
+                        self._pending_fifo.appendleft(promote_id)
+                    continue
+                if self._running_count() >= _max_concurrent_runs():
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=5.0)
+                    self._pending_fifo.appendleft(promote_id)
+                    continue
+                entry.proc = proc
+
+            self._attach_worker_pumps(promote_id, proc, entry.broadcaster, entry.temp_paths)
+
+    def spawn_from_body(self, body: dict) -> SpawnResult:
+        doc_json = body.get("documentJson")
+        if not isinstance(doc_json, str) or not doc_json.strip():
+            raise ValueError("documentJson required")
+
+        run_id = str(body.get("runId") or "").strip() or str(uuid.uuid4())
+        merged = {**body, "runId": run_id}
+
+        temp_paths: list[Path] = []
+        try:
+            tmp_doc = (
+                Path(tempfile.gettempdir())
+                / f"gc-broker-doc-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+            )
+            tmp_doc.write_text(doc_json, encoding="utf-8")
+            temp_paths.append(tmp_doc)
+
+            ctx_path: Path | None = None
+            ctx_disk = merged.get("contextJsonPath")
+            if ctx_disk is not None and str(ctx_disk).strip():
+                ctx_path = Path(str(ctx_disk).strip())
+            else:
+                ctx_raw = merged.get("contextJson")
+                if ctx_raw is not None and str(ctx_raw).strip():
+                    tmp_ctx = (
+                        Path(tempfile.gettempdir())
+                        / f"gc-broker-ctx-{run_id}-{os.getpid()}-{time.time_ns()}.json"
+                    )
+                    if isinstance(ctx_raw, (dict, list)):
+                        tmp_ctx.write_text(json.dumps(ctx_raw), encoding="utf-8")
+                    else:
+                        tmp_ctx.write_text(str(ctx_raw), encoding="utf-8")
+                    ctx_path = tmp_ctx
+                    temp_paths.append(tmp_ctx)
+
+            argv = run_start_body_to_argv_paths(merged, document_path=tmp_doc, context_json_path=ctx_path)
+        except Exception:
+            self._cleanup_temp(temp_paths)
+            raise
+
+        with self._lock:
+            if run_id in self._runs:
+                self._cleanup_temp(temp_paths)
+                raise ValueError("runId already active")
+            if self._running_count() >= _max_concurrent_runs():
+                if len(self._pending_fifo) >= _pending_max():
+                    self._cleanup_temp(temp_paths)
+                    raise PendingQueueFullError()
+                broadcaster = RunBroadcaster(
+                    run_id=run_id,
+                    config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
+                )
+                viewer_token = secrets.token_urlsafe(24)
+                rr = RegisteredRun(
+                    run_id,
+                    None,
+                    broadcaster,
+                    temp_paths,
+                    viewer_token,
+                    argv,
+                )
+                self._runs[run_id] = rr
+                self._pending_fifo.append(run_id)
+                pos = len(self._pending_fifo)
+                broadcaster.broadcast(FanOutMsg("out", self._build_queued_notice_line(run_id, pos)))
+                return SpawnResult(run_id, viewer_token, "queued", pos)
+
+        broadcaster = RunBroadcaster(
+            run_id=run_id,
+            config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
+        )
+        viewer_token = secrets.token_urlsafe(24)
+        env = os.environ.copy()
+        _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))
+        cmd = [sys.executable, "-m", "graph_caster", *argv]
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+            )
+        except Exception:
+            self._cleanup_temp(temp_paths)
+            raise
+
+        with self._lock:
+            if run_id in self._runs:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                self._cleanup_temp(temp_paths)
+                raise ValueError("runId already active")
+            if self._running_count() >= _max_concurrent_runs():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                if len(self._pending_fifo) >= _pending_max():
+                    self._cleanup_temp(temp_paths)
+                    raise PendingQueueFullError()
+                rr = RegisteredRun(run_id, None, broadcaster, temp_paths, viewer_token, argv)
+                self._runs[run_id] = rr
+                self._pending_fifo.append(run_id)
+                pos = len(self._pending_fifo)
+                broadcaster.broadcast(FanOutMsg("out", self._build_queued_notice_line(run_id, pos)))
+                return SpawnResult(run_id, viewer_token, "queued", pos)
+            self._runs[run_id] = RegisteredRun(run_id, proc, broadcaster, temp_paths, viewer_token, argv)
+
+        self._attach_worker_pumps(run_id, proc, broadcaster, temp_paths)
+        return SpawnResult(run_id, viewer_token, "running", 0)
 
     def cancel(self, run_id: str) -> bool:
-        reg = self.get(run_id)
-        if reg is None:
-            return False
-        proc = reg.proc
-        if proc.stdin is None:
-            return False
-        try:
-            line = json.dumps({"type": "cancel_run", "runId": run_id}) + "\n"
-            proc.stdin.write(line)
-            proc.stdin.flush()
-        except OSError:
-            return False
+        with self._lock:
+            reg = self._runs.get(run_id)
+            if reg is None:
+                return False
+            if reg.proc is None:
+                self._runs.pop(run_id, None)
+                self._remove_from_pending_fifo_unlocked(run_id)
+                temp_paths = list(reg.temp_paths)
+                bc = reg.broadcaster
+            else:
+                proc = reg.proc
+                if proc.stdin is None:
+                    return False
+                try:
+                    line = json.dumps({"type": "cancel_run", "runId": run_id}) + "\n"
+                    proc.stdin.write(line)
+                    proc.stdin.flush()
+                except OSError:
+                    return False
+                return True
+
+        bc.broadcast(FanOutMsg("exit", -1))
+        self._cleanup_temp(temp_paths)
+        self._promote_fill()
         return True

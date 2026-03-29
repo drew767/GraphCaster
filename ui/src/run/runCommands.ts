@@ -99,11 +99,11 @@ export async function launchGcStartJob(
     options?.afterSuccessfulStart?.();
   } catch (e) {
     runStore.runSessionAppendLineForRun(job.runId, `[host] ${String(e)}`);
-    if (String(e).toLowerCase().includes("max concurrent")) {
-      runStore.runSessionAppendLineForRun(
-        job.runId,
-        `[host] ${i18n.t("app.run.hostConcurrencyHint")}`,
-      );
+    const errText = String(e).toLowerCase();
+    if (errText.includes("pending_queue_full") || errText.includes("pending queue full")) {
+      runStore.runSessionAppendLineForRun(job.runId, i18n.t("app.run.brokerPendingQueueFullHint"));
+    } else if (errText.includes("max concurrent")) {
+      runStore.runSessionAppendLineForRun(job.runId, `[host] ${i18n.t("app.run.hostConcurrencyHint")}`);
     }
     const next = runStore.runSessionAbortRegisteredRun(job.runId);
     if (next) {

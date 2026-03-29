@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/run-event.schema.json",
   "title": "GraphCaster run event (NDJSON line, v0.1)",
-  "description": "One JSON object per line as emitted by graph_caster.GraphRunner and process_exec. Root runs include stable runId on every line; nested graphs share the root runId.",
+  "description": "One JSON object per line as emitted by graph_caster.GraphRunner and process_exec, plus optional host lines from the dev run-broker (e.g. run_broker_queued). Root runs include stable runId on every line; nested graphs share the root runId.",
   "type": "object",
   "required": ["type"],
   "additionalProperties": true,
@@ -12,6 +12,7 @@
       "enum": [
         "run_started",
         "run_finished",
+        "run_broker_queued",
         "run_root_ready",
         "node_enter",
         "node_execute",
@@ -755,6 +756,23 @@
           "runId": { "type": "string", "minLength": 1 },
           "droppedOutputLines": { "type": "integer", "minimum": 1 },
           "reason": { "type": "string", "enum": ["subscriber_queue_full"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "run_broker_queued" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["runId", "queuePosition"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "queuePosition": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based position in the dev run-broker pending FIFO at enqueue time; not updated when earlier entries are cancelled or promoted."
+          }
         }
       }
     },

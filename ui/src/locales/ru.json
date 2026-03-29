@@ -258,6 +258,8 @@
       "queuedHost": "[host] Запуск {{runId}} в очереди — позиция {{position}}.",
       "pendingQueueHint": "В очереди на старт: {{count}} (FIFO).",
       "focusRunLabel": "Активный запуск (консоль и обновления на холсте)",
+      "brokerFifoQueued": "[host] Брокер: в очереди (позиция FIFO {{position}}). Стрим уже идёт; воркер стартует при свободном слоте.",
+      "brokerPendingQueueFullHint": "Увеличьте GC_RUN_BROKER_PENDING_MAX или снизьте пиковую нагрузку — очередь брокера заполнена.",
       "hostConcurrencyHint": "Увеличьте GC_RUN_BROKER_MAX_RUNS (брокер веб) или GC_TAURI_MAX_RUNS (десктоп), чтобы было не меньше gc.run.maxConcurrent в localStorage.",
       "console": {
         "outputTruncated": "Консоль: отброшено {{count}} событий process_output (переполнена очередь SSE-подписчика; одна строка NDJSON ≈ одно событие). Запись прогона на диск не меняется."

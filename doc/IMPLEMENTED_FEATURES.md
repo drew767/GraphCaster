@@ -308,12 +308,13 @@
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
 | Отдельный канал «живого» прогона с секретом подписки (**`pushRef`**) | **`POST /runs`** возвращает **`viewerToken`**; **`GET /runs/{runId}/ws?viewerToken=…`** (алиас query **`pushRef`**); опц. **`GC_RUN_BROKER_TOKEN`** / заголовок **`X-GC-Dev-Token`** или **`token`** в query — как у HTTP middleware |
+| Очередь старта при занятых слотах воркеров (отделение «приёма» от исполнения) | **`GC_RUN_BROKER_MAX_RUNS`**: лимит **живых** `Popen`; новые старты — **FIFO** pending (**`run_broker/registry.py`**), от **200** с **`runBroker.phase`**, **`runBroker.queuePosition`** (снимок при **`queued`**, без пересчёта при отменах впереди); индикаторная строка **`run_broker_queued`** — **`schemas/run-event.schema.json`**; **`GC_RUN_BROKER_PENDING_MAX`**, переполнение — исключение **`PendingQueueFullError`**, HTTP **503** **`pending_queue_full`** — **`python/README.md`**, **`python/tests/test_run_broker.py`** |
 | Коды закрытия WS до **`accept`** | **`run_broker/app.py`**: **1008** — неверный dev-token; **4404** — неизвестный **`runId`**; **4401** — неверный **`viewerToken`** / **`pushRef`** (таблица в **`doc/RUN_EVENT_TRANSPORT.md`** §3) |
 | Один NDJSON ↔ один кадр моста без второго enum **`type`** | **`python/graph_caster/run_transport/`**: **`frame_from_ndjson_line`**, **`ndjson_line_from_event`**; спека кадра и ping — **`doc/RUN_EVENT_TRANSPORT.md`**; зависимость **`jsonschema`** в основных зависимостях пакета (**`pyproject.toml`**) |
 | Дуплекс (**cancel** как stdin CLI) | Входящие WS text JSON **`{ "type": "cancel_run", "runId": "…" }`** → отмена прогона (**`run_broker/app.py`**) |
 | Веб-UI | **`VITE_GC_RUN_TRANSPORT=ws`** (иначе **SSE** по умолчанию); **`ui/src/run/webRunBroker.ts`**, **`webRunBrokerDispatch.ts`**, **`useRunBridge.ts`** |
 
-Тесты: **`python/tests/test_run_event_frame.py`**, **`python/tests/test_run_broker.py`** (в т.ч. WS + неверный токен). В **`COMPETITIVE_ANALYSIS.md`** обзорный ряд **§39.1** для **GraphCaster** и **§3.2.1** («Для GC») ссылаются сюда вместо дублирования полного списка отличий от n8n **`ExecutionPushMessage`**.
+Тесты: **`python/tests/test_run_event_frame.py`**, **`python/tests/test_run_broker.py`** (в т.ч. WS + неверный токен, очередь **`POST /runs`** vs лимит слотов и **503** при переполнении pending). В **`COMPETITIVE_ANALYSIS.md`** обзорный ряд **§39.1** для **GraphCaster** и **§3.2.1** («Для GC») ссылаются сюда вместо дублирования полного списка отличий от n8n **`ExecutionPushMessage`**.
 
 ### Слой события → транспорт и очередь шагов (срез **F6**, + опциональный пул после **fork**)
 
