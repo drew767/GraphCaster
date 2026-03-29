@@ -1,10 +1,13 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import { isRegistryConnectionStructurallyFine } from "./connectionCompatibility";
+import { HANDLE_IN_DEFAULT } from "./handleContract";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
+  GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
@@ -42,6 +45,40 @@ export type WorkspaceGraphAddMenuRow = {
 export const ADD_NODE_CATEGORY_ORDER = ["all", "flow", "steps", "nested", "notes"] as const;
 
 export type AddNodeCategoryId = (typeof ADD_NODE_CATEGORY_ORDER)[number];
+
+/** When set, the add-node menu only lists types that can receive a wire from the given source pin. */
+export type AddNodeConnectMenuFilter = {
+  allowedPrimitives: ReadonlySet<AddMenuPrimitiveType>;
+  allowGraphRefs: boolean;
+  allowCursorAgent: boolean;
+};
+
+export function buildAddNodeConnectMenuFilter(
+  sourceGraphType: string,
+  sourceHandleNorm: string,
+): AddNodeConnectMenuFilter {
+  const allowedPrimitives = new Set<AddMenuPrimitiveType>();
+  for (const ty of ADD_MENU_PRIMITIVE_ORDER) {
+    if (isRegistryConnectionStructurallyFine(sourceGraphType, ty, sourceHandleNorm, HANDLE_IN_DEFAULT)) {
+      allowedPrimitives.add(ty);
+    }
+  }
+  return {
+    allowedPrimitives,
+    allowGraphRefs: isRegistryConnectionStructurallyFine(
+      sourceGraphType,
+      GRAPH_NODE_TYPE_GRAPH_REF,
+      sourceHandleNorm,
+      HANDLE_IN_DEFAULT,
+    ),
+    allowCursorAgent: isRegistryConnectionStructurallyFine(
+      sourceGraphType,
+      GRAPH_NODE_TYPE_TASK,
+      sourceHandleNorm,
+      HANDLE_IN_DEFAULT,
+    ),
+  };
+}
 
 const FLOW_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
   GRAPH_NODE_TYPE_START,
@@ -87,12 +124,18 @@ export function computeAddNodeMenuLists(input: {
   hasStartNode: boolean;
   workspaceGraphs: ReadonlyArray<WorkspaceGraphAddMenuRow>;
   labelForPrimitive: (ty: AddMenuPrimitiveType) => string;
+  connectFilter?: AddNodeConnectMenuFilter | null;
 }): { primitiveOptions: AddMenuPrimitiveType[]; graphOptions: WorkspaceGraphAddMenuRow[] } {
   const q = input.filterText.trim().toLowerCase();
   let basePrimitives = [...primitivesForAddNodeCategory(input.category)];
   if (input.hasStartNode) {
     basePrimitives = basePrimitives.filter((ty) => {
       return ty !== GRAPH_NODE_TYPE_START;
+    });
+  }
+  if (input.connectFilter) {
+    basePrimitives = basePrimitives.filter((ty) => {
+      return input.connectFilter!.allowedPrimitives.has(ty);
     });
   }
   const primitiveOptions =
@@ -103,7 +146,9 @@ export function computeAddNodeMenuLists(input: {
           return ty.includes(q) || label.includes(q);
         });
 
-  const includeGraphs = input.category === "all" || input.category === "nested";
+  const includeGraphs =
+    (input.category === "all" || input.category === "nested") &&
+    (!input.connectFilter || input.connectFilter.allowGraphRefs);
   const graphsBase = includeGraphs ? input.workspaceGraphs : [];
   const graphOptions =
     q === ""

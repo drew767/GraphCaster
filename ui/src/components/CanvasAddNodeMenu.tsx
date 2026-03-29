@@ -7,6 +7,7 @@ import {
   ADD_NODE_CATEGORY_ORDER,
   type AddMenuPrimitiveType,
   type AddNodeCategoryId,
+  type AddNodeConnectMenuFilter,
   type AddNodeMenuPick,
   computeAddNodeMenuLists,
   type WorkspaceGraphAddMenuRow,
@@ -19,6 +20,8 @@ type Props = {
   flowPos: { x: number; y: number };
   hasStartNode: boolean;
   workspaceGraphs: ReadonlyArray<WorkspaceGraphAddMenuRow>;
+  /** When opening from a connection drop, only compatible target types are listed. */
+  connectFilter?: AddNodeConnectMenuFilter | null;
   onClose: () => void;
   onPick: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
 };
@@ -29,6 +32,7 @@ export function CanvasAddNodeMenu({
   flowPos,
   hasStartNode,
   workspaceGraphs,
+  connectFilter = null,
   onClose,
   onPick,
 }: Props) {
@@ -67,10 +71,14 @@ export function CanvasAddNodeMenu({
       labelForPrimitive: (ty) => {
         return t(`app.canvas.nodeTypes.${ty}`);
       },
+      connectFilter,
     });
-  }, [category, filter, hasStartNode, t, workspaceGraphs]);
+  }, [category, connectFilter, filter, hasStartNode, t, workspaceGraphs]);
 
   const showCursorAgentRow = useMemo(() => {
+    if (connectFilter && !connectFilter.allowCursorAgent) {
+      return false;
+    }
     if (category !== "all" && category !== "steps") {
       return false;
     }
@@ -85,7 +93,7 @@ export function CanvasAddNodeMenu({
       "agent".includes(q) ||
       lbl.split(/\s+/).some((w) => w.startsWith(q))
     );
-  }, [category, filter, t]);
+  }, [category, connectFilter, filter, t]);
 
   if (!open) {
     return null;

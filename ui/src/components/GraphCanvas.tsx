@@ -32,7 +32,11 @@ import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
-import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
+import {
+  buildAddNodeConnectMenuFilter,
+  type AddNodeMenuPick,
+  type WorkspaceGraphAddMenuRow,
+} from "../graph/addNodeMenu";
 import {
   GC_DRAG_NODE_MIME_TYPE,
   decodeNodeDragData,
@@ -50,7 +54,10 @@ import { flowStateAfterRemovingNodeIds } from "./canvas/graphCanvasFlowRemove";
 import type { GraphCanvasHandle } from "./canvas/graphCanvasHandleTypes";
 
 export type { ExportDocumentOptions, GraphCanvasHandle } from "./canvas/graphCanvasHandleTypes";
-import { useGraphCanvasConnections } from "./canvas/hooks/useGraphCanvasConnections";
+import {
+  type GcConnectDroppedOnPaneArgs,
+  useGraphCanvasConnections,
+} from "./canvas/hooks/useGraphCanvasConnections";
 import { useGraphCanvasDocumentRunOverlaySync } from "./canvas/hooks/useGraphCanvasDocumentRunOverlaySync";
 import { useGraphCanvasNodesEdgesChangeGuards } from "./canvas/hooks/useGraphCanvasNodesEdgesChangeGuards";
 import { useGraphCanvasSelectionChange } from "./canvas/hooks/useGraphCanvasSelectionChange";
@@ -86,7 +93,11 @@ type Props = {
   /** After positions/reparent settle; push undo snapshot if document differs from capture; then parent syncs. */
   onBeforeNodeDragStructureSync?: () => void;
   workspaceGraphsForAddMenu: ReadonlyArray<WorkspaceGraphAddMenuRow>;
-  onAddNode: (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => void;
+  onAddNode: (
+    pick: AddNodeMenuPick,
+    flowPosition: { x: number; y: number },
+    connectFrom?: { sourceNodeId: string; sourceHandle: string },
+  ) => void;
   onConnectNewEdge: (edge: GraphEdgeJson) => void;
   onFlowStructureChange: () => void;
   /** When true: no new connections, delete, drag, or context-menu add (active Run). */
@@ -174,6 +185,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       sy: number;
       fx: number;
       fy: number;
+      connectFrom?: { sourceNodeId: string; sourceHandle: string };
     } | null>(null);
     const [nodeCtxMenu, setNodeCtxMenu] = useState<{ sx: number; sy: number; nodeId: string } | null>(null);
     const [connectionDrag, setConnectionDrag] = useState<GcConnectionDragOrigin>(null);
@@ -260,13 +272,39 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onEdgesChange,
     });
 
+    const onConnectDroppedOnPane = useCallback((args: GcConnectDroppedOnPaneArgs) => {
+      setNodeCtxMenu(null);
+      const project = projectScreenToFlowRef.current;
+      if (!project) {
+        return;
+      }
+      const flow = project(args.screenX, args.screenY);
+      setAddMenu({
+        sx: args.screenX,
+        sy: args.screenY,
+        fx: flow.x,
+        fy: flow.y,
+        connectFrom: { sourceNodeId: args.sourceNodeId, sourceHandle: args.sourceHandle },
+      });
+    }, []);
+
     const { onConnectStart, onConnectEnd, isValidConnection, onConnect } = useGraphCanvasConnections({
       structureLocked,
       nodes,
       edges,
       onConnectNewEdge,
       setConnectionDrag,
+      onConnectDroppedOnPane,
     });
+
+    const addMenuConnectFilter = useMemo(() => {
+      if (!addMenu?.connectFrom) {
+        return null;
+      }
+      const src = nodes.find((n) => n.id === addMenu.connectFrom!.sourceNodeId);
+      const srcType = (src?.data as GcNodeData | undefined)?.graphNodeType ?? "unknown";
+      return buildAddNodeConnectMenuFilter(srcType, addMenu.connectFrom.sourceHandle);
+    }, [addMenu, nodes]);
 
     const onBeforeDelete = useCallback(
       async ({ nodes: pending, edges: pendingEdges }: { nodes: Node[]; edges: Edge[] }) => {
@@ -499,7 +537,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           return;
         }
         const flowPos = project(e.clientX, e.clientY);
-        onAddNode(pick, flowPos);
+        onAddNode(pick, flowPos, undefined);
       },
       [structureLocked, onAddNode],
     );
@@ -598,11 +636,17 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           flowPos={addMenu != null ? { x: addMenu.fx, y: addMenu.fy } : { x: 0, y: 0 }}
           hasStartNode={hasStartNode}
           workspaceGraphs={workspaceGraphsForAddMenu}
+          connectFilter={addMenuConnectFilter}
           onClose={() => {
             setAddMenu(null);
           }}
           onPick={(pick, flowPosition) => {
-            onAddNode(pick, flowPosition);
+            const wire = addMenu?.connectFrom;
+            if (wire) {
+              onAddNode(pick, flowPosition, wire);
+            } else {
+              onAddNode(pick, flowPosition, undefined);
+            }
           }}
         />
         <NodeContextMenu

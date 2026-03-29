@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   ADD_MENU_PRIMITIVE_ORDER,
   type AddMenuPrimitiveType,
+  buildAddNodeConnectMenuFilter,
   computeAddNodeMenuLists,
   primitivesForAddNodeCategory,
 } from "./addNodeMenu";
+import { HANDLE_OUT_DEFAULT } from "./handleContract";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
@@ -123,5 +125,39 @@ describe("computeAddNodeMenuLists", () => {
       labelForPrimitive: labelEcho,
     });
     expect(primitiveOptions).toEqual([GRAPH_NODE_TYPE_TASK]);
+  });
+
+  it("connectFilter limits primitives and hides graphs when disallowed", () => {
+    const filter = buildAddNodeConnectMenuFilter(GRAPH_NODE_TYPE_START, HANDLE_OUT_DEFAULT);
+    expect(filter.allowedPrimitives.has(GRAPH_NODE_TYPE_START)).toBe(false);
+    expect(filter.allowedPrimitives.has(GRAPH_NODE_TYPE_COMMENT)).toBe(false);
+    expect(filter.allowedPrimitives.has(GRAPH_NODE_TYPE_EXIT)).toBe(true);
+    expect(filter.allowGraphRefs).toBe(true);
+
+    const { primitiveOptions, graphOptions } = computeAddNodeMenuLists({
+      category: "all",
+      filterText: "",
+      hasStartNode: false,
+      workspaceGraphs: graphs,
+      labelForPrimitive: labelEcho,
+      connectFilter: {
+        allowedPrimitives: new Set([GRAPH_NODE_TYPE_TASK, GRAPH_NODE_TYPE_EXIT]),
+        allowGraphRefs: false,
+        allowCursorAgent: false,
+      },
+    });
+    expect(primitiveOptions).toEqual([GRAPH_NODE_TYPE_EXIT, GRAPH_NODE_TYPE_TASK]);
+    expect(graphOptions).toEqual([]);
+  });
+});
+
+describe("buildAddNodeConnectMenuFilter", () => {
+  it("from start default out: exit and executors, not start/comment/group", () => {
+    const f = buildAddNodeConnectMenuFilter(GRAPH_NODE_TYPE_START, HANDLE_OUT_DEFAULT);
+    expect(f.allowedPrimitives.has(GRAPH_NODE_TYPE_START)).toBe(false);
+    expect(f.allowedPrimitives.has(GRAPH_NODE_TYPE_COMMENT)).toBe(false);
+    expect(f.allowedPrimitives.has(GRAPH_NODE_TYPE_GROUP)).toBe(false);
+    expect(f.allowedPrimitives.has(GRAPH_NODE_TYPE_EXIT)).toBe(true);
+    expect(f.allowedPrimitives.has(GRAPH_NODE_TYPE_TASK)).toBe(true);
   });
 });

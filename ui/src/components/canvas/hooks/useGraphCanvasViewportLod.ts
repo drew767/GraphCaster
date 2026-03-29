@@ -24,7 +24,19 @@ export function useGraphCanvasViewportLod(
     visibilityById: ReturnType<typeof computeVisibilityByNodeId> | typeof EMPTY_NODE_VISIBILITY_BY_ID;
   };
 } {
-  // Use individual selectors to avoid object creation that triggers unnecessary re-renders
+  /*
+   * CRITICAL: DO NOT use a single useStore selector that returns a new object!
+   *
+   * BAD (causes infinite re-render loop → black screen):
+   *   const flowPane = useStore(s => ({ tx: s.transform[0], ty: s.transform[1], ... }));
+   *
+   * React Flow's useStore compares selector results with ===.
+   * A selector returning a new object each call always fails equality,
+   * triggering endless re-renders until React throws "Maximum update depth exceeded".
+   *
+   * GOOD: Use separate selectors returning primitive values (number, string, boolean).
+   * Primitives are compared by value and won't cause spurious updates.
+   */
   const zoom = useStore((s) => s.transform[2]);
   const tx = useStore((s) => s.transform[0]);
   const ty = useStore((s) => s.transform[1]);
@@ -56,15 +68,7 @@ export function useGraphCanvasViewportLod(
       height,
       VIEWPORT_OFFSCREEN_PADDING_PX,
     );
-  }, [
-    ghostOffViewportEnabled,
-    nodes,
-    tx,
-    ty,
-    zoom,
-    width,
-    height,
-  ]);
+  }, [ghostOffViewportEnabled, nodes, tx, ty, zoom, width, height]);
 
   const viewportTierValue = useMemo(
     () => ({ ghostOffViewportEnabled, visibilityById }),

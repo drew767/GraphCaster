@@ -30,8 +30,10 @@ import type {
   GraphDocumentJson,
   GraphDocumentSettingsPatch,
   GraphEdgeJson,
+  GraphNodeJson,
 } from "../graph/types";
 import { findBranchAmbiguities } from "../graph/branchWarnings";
+import { isGcFlowConnectionAllowed } from "../graph/connectionCompatibility";
 import { flowToDocument } from "../graph/fromReactFlow";
 import { pickCommentParentId } from "../graph/flowHierarchy";
 import {
@@ -95,6 +97,7 @@ import {
   workspaceGraphRefCycleIssues,
 } from "../graph/structureWarnings";
 import { collectCanvasWarningEdgeIds } from "../graph/warningEdges";
+import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { graphDocumentToFlow, nodeLabel, type GcNodeData } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
@@ -170,6 +173,43 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
     return true;
   }
   return target.closest("input, textarea, select, [contenteditable='true']") != null;
+}
+
+function mergeNewNodeAndConnectEdge(
+  doc: GraphDocumentJson,
+  nextNodes: GraphNodeJson[],
+  newNodeId: string,
+  connectFrom?: { sourceNodeId: string; sourceHandle: string },
+): GraphDocumentJson {
+  const base: GraphDocumentJson = { ...doc, nodes: nextNodes };
+  if (!connectFrom) {
+    return base;
+  }
+  const { nodes: flowNodes, edges: flowEdges } = graphDocumentToFlow(base);
+  const sh = flowConnectionHandle(connectFrom.sourceHandle, "out_default");
+  if (
+    !isGcFlowConnectionAllowed(
+      {
+        source: connectFrom.sourceNodeId,
+        target: newNodeId,
+        sourceHandle: sh,
+        targetHandle: "in_default",
+      },
+      flowNodes,
+      flowEdges,
+    )
+  ) {
+    return base;
+  }
+  const edge: GraphEdgeJson = {
+    id: newGraphEdgeId(),
+    source: connectFrom.sourceNodeId,
+    target: newNodeId,
+    sourceHandle: sh,
+    targetHandle: "in_default",
+    condition: null,
+  };
+  return { ...base, edges: [...(doc.edges ?? []), edge] };
 }
 
 type Props = {
@@ -1154,7 +1194,11 @@ export function AppShell({ onLangChange }: Props) {
   }, [commitHistorySnapshot]);
 
   const onAddNode = useCallback(
-    (pick: AddNodeMenuPick, flowPosition: { x: number; y: number }) => {
+    (
+      pick: AddNodeMenuPick,
+      flowPosition: { x: number; y: number },
+      connectFrom?: { sourceNodeId: string; sourceHandle: string },
+    ) => {
       if (runSessionHasBlockingActivity()) {
         return;
       }
@@ -1175,7 +1219,7 @@ export function AppShell({ onLangChange }: Props) {
           ...(parentId ? { parentId } : {}),
         };
         commitHistorySnapshot();
-        setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
+        setGraphDocument(mergeNewNodeAndConnectEdge(doc, [...nodes, newNode], id, connectFrom));
         return;
       }
       if (pick.kind === "primitive") {
@@ -1196,7 +1240,7 @@ export function AppShell({ onLangChange }: Props) {
           ...(parentId ? { parentId } : {}),
         };
         commitHistorySnapshot();
-        setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
+        setGraphDocument(mergeNewNodeAndConnectEdge(doc, [...nodes, newNode], id, connectFrom));
         return;
       }
       const id = newGraphNodeId();
@@ -1209,7 +1253,7 @@ export function AppShell({ onLangChange }: Props) {
         ...(parentId ? { parentId } : {}),
       };
       commitHistorySnapshot();
-      setGraphDocument({ ...doc, nodes: [...nodes, newNode] });
+      setGraphDocument(mergeNewNodeAndConnectEdge(doc, [...nodes, newNode], id, connectFrom));
     },
     [commitHistorySnapshot, t],
   );

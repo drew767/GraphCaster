@@ -145,6 +145,18 @@ export function useGraphCanvasDocumentRunOverlaySync({
           hl,
           runMotionPulseEnabled,
         );
+        /*
+         * CRITICAL: Compare `raw` by value, not by reference!
+         *
+         * BAD (causes infinite re-render loop → black screen):
+         *   (cur.data as GcNodeData).raw === d.raw
+         *
+         * `graphDocumentToFlow` creates a new `raw` object via `{ ...data }` on every call.
+         * Reference comparison (===) always fails for distinct objects,
+         * causing setNodes to fire endlessly → "Maximum update depth exceeded".
+         *
+         * GOOD: Deep-compare via JSON.stringify, or use a shallow-equal helper.
+         */
         const curData = cur?.data as GcNodeData | undefined;
         const rawUnchanged =
           curData?.raw === d.raw ||
