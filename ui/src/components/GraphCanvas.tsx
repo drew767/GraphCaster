@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
 import {
+  effectiveFollowRunCameraPanAnimated,
   effectiveRunEdgeAnimated,
   effectiveRunNodePulse,
   type RunMotionPreference,
@@ -41,7 +42,12 @@ import {
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
-import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
+import {
+  getCommentNodeSize,
+  getFlowNodeSize,
+  getWorldTopLeft,
+  reparentDraggedNode,
+} from "../graph/flowHierarchy";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
@@ -246,6 +252,10 @@ type Props = {
   runMotionPreference?: RunMotionPreference;
   /** Show branch / `ai_route` captions on edges (hidden when LOD is compact). Default true. */
   edgeLabelsEnabled?: boolean;
+  /** User toggle: pan viewport to the active run node while a live or replay session warrants it. */
+  followRunCameraEnabled?: boolean;
+  /** True while replay is active or the focused run is a live run — pairs with `followRunCameraEnabled`. */
+  followRunCameraActive?: boolean;
 };
 
 const nodeTypes = {
@@ -366,6 +376,86 @@ function RefitOnLayoutEpoch({ epoch }: { epoch: number }) {
   return null;
 }
 
+const FOLLOW_RUN_CAMERA_DEBOUNCE_MS = 85;
+/** After `layoutEpoch` bumps, `RefitOnLayoutEpoch` runs `fitView` with duration 200ms — wait longer before `setCenter` to avoid fighting the refit animation. */
+const FOLLOW_RUN_AFTER_REFIT_MS = 220;
+
+function FollowActiveRunCamera({
+  runHighlightNodeId,
+  followEnabled,
+  followActive,
+  runMotionPreference,
+  layoutEpoch,
+}: {
+  runHighlightNodeId: string | null;
+  followEnabled: boolean;
+  followActive: boolean;
+  runMotionPreference: RunMotionPreference;
+  layoutEpoch: number;
+}) {
+  const { getNodes, getNode, setCenter, getViewport } = useReactFlow();
+  const prefersReduced = usePrefersReducedMotion();
+  const layoutEpochRef = useRef(layoutEpoch);
+
+  useEffect(() => {
+    if (!followEnabled || !followActive) {
+      return;
+    }
+    const id = runHighlightNodeId?.trim() ?? "";
+    if (id === "") {
+      return;
+    }
+
+    const prevEpoch = layoutEpochRef.current;
+    layoutEpochRef.current = layoutEpoch;
+    const epochBumped = prevEpoch !== layoutEpoch && layoutEpoch > 0;
+    const delay = epochBumped
+      ? FOLLOW_RUN_CAMERA_DEBOUNCE_MS + FOLLOW_RUN_AFTER_REFIT_MS
+      : FOLLOW_RUN_CAMERA_DEBOUNCE_MS;
+
+    const handle = window.setTimeout(() => {
+      const n = getNode(id);
+      if (!n) {
+        if (import.meta.env.DEV) {
+          console.debug("[gc-follow-run] node not on canvas", id);
+        }
+        return;
+      }
+      const all = getNodes();
+      const byId = new Map(all.map((x) => [x.id, x]));
+      const topLeft = getWorldTopLeft(n as Node<GcNodeData>, byId);
+      const dims = isReactFlowFrameNodeType(n.type)
+        ? getCommentNodeSize(n as Node<GcNodeData>)
+        : getFlowNodeSize(n);
+      const x = topLeft.x + dims.w / 2;
+      const y = topLeft.y + dims.h / 2;
+      const zoom = getViewport().zoom;
+      const animate = effectiveFollowRunCameraPanAnimated(runMotionPreference, prefersReduced);
+      void setCenter(x, y, {
+        zoom,
+        duration: animate ? 220 : 0,
+      });
+    }, delay);
+
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [
+    runHighlightNodeId,
+    followEnabled,
+    followActive,
+    runMotionPreference,
+    layoutEpoch,
+    getNode,
+    getNodes,
+    setCenter,
+    getViewport,
+    prefersReduced,
+  ]);
+
+  return null;
+}
+
 const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
   function GraphCanvasInner(
     {
@@ -392,6 +482,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       edgeRunOverlayRevision = 0,
       runMotionPreference = "full",
       edgeLabelsEnabled = true,
+      followRunCameraEnabled = false,
+      followRunCameraActive = false,
     },
     ref,
   ) {
@@ -939,6 +1031,13 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           >
             <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
             <RefitOnLayoutEpoch epoch={layoutEpoch} />
+            <FollowActiveRunCamera
+              runHighlightNodeId={runHighlightNodeId}
+              followEnabled={followRunCameraEnabled}
+              followActive={followRunCameraActive}
+              runMotionPreference={runMotionPreference}
+              layoutEpoch={layoutEpoch}
+            />
             <FlowCanvasHandleBridge
               ref={ref}
               baseDocument={graphDocument}

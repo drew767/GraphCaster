@@ -29,6 +29,8 @@ type Props = {
   onGhostOffViewportChange?: (enabled: boolean) => void;
   edgeLabelsEnabled?: boolean;
   onEdgeLabelsChange?: (enabled: boolean) => void;
+  followRunEnabled?: boolean;
+  onFollowRunChange?: (enabled: boolean) => void;
   runMotionPreference?: RunMotionPreference;
   onRunMotionPreferenceChange?: (mode: RunMotionPreference) => void;
   canAlignSelection?: boolean;
@@ -86,6 +88,8 @@ export function TopBar({
   onGhostOffViewportChange = () => {},
   edgeLabelsEnabled = true,
   onEdgeLabelsChange = () => {},
+  followRunEnabled = false,
+  onFollowRunChange = () => {},
   runMotionPreference = "full",
   onRunMotionPreferenceChange = () => {},
   canAlignSelection = false,
@@ -225,6 +229,17 @@ export function TopBar({
             }}
           />
           <span>{t("app.canvas.edgeLabels")}</span>
+        </label>
+        <label className="gc-top-run-stepcache" title={t("app.canvas.followRunHint")}>
+          <input
+            type="checkbox"
+            checked={followRunEnabled}
+            aria-label={t("app.canvas.followRunAria")}
+            onChange={(ev) => {
+              onFollowRunChange(ev.target.checked);
+            }}
+          />
+          <span>{t("app.canvas.followRun")}</span>
         </label>
         <select
           className="gc-workspace-select"
