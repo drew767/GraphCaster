@@ -144,7 +144,7 @@
 ## Фаза 10 — Встраивание в хост-приложение
 
 - Плагин / WebView / IPC — по плану **продукта-хоста**; экспорт **`dist/`** или NPM-пакет, стабильный API **открыть документ / подписаться на события** — вне обязанностей репозитория GraphCaster.
-- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** — см. **`doc/IMPLEMENTED_FEATURES.md`**, **`python/README.md`**; нода **`mcp_tool`** (клиент MCP, stdio + streamable HTTP MVP) — там же; полноценный встраиваемый UI-embed остаётся отдельным шагом на стороне хоста.
+- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** (в т.ч. **`graphcaster_cancel_run`** по **`run_id`** — **`request_cancel`**) — см. **`doc/IMPLEMENTED_FEATURES.md`** (**«MCP stdio server»**), **`python/README.md`**; нода **`mcp_tool`** (клиент MCP, stdio + streamable HTTP MVP) — там же; полноценный встраиваемый UI-embed остаётся отдельным шагом на стороне хоста.
 
 ---
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import uuid
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -15,7 +17,7 @@ from graph_caster.mcp_server.handlers import (
     list_graphs_handler,
     run_graph_handler,
 )
-from graph_caster.run_sessions import get_default_run_registry
+from graph_caster.run_sessions import RunSession, get_default_run_registry, reset_default_run_registry
 
 
 def _minimal_linear_graph_json(gid: str) -> str:
@@ -104,9 +106,69 @@ def test_run_graph_path_traversal_rejected(tmp_path: Path) -> None:
     assert r["ok"] is False
 
 
-def test_cancel_run_stub() -> None:
-    r = cancel_run_handler()
-    assert r["supported"] is False
+def test_cancel_run_requires_run_id() -> None:
+    reset_default_run_registry()
+    try:
+        r = cancel_run_handler("")
+        assert r["ok"] is False
+        assert r["error"] == "runId is required"
+    finally:
+        reset_default_run_registry()
+
+
+def test_cancel_run_invalid_uuid() -> None:
+    reset_default_run_registry()
+    try:
+        r = cancel_run_handler("not-a-uuid")
+        assert r["ok"] is False
+        assert "uuid" in r["error"].lower()
+    finally:
+        reset_default_run_registry()
+
+
+def test_cancel_run_unknown_id() -> None:
+    reset_default_run_registry()
+    try:
+        rid = str(uuid.uuid4())
+        r = cancel_run_handler(rid)
+        assert r["ok"] is True
+        assert r["cancelRequested"] is False
+        assert r["reason"] == "unknown_run_id"
+        assert r["runId"] == rid
+    finally:
+        reset_default_run_registry()
+
+
+def test_cancel_run_not_active_after_complete() -> None:
+    reset_default_run_registry()
+    try:
+        rid = str(uuid.uuid4())
+        gid = "11111111-1111-4111-8111-111111111111"
+        reg = get_default_run_registry()
+        reg.register(RunSession(run_id=rid, root_graph_id=gid))
+        reg.complete(rid, "success")
+        r = cancel_run_handler(rid)
+        assert r["ok"] is True
+        assert r["cancelRequested"] is False
+        assert r["reason"] == "run_not_active"
+    finally:
+        reset_default_run_registry()
+
+
+def test_cancel_run_sets_event_for_running_session() -> None:
+    reset_default_run_registry()
+    try:
+        rid = str(uuid.uuid4())
+        gid = "22222222-2222-4222-8222-222222222222"
+        session = RunSession(run_id=rid, root_graph_id=gid)
+        get_default_run_registry().register(session)
+        r = cancel_run_handler(rid)
+        assert r["ok"] is True
+        assert r["cancelRequested"] is True
+        assert r["runId"] == rid
+        assert session.cancel_event.is_set()
+    finally:
+        reset_default_run_registry()
 
 
 def test_build_fastmcp_smoke(tmp_path: Path) -> None:
@@ -117,6 +179,12 @@ def test_build_fastmcp_smoke(tmp_path: Path) -> None:
     gdir.mkdir()
     app = build_fastmcp(RunHostContext(graphs_root=gdir))
     assert app.name == "GraphCaster"
+
+    tools = asyncio.run(app.list_tools())
+    names = {t.name for t in tools}
+    assert names == {"graphcaster_list_graphs", "graphcaster_run_graph", "graphcaster_cancel_run"}
+    cancel = next(t for t in tools if t.name == "graphcaster_cancel_run")
+    assert cancel.inputSchema.get("required") == ["run_id"]
 
 
 def test_list_graphs_workspace_index_error(tmp_path: Path) -> None:

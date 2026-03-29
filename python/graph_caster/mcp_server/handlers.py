@@ -241,9 +241,36 @@ def run_graph_handler(
     return out
 
 
-def cancel_run_handler() -> dict[str, Any]:
+def cancel_run_handler(run_id: str) -> dict[str, Any]:
+    """Request cooperative cancel for a run in this MCP process (same registry as ``graphcaster_run_graph``).
+
+    Matches timeout behavior: ``RunSessionRegistry.request_cancel`` sets the session's cancel event; the
+    worker observes it between runner steps. Does not stop subprocesses inside a node.
+
+    Response contract: ``ok`` means the arguments were accepted (valid UUID after trim). Whether cancel was
+    applied to an active run is ``cancelRequested``; if false, see ``reason`` (``unknown_run_id`` /
+    ``run_not_active``).
+    """
+    rid = (run_id or "").strip()
+    if not rid:
+        return {"ok": False, "error": "runId is required"}
+    try:
+        normalized = str(uuid.UUID(rid))
+    except ValueError:
+        return {"ok": False, "error": "invalid runId (expected UUID)"}
+
+    reg = get_default_run_registry()
+    if reg.request_cancel(normalized):
+        return {"ok": True, "cancelRequested": True, "runId": normalized}
+
+    session = reg.get(normalized)
+    if session is None:
+        reason = "unknown_run_id"
+    else:
+        reason = "run_not_active"
     return {
-        "ok": False,
-        "supported": False,
-        "message": "Cancel is not supported for the stdio MCP server process; use the run broker or CLI --track-session with cancel_run on the worker stdin.",
+        "ok": True,
+        "cancelRequested": False,
+        "runId": normalized,
+        "reason": reason,
     }
