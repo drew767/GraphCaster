@@ -2,20 +2,25 @@
 
 import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { GcNodeData } from "../../graph/toReactFlow";
-import { useGcCanvasLod } from "../GcCanvasLodContext";
+import { useGcEffectiveNodeTier } from "../../graph/useGcEffectiveNodeTier";
 
 function GcCommentNodeInner(props: NodeProps) {
-  const lod = useGcCanvasLod();
+  const { t } = useTranslation();
+  const tier = useGcEffectiveNodeTier(props.id, props.selected);
   const data = props.data as GcNodeData | undefined;
   const title = data?.label ?? props.id;
-  const cls = `gc-flow-comment${props.selected ? " gc-flow-comment--selected" : ""}${lod === "compact" ? " gc-flow-comment--lod-compact" : ""}`;
+  const cls = `gc-flow-comment${props.selected ? " gc-flow-comment--selected" : ""}${tier === "compact" ? " gc-flow-comment--lod-compact" : ""}${tier === "ghost" ? " gc-flow-comment--ghost" : ""}`;
 
-  const showResizer = lod === "full" || props.selected;
+  const showResizer = tier === "full" || props.selected;
 
   return (
-    <div className={cls}>
+    <div
+      className={cls}
+      aria-label={tier === "ghost" ? t("app.canvas.lodAriaGhostOffViewport") : undefined}
+    >
       {showResizer ? (
         <NodeResizer
           minWidth={200}

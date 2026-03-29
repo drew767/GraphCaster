@@ -49,8 +49,14 @@ import {
 } from "../graph/gcFlowEdgeSync";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
 import { type GcCanvasLodLevel, lodLevelWithHysteresis } from "../graph/canvasLod";
+import {
+  computeVisibilityByNodeId,
+  EMPTY_NODE_VISIBILITY_BY_ID,
+  VIEWPORT_OFFSCREEN_PADDING_PX,
+} from "../graph/viewportNodeTier";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
+import { GcViewportTierProvider } from "./GcViewportTierContext";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
@@ -186,6 +192,11 @@ type Props = {
   warningEdgeIds?: ReadonlySet<string>;
   /** When true, node drag positions snap to the canvas grid (`CANVAS_GRID_STEP`). */
   snapToGridEnabled?: boolean;
+  /**
+   * When true, nodes fully outside the viewport (+ padding) use minimal «ghost» chrome (optional F1 profile).
+   * Default false — zoom LOD unchanged for existing layouts.
+   */
+  ghostOffViewportEnabled?: boolean;
 };
 
 const nodeTypes = {
@@ -323,6 +334,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onExportRemovedDanglingEdges,
       warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
       snapToGridEnabled = false,
+      ghostOffViewportEnabled = false,
     },
     ref,
   ) {
@@ -354,6 +366,18 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
 
     const zoom = useStore((s) => s.transform[2]);
+    const flowPane = useStore(
+      useCallback(
+        (s) => ({
+          tx: s.transform[0],
+          ty: s.transform[1],
+          z: s.transform[2],
+          width: s.width,
+          height: s.height,
+        }),
+        [],
+      ),
+    );
     const lodStickyRef = useRef<GcCanvasLodLevel>("full");
     const canvasLod = (() => {
       const next = lodLevelWithHysteresis(zoom, lodStickyRef.current);
@@ -371,6 +395,31 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const edgesRef = useRef(edges);
     edgesRef.current = edges;
     const removeNodesByIdRef = useRef<(ids: readonly string[]) => void>(() => {});
+
+    const visibilityById = useMemo(() => {
+      if (!ghostOffViewportEnabled) {
+        return EMPTY_NODE_VISIBILITY_BY_ID;
+      }
+      return computeVisibilityByNodeId(
+        nodes,
+        [flowPane.tx, flowPane.ty, flowPane.z],
+        flowPane.width,
+        flowPane.height,
+        VIEWPORT_OFFSCREEN_PADDING_PX,
+      );
+    }, [
+      ghostOffViewportEnabled,
+      nodes,
+      flowPane.tx,
+      flowPane.ty,
+      flowPane.z,
+      flowPane.width,
+      flowPane.height,
+    ]);
+    const viewportTierValue = useMemo(
+      () => ({ ghostOffViewportEnabled, visibilityById }),
+      [ghostOffViewportEnabled, visibilityById],
+    );
 
     // Stabilize overlay map reference for effect deps when semantics are unchanged (see `useMemo` deps).
     const overlayStabRef = useRef<{
@@ -774,7 +823,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     return (
       <div className="gc-flow-wrap">
-        <GcCanvasLodProvider value={canvasLod}>
+        <GcViewportTierProvider value={viewportTierValue}>
+          <GcCanvasLodProvider value={canvasLod}>
           <ReactFlow
             colorMode="system"
             ariaLabelConfig={flowAriaLabels}
@@ -822,7 +872,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
               nodeStrokeColor={minimapNodeStrokeColor}
             />
           </ReactFlow>
-        </GcCanvasLodProvider>
+          </GcCanvasLodProvider>
+        </GcViewportTierProvider>
         <CanvasAddNodeMenu
           open={addMenu != null}
           screenPos={addMenu != null ? { x: addMenu.sx, y: addMenu.sy } : { x: 0, y: 0 }}

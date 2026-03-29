@@ -24,6 +24,8 @@ type Props = {
   onUngroupSelection?: () => void;
   snapToGridEnabled?: boolean;
   onSnapToGridChange?: (enabled: boolean) => void;
+  ghostOffViewportEnabled?: boolean;
+  onGhostOffViewportChange?: (enabled: boolean) => void;
   canAlignSelection?: boolean;
   canDistributeSelection?: boolean;
   onAlignDistribute?: (op: AlignDistributeOp) => void;
@@ -72,6 +74,8 @@ export function TopBar({
   onUngroupSelection = () => {},
   snapToGridEnabled = false,
   onSnapToGridChange = () => {},
+  ghostOffViewportEnabled = false,
+  onGhostOffViewportChange = () => {},
   canAlignSelection = false,
   canDistributeSelection = false,
   onAlignDistribute = () => {},
@@ -180,6 +184,21 @@ export function TopBar({
             }}
           />
           <span>{t("app.canvas.snapGrid")}</span>
+        </label>
+        <label
+          className="gc-top-run-stepcache"
+          title={t("app.canvas.ghostOffViewportHint")}
+        >
+          <input
+            type="checkbox"
+            checked={ghostOffViewportEnabled}
+            disabled={sessionBlocking}
+            aria-label={t("app.canvas.ghostOffViewport")}
+            onChange={(ev) => {
+              onGhostOffViewportChange(ev.target.checked);
+            }}
+          />
+          <span>{t("app.canvas.ghostOffViewport")}</span>
         </label>
         <select
           className="gc-workspace-select"

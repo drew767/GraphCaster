@@ -5,18 +5,19 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GcNodeData } from "../../graph/toReactFlow";
-import { useGcCanvasLod } from "../GcCanvasLodContext";
+import { useGcEffectiveNodeTier } from "../../graph/useGcEffectiveNodeTier";
 
 function GcFlowNodeInner(props: NodeProps) {
   const { t } = useTranslation();
-  const lod = useGcCanvasLod();
+  const tier = useGcEffectiveNodeTier(props.id, props.selected);
   const data = props.data as GcNodeData | undefined;
   const kind = data?.graphNodeType ?? "unknown";
   const showTarget = kind !== "start";
   const showSource = kind !== "exit";
   const showErrorOut =
     showSource && (kind === "task" || kind === "graph_ref" || kind === "mcp_tool" || kind === "llm_agent");
-  const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}${lod === "compact" ? " gc-flow-node--lod-compact" : ""}`;
+  const compactHandles = tier === "compact" || tier === "ghost";
+  const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}${tier === "compact" ? " gc-flow-node--lod-compact" : ""}${tier === "ghost" ? " gc-flow-node--ghost" : ""}`;
   const raw = data?.raw;
   const pinOn =
     kind === "task" &&
@@ -47,11 +48,14 @@ function GcFlowNodeInner(props: NodeProps) {
       : undefined;
   const label = data?.label ?? props.id;
   const compactAriaParts: string[] = [];
-  if (lod === "compact" && pinOn) {
+  if (tier !== "full" && pinOn) {
     compactAriaParts.push(t("app.canvas.lodAriaPinned"));
   }
-  if (lod === "compact" && stepCacheOn) {
+  if (tier !== "full" && stepCacheOn) {
     compactAriaParts.push(t("app.canvas.lodAriaStepCache"));
+  }
+  if (tier === "ghost") {
+    compactAriaParts.push(t("app.canvas.lodAriaGhostOffViewport"));
   }
   const compactAria =
     compactAriaParts.length > 0 ? `${compactAriaParts.join(". ")}.` : null;
@@ -70,7 +74,7 @@ function GcFlowNodeInner(props: NodeProps) {
     <div className={cls} title={overlayStatus} aria-label={ariaLabel}>
       {showTarget ? <Handle type="target" position={Position.Left} id="in_default" /> : null}
       <div className="gc-flow-node__body">
-        {lod === "full" ? (
+        {tier === "full" ? (
           <span className="gc-flow-node__pillrow">
             <span className="gc-flow-node__pill">{kind}</span>
             {pinOn ? (
@@ -93,14 +97,14 @@ function GcFlowNodeInner(props: NodeProps) {
             type="source"
             position={Position.Right}
             id="out_default"
-            style={showErrorOut ? { top: lod === "compact" ? "42%" : "38%" } : undefined}
+            style={showErrorOut ? { top: compactHandles ? "42%" : "38%" } : undefined}
           />
           {showErrorOut ? (
             <Handle
               type="source"
               position={Position.Right}
               id="out_error"
-              style={{ top: lod === "compact" ? "58%" : "62%" }}
+              style={{ top: compactHandles ? "58%" : "62%" }}
               className="gc-flow-node__handle--error"
               title={t("app.canvas.errorOutHandle")}
             />

@@ -38,6 +38,10 @@ import {
   distributeSelectionPossible,
   type AlignDistributeOp,
 } from "../graph/canvasAlignSelection";
+import {
+  readGhostOffViewportEnabled,
+  writeGhostOffViewportEnabled,
+} from "../graph/canvasGhostOffViewport";
 import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
 import {
   applyGroupSelection,
@@ -211,6 +215,9 @@ export function AppShell({ onLangChange }: Props) {
     () => localStorage.getItem(LS_RUN_STEP_CACHE) === "1",
   );
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
+  const [ghostOffViewportEnabled, setGhostOffViewportEnabled] = useState(() =>
+    readGhostOffViewportEnabled(),
+  );
   const stepCacheDirtyCount = useStepCacheDirtyCount();
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
   const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
@@ -1549,6 +1556,11 @@ export function AppShell({ onLangChange }: Props) {
           writeSnapGridEnabled(on);
           setSnapToGridEnabled(on);
         }}
+        ghostOffViewportEnabled={ghostOffViewportEnabled}
+        onGhostOffViewportChange={(on) => {
+          writeGhostOffViewportEnabled(on);
+          setGhostOffViewportEnabled(on);
+        }}
         canAlignSelection={canAlignSelection}
         canDistributeSelection={canDistributeSelection}
         onAlignDistribute={performCanvasAlignDistribute}
@@ -1772,6 +1784,7 @@ export function AppShell({ onLangChange }: Props) {
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={runSessionBlocking}
               snapToGridEnabled={snapToGridEnabled}
+              ghostOffViewportEnabled={ghostOffViewportEnabled}
               runHighlightNodeId={runSession.activeNodeId}
               nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}
               nodeRunOverlayRevision={runSession.nodeRunOverlayRevision}
