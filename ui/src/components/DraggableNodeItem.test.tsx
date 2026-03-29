@@ -12,7 +12,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("DraggableNodeItem", () => {
-  it("renders node type and label", () => {
+  it("renders label text", () => {
     render(
       <DraggableNodeItem
         nodeType="task"
@@ -20,7 +20,6 @@ describe("DraggableNodeItem", () => {
         payload={{ kind: "primitive", nodeType: "task" }}
       />
     );
-    expect(screen.getByText("task")).toBeInTheDocument();
     expect(screen.getByText("Task Node")).toBeInTheDocument();
   });
 

@@ -1859,6 +1859,7 @@ export function AppShell({ onLangChange }: Props) {
           isOpen={nodePaletteSidebarOpen}
           onToggle={() => setNodePaletteSidebarOpen((prev) => !prev)}
           hasStartNode={hasStartNode}
+          workspaceGraphs={workspaceGraphRows}
           onNodeClick={(pick) => {
             const api = canvasRef.current;
             if (!api) {

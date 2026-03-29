@@ -8,6 +8,7 @@ import {
   type AddMenuPrimitiveType,
   type AddNodeCategoryId,
   type AddNodeMenuPick,
+  type WorkspaceGraphAddMenuRow,
 } from "../graph/addNodeMenu";
 import { DraggableNodeItem } from "./DraggableNodeItem";
 import "./NodePaletteSidebar.css";
@@ -16,6 +17,7 @@ export interface NodePaletteSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   hasStartNode: boolean;
+  workspaceGraphs?: WorkspaceGraphAddMenuRow[];
   onNodeClick?: (pick: AddNodeMenuPick) => void;
 }
 
@@ -23,6 +25,7 @@ export function NodePaletteSidebar({
   isOpen,
   onToggle,
   hasStartNode,
+  workspaceGraphs = [],
   onNodeClick,
 }: NodePaletteSidebarProps) {
   const { t } = useTranslation();
@@ -36,15 +39,15 @@ export function NodePaletteSidebar({
     [t],
   );
 
-  const { primitiveOptions } = useMemo(() => {
+  const { primitiveOptions, graphOptions } = useMemo(() => {
     return computeAddNodeMenuLists({
       category,
       filterText,
       hasStartNode,
-      workspaceGraphs: [],
+      workspaceGraphs,
       labelForPrimitive,
     });
-  }, [category, filterText, hasStartNode, labelForPrimitive]);
+  }, [category, filterText, hasStartNode, workspaceGraphs, labelForPrimitive]);
 
   const handleFilterChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setFilterText(e.target.value);
@@ -115,6 +118,22 @@ export function NodePaletteSidebar({
                 onClick={() => handleNodeClick(nodeType)}
               />
             ))}
+            {graphOptions.map((graph) => (
+              <DraggableNodeItem
+                key={`graph-${graph.graphId}`}
+                nodeType="graph_ref"
+                label={graph.label}
+                payload={{ kind: "graph_ref", targetGraphId: graph.graphId }}
+                onClick={() => onNodeClick?.({ kind: "graph_ref", targetGraphId: graph.graphId })}
+              />
+            ))}
+            {primitiveOptions.length === 0 && graphOptions.length === 0 && (
+              <li className="gc-node-palette-sidebar__empty">
+                {category === "nested" && workspaceGraphs.length === 0
+                  ? t("app.canvas.addNodeNoGraphs")
+                  : t("app.canvas.addNodeNoMatch")}
+              </li>
+            )}
           </ul>
         </div>
       )}
