@@ -2,6 +2,7 @@
 
 import type { Edge, Node } from "@xyflow/react";
 
+import { flowEdgeLabelToCondition } from "./edgeCanvasLabel";
 import { getCommentNodeSize, sanitizeNodeParents, sortNodesParentsFirst } from "./flowHierarchy";
 import { GRAPH_NODE_TYPE_GROUP } from "./nodeKinds";
 import { flowConnectionHandle } from "./normalizeHandles";
@@ -9,17 +10,6 @@ import type { GraphDocumentJson, GraphEdgeJson, GraphNodeJson } from "./types";
 import type { GcNodeData } from "./toReactFlow";
 
 const AI_ROUTE_EDGE_DESCRIPTION_MAX = 1024;
-
-function edgeLabelToCondition(label: Edge["label"]): string | null {
-  if (label == null) {
-    return null;
-  }
-  if (typeof label === "string") {
-    const s = label.trim();
-    return s === "" ? null : s;
-  }
-  return null;
-}
 
 function coerceSchemaVersion(v: unknown, fallback: number): number {
   if (typeof v === "boolean") {
@@ -122,7 +112,7 @@ export function flowToDocument(
       target: e.target,
       sourceHandle: sh,
       targetHandle: th,
-      condition: edgeLabelToCondition(e.label),
+      condition: flowEdgeLabelToCondition(e.label),
     };
     if (rd !== "") {
       row.data = {

@@ -548,6 +548,30 @@ body {
   stroke-width: 2.5px;
 }
 
+/* Branch / ai_route captions on edges (EdgeLabelRenderer; n8n-style pills). */
+.gc-branch-edge__label-outer {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.gc-branch-edge__label {
+  display: inline-block;
+  max-width: 220px;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+  color: var(--gc-text-primary);
+  background: color-mix(in srgb, var(--gc-surface-1) 94%, var(--gc-border));
+  border: 1px solid color-mix(in srgb, var(--gc-text-primary) 16%, var(--gc-border));
+  border-radius: var(--gc-radius-sm);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--gc-text-primary) 12%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gc-flow-wrap .react-flow {
   --xy-minimap-background-color-props: var(--gc-surface-2);
   --xy-controls-button-background-color: var(--gc-surface-1);

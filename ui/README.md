@@ -42,7 +42,7 @@ npm run fixture:large-graph 600 > ..\..\temp-large-graph.json
 
 Детали реализации ( **`onlyRenderVisibleElements`**, оверлей, рёбра) — [`doc/IMPLEMENTED_FEATURES.md`](../doc/IMPLEMENTED_FEATURES.md) раздел **«Canvas: большие графы»**.
 
-**Кастомные `nodeTypes` на полотне:** суммарный уровень — **`useGcEffectiveNodeTier()`** в `src/graph/useGcEffectiveNodeTier.ts`: **LOD по zoom** (`useGcCanvasLod()`, провайдер `GcCanvasLodContext` в `GraphCanvas`) плюс опциональный **ghost** для нод **вне** вьюпорта (padding в flow-координатах; выбранные ноды остаются **full**). Переключатель в шапке рядом со **snap grid**; ключ `localStorage` — `src/graph/canvasGhostOffViewport.ts`. Вне провайдера LOD в dev — предупреждение, режим **full**. Пороги LOD — `src/graph/canvasLod.ts`; вьюпорт vs off-screen — `src/graph/viewportNodeTier.ts`.
+**Кастомные `nodeTypes` на полотне:** суммарный уровень — **`useGcEffectiveNodeTier()`** в `src/graph/useGcEffectiveNodeTier.ts`: **LOD по zoom** (`useGcCanvasLod()`, провайдер `GcCanvasLodContext` в `GraphCanvas`) плюс опциональный **ghost** для нод **вне** вьюпорта (padding в flow-координатах; выбранные ноды остаются **full**). Переключатель в шапке рядом со **snap grid**; ключ `localStorage` — `src/graph/canvasGhostOffViewport.ts`. **Подписи на рёбрах** (условия F4 / описания веток `ai_route`): чекбокс в шапке, ключ `src/graph/canvasEdgeLabels.ts` (**по умолчанию вкл.**); в LOD **compact** подписи скрываются. Вне провайдера LOD в dev — предупреждение, режим **full**. Пороги LOD — `src/graph/canvasLod.ts`; вьюпорт vs off-screen — `src/graph/viewportNodeTier.ts`.
 
 ### Распространение для пользователей без сборки
 

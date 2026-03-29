@@ -18,6 +18,9 @@ import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles"
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 import type { NodeRunPhase } from "../run/nodeRunOverlay";
 
+/** Custom React Flow edge: Bezier path + branch caption pill (F4 / `ai_route`). */
+export const GC_FLOW_EDGE_TYPE_BRANCH = "gcBranch" as const;
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
@@ -133,6 +136,7 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
     const { sourceHandle, targetHandle } = edgeHandles(e);
     const edge: Edge = {
       id: e.id,
+      type: GC_FLOW_EDGE_TYPE_BRANCH,
       source: e.source,
       target: e.target,
       sourceHandle,

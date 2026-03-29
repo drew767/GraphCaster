@@ -9,6 +9,7 @@ import {
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeTypes,
   type Node,
   type NodeChange,
   type NodeTypes,
@@ -64,6 +65,8 @@ import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
 import { GcViewportTierProvider } from "./GcViewportTierContext";
 import { NodeContextMenu } from "./NodeContextMenu";
+import { GcBranchEdge } from "./edges/GcBranchEdge";
+import { GcBranchEdgeUiContext } from "./edges/GcBranchEdgeUiContext";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
@@ -241,6 +244,8 @@ type Props = {
   edgeRunOverlayRevision?: number;
   /** Run visualization: full (pulse + animated edge), minimal (edge only), off (static). */
   runMotionPreference?: RunMotionPreference;
+  /** Show branch / `ai_route` captions on edges (hidden when LOD is compact). Default true. */
+  edgeLabelsEnabled?: boolean;
 };
 
 const nodeTypes = {
@@ -248,6 +253,10 @@ const nodeTypes = {
   gcComment: GcCommentNode,
   gcGroup: GcGroupNode,
 } as const satisfies NodeTypes;
+
+const gcEdgeTypes = {
+  gcBranch: GcBranchEdge,
+} as const satisfies EdgeTypes;
 
 function flowStateAfterRemovingNodeIds(
   nds: Node<GcNodeData>[],
@@ -382,6 +391,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       highlightedRunEdgeId = null,
       edgeRunOverlayRevision = 0,
       runMotionPreference = "full",
+      edgeLabelsEnabled = true,
     },
     ref,
   ) {
@@ -431,6 +441,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       lodStickyRef.current = next;
       return next;
     })();
+
+    const branchEdgeUiValue = useMemo(
+      () => ({
+        showEdgeLabels: edgeLabelsEnabled,
+        lodCompact: canvasLod === "compact",
+      }),
+      [edgeLabelsEnabled, canvasLod],
+    );
     const minimapNodeColor = useCallback((node: Node<GcNodeData>) => minimapNodeFill(node), []);
     const minimapNodeStrokeColor = useCallback((node: Node<GcNodeData>) => minimapNodeStroke(node), []);
 
@@ -885,6 +903,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     return (
       <div className="gc-flow-wrap">
+        <GcBranchEdgeUiContext.Provider value={branchEdgeUiValue}>
         <GcViewportTierProvider value={viewportTierValue}>
           <GcCanvasLodProvider value={canvasLod}>
           <ReactFlow
@@ -899,6 +918,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             onEdgesChange={onEdgesChangeWrapped}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
+            edgeTypes={gcEdgeTypes}
             fitView
             fitViewOptions={{ padding: 0.15 }}
             selectionOnDrag
@@ -936,6 +956,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           </ReactFlow>
           </GcCanvasLodProvider>
         </GcViewportTierProvider>
+        </GcBranchEdgeUiContext.Provider>
         <CanvasAddNodeMenu
           open={addMenu != null}
           screenPos={addMenu != null ? { x: addMenu.sx, y: addMenu.sy } : { x: 0, y: 0 }}

@@ -47,6 +47,7 @@ import {
   writeRunMotionPreference,
   type RunMotionPreference,
 } from "../graph/canvasRunMotion";
+import { readEdgeLabelsEnabled, writeEdgeLabelsEnabled } from "../graph/canvasEdgeLabels";
 import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
 import {
   applyGroupSelection,
@@ -229,6 +230,7 @@ export function AppShell({ onLangChange }: Props) {
     () => localStorage.getItem(LS_RUN_STEP_CACHE) === "1",
   );
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
+  const [edgeLabelsEnabled, setEdgeLabelsEnabled] = useState(() => readEdgeLabelsEnabled());
   const [ghostOffViewportEnabled, setGhostOffViewportEnabled] = useState(() =>
     readGhostOffViewportEnabled(),
   );
@@ -1578,6 +1580,11 @@ export function AppShell({ onLangChange }: Props) {
           writeGhostOffViewportEnabled(on);
           setGhostOffViewportEnabled(on);
         }}
+        edgeLabelsEnabled={edgeLabelsEnabled}
+        onEdgeLabelsChange={(on) => {
+          writeEdgeLabelsEnabled(on);
+          setEdgeLabelsEnabled(on);
+        }}
         runMotionPreference={runMotionPreference}
         onRunMotionPreferenceChange={(mode) => {
           writeRunMotionPreference(mode);
@@ -1826,6 +1833,7 @@ export function AppShell({ onLangChange }: Props) {
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={runSessionBlocking}
               snapToGridEnabled={snapToGridEnabled}
+              edgeLabelsEnabled={edgeLabelsEnabled}
               ghostOffViewportEnabled={ghostOffViewportEnabled}
               runHighlightNodeId={runSession.activeNodeId}
               nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}

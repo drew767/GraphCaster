@@ -27,6 +27,8 @@ type Props = {
   onSnapToGridChange?: (enabled: boolean) => void;
   ghostOffViewportEnabled?: boolean;
   onGhostOffViewportChange?: (enabled: boolean) => void;
+  edgeLabelsEnabled?: boolean;
+  onEdgeLabelsChange?: (enabled: boolean) => void;
   runMotionPreference?: RunMotionPreference;
   onRunMotionPreferenceChange?: (mode: RunMotionPreference) => void;
   canAlignSelection?: boolean;
@@ -82,6 +84,8 @@ export function TopBar({
   onSnapToGridChange = () => {},
   ghostOffViewportEnabled = false,
   onGhostOffViewportChange = () => {},
+  edgeLabelsEnabled = true,
+  onEdgeLabelsChange = () => {},
   runMotionPreference = "full",
   onRunMotionPreferenceChange = () => {},
   canAlignSelection = false,
@@ -209,6 +213,18 @@ export function TopBar({
             }}
           />
           <span>{t("app.canvas.ghostOffViewport")}</span>
+        </label>
+        <label className="gc-top-run-stepcache" title={t("app.canvas.edgeLabelsHint")}>
+          <input
+            type="checkbox"
+            checked={edgeLabelsEnabled}
+            disabled={sessionBlocking}
+            aria-label={t("app.canvas.edgeLabels")}
+            onChange={(ev) => {
+              onEdgeLabelsChange(ev.target.checked);
+            }}
+          />
+          <span>{t("app.canvas.edgeLabels")}</span>
         </label>
         <select
           className="gc-workspace-select"
