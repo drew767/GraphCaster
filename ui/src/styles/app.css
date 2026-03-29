@@ -702,6 +702,7 @@ body {
     var(--gc-shadow-raise);
 }
 
+/* Executable node border colors: keep hex in sync with MINIMAP_FILL_BY_GRAPH_TYPE in ui/src/graph/minimapNodeColors.ts (task → default --gc-accent #3b82f6 there). */
 .gc-flow-node--start {
   border-color: #34c759;
 }

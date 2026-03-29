@@ -206,24 +206,48 @@ export function InspectorPanel({
     return { kind: "ok", hint: h };
   }, [getGraphRefWorkspaceHint, graphRefSelectionTargetId]);
 
+  const graphRefPreviewBlocked = graphRefWorkspaceHintState.kind === "missing";
+
   useEffect(() => {
     graphRefPreviewGenRef.current += 1;
+    const genAtStart = graphRefPreviewGenRef.current;
     setGraphRefPreviewOpen(false);
     setGraphRefPreviewLoading(false);
     setGraphRefPreviewResult(null);
-  }, [graphRefInspectorKey]);
 
-  useEffect(() => {
-    if (graphRefWorkspaceHintState.kind !== "missing") {
+    if (
+      graphRefInspectorKey === "" ||
+      graphRefPreviewBlocked ||
+      loadGraphRefSnapshot == null ||
+      graphRefSelectionTargetId === ""
+    ) {
       return;
     }
-    graphRefPreviewGenRef.current += 1;
-    setGraphRefPreviewOpen(false);
-    setGraphRefPreviewLoading(false);
-    setGraphRefPreviewResult(null);
-  }, [graphRefWorkspaceHintState.kind]);
 
-  const graphRefPreviewBlocked = graphRefWorkspaceHintState.kind === "missing";
+    // n8n/Dify-style: load nested workflow metadata when the ref node is selected (no extra click).
+    setGraphRefPreviewOpen(true);
+    setGraphRefPreviewLoading(true);
+    void loadGraphRefSnapshot(graphRefSelectionTargetId)
+      .then((r) => {
+        if (genAtStart !== graphRefPreviewGenRef.current) {
+          return;
+        }
+        setGraphRefPreviewResult(r);
+        setGraphRefPreviewLoading(false);
+      })
+      .catch(() => {
+        if (genAtStart !== graphRefPreviewGenRef.current) {
+          return;
+        }
+        setGraphRefPreviewResult({ ok: false, errorKind: "read" });
+        setGraphRefPreviewLoading(false);
+      });
+  }, [
+    graphRefInspectorKey,
+    graphRefPreviewBlocked,
+    graphRefSelectionTargetId,
+    loadGraphRefSnapshot,
+  ]);
 
   const runGraphRefPreviewLoad = useCallback(
     async (force: boolean) => {
@@ -1538,6 +1562,11 @@ export function InspectorPanel({
                             {t("app.inspector.graphRefPreviewFileGraphId", {
                               id: graphRefPreviewResult.snapshot.graphId,
                             })}
+                          </li>
+                        ) : null}
+                        {!graphRefPreviewResult.snapshot.hasStart ? (
+                          <li className="gc-inspector-edge-hint" role="status">
+                            {t("app.inspector.graphRefPreviewNoStart")}
                           </li>
                         ) : null}
                       </ul>

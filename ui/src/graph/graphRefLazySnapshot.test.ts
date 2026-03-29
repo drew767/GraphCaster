@@ -20,6 +20,15 @@ describe("buildGraphRefSnapshotFromParsed", () => {
     expect(s.title).toBe("Child A");
     expect(s.workflowNodeCount).toBe(1);
     expect(s.schemaVersion).toBe(1);
+    expect(s.hasStart).toBe(true);
+  });
+
+  it("reports hasStart false without start node", () => {
+    const doc: GraphDocumentJson = {
+      nodes: [{ id: "t1", type: "task", data: {} }],
+      edges: [],
+    };
+    expect(buildGraphRefSnapshotFromParsed(doc).hasStart).toBe(false);
   });
 });
 
@@ -51,6 +60,7 @@ describe("parseGraphRefSnapshotFromJsonText", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.snapshot.workflowNodeCount).toBe(1);
+      expect(r.snapshot.hasStart).toBe(true);
     }
   });
 });

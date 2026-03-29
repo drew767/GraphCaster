@@ -33,6 +33,13 @@ import { findBranchAmbiguities } from "../graph/branchWarnings";
 import { flowToDocument } from "../graph/fromReactFlow";
 import { pickCommentParentId } from "../graph/flowHierarchy";
 import {
+  alignSelectionPossible,
+  applyAlignDistribute,
+  distributeSelectionPossible,
+  type AlignDistributeOp,
+} from "../graph/canvasAlignSelection";
+import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
+import {
   applyGroupSelection,
   applyUngroupSelection,
   canApplyGroupSelection,
@@ -203,6 +210,7 @@ export function AppShell({ onLangChange }: Props) {
   const [stepCacheRunEnabled, setStepCacheRunEnabled] = useState(
     () => localStorage.getItem(LS_RUN_STEP_CACHE) === "1",
   );
+  const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
   const stepCacheDirtyCount = useStepCacheDirtyCount();
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
   const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
@@ -1137,6 +1145,40 @@ export function AppShell({ onLangChange }: Props) {
     return selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_GROUP;
   }, [runSessionBlocking, selection]);
 
+  /** Prefer live canvas export (same path as align/apply) so parentId/positions match React FG. */
+  const flowNodesForAlign = useMemo((): Node<GcNodeData>[] => {
+    const api = canvasRef.current;
+    if (api != null) {
+      const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+      return graphDocumentToFlow(doc).nodes as Node<GcNodeData>[];
+    }
+    return graphDocumentToFlow(graphDocument).nodes as Node<GcNodeData>[];
+  }, [
+    graphDocument,
+    layoutDirtyEpoch,
+    selection?.kind === "multiNode" ? [...selection.ids].sort().join("\0") : "",
+  ]);
+
+  const canAlignSelection = useMemo(() => {
+    if (runSessionBlocking) {
+      return false;
+    }
+    if (selection?.kind !== "multiNode") {
+      return false;
+    }
+    return alignSelectionPossible(flowNodesForAlign, new Set(selection.ids));
+  }, [runSessionBlocking, selection, flowNodesForAlign]);
+
+  const canDistributeSelection = useMemo(() => {
+    if (runSessionBlocking) {
+      return false;
+    }
+    if (selection?.kind !== "multiNode") {
+      return false;
+    }
+    return distributeSelectionPossible(flowNodesForAlign, new Set(selection.ids));
+  }, [runSessionBlocking, selection, flowNodesForAlign]);
+
   const performCanvasGroup = useCallback(() => {
     if (runSessionBlocking) {
       return;
@@ -1197,6 +1239,37 @@ export function AppShell({ onLangChange }: Props) {
     setLayoutDirtyEpoch((n) => n + 1);
     setSelection(null);
   }, [commitHistorySnapshot, runSessionBlocking, t]);
+
+  const performCanvasAlignDistribute = useCallback(
+    (op: AlignDistributeOp) => {
+      if (runSessionBlocking) {
+        return;
+      }
+      const api = canvasRef.current;
+      if (!api) {
+        return;
+      }
+      const sel = selectionRef.current;
+      if (sel?.kind !== "multiNode") {
+        return;
+      }
+      const idSet = new Set(sel.ids);
+      const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+      const { nodes, edges } = graphDocumentToFlow(doc);
+      const next = applyAlignDistribute(nodes as Node<GcNodeData>[], idSet, op);
+      if (!next) {
+        setAppMessageModal(
+          presentationForInspectorSimple(t, "app.canvas.alignDistributeNoChange"),
+        );
+        return;
+      }
+      const merged = flowToDocument(next, edges, doc);
+      commitHistorySnapshot();
+      setGraphDocument(merged);
+      setLayoutDirtyEpoch((n) => n + 1);
+    },
+    [commitHistorySnapshot, runSessionBlocking, t],
+  );
 
   const runStartDisabled =
     pyProbe != null && !pyProbe.ok;
@@ -1471,6 +1544,14 @@ export function AppShell({ onLangChange }: Props) {
         canUngroupSelection={canUngroupSelection}
         onGroupSelection={performCanvasGroup}
         onUngroupSelection={performCanvasUngroup}
+        snapToGridEnabled={snapToGridEnabled}
+        onSnapToGridChange={(on) => {
+          writeSnapGridEnabled(on);
+          setSnapToGridEnabled(on);
+        }}
+        canAlignSelection={canAlignSelection}
+        canDistributeSelection={canDistributeSelection}
+        onAlignDistribute={performCanvasAlignDistribute}
         workspaceLinked={workspaceGraphsDir != null}
         onLinkWorkspace={() => {
           void onLinkWorkspace();
@@ -1690,6 +1771,7 @@ export function AppShell({ onLangChange }: Props) {
               onNodeDragCaptureBegin={beginNodeDragCapture}
               onBeforeNodeDragStructureSync={commitNodeDragHistoryIfChanged}
               structureLocked={runSessionBlocking}
+              snapToGridEnabled={snapToGridEnabled}
               runHighlightNodeId={runSession.activeNodeId}
               nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}
               nodeRunOverlayRevision={runSession.nodeRunOverlayRevision}

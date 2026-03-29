@@ -10,6 +10,8 @@ export type GraphRefLazySnapshot = {
   workflowNodeCount: number;
   /** Single display value: root schemaVersion, else meta.schemaVersion if present. */
   schemaVersion?: number;
+  /** Whether the document lists at least one `start` node (runtime entry hint). */
+  hasStart: boolean;
 };
 
 export type ParseGraphRefSnapshotTextResult =
@@ -32,6 +34,7 @@ export function buildGraphRefSnapshotFromParsed(doc: GraphDocumentJson): GraphRe
     title: typeof doc.meta?.title === "string" && doc.meta.title.trim() !== "" ? doc.meta.title : undefined,
     workflowNodeCount: nodes.length,
     schemaVersion,
+    hasStart: nodes.some((n) => n.type === "start"),
   };
 }
 
