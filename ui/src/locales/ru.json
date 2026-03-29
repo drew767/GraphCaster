@@ -13,7 +13,11 @@
       "undo": "Отменить",
       "redo": "Вернуть",
       "undoHint": "Отменить (Ctrl+Z)",
-      "redoHint": "Вернуть (Ctrl+Shift+Z или Ctrl+Y)"
+      "redoHint": "Вернуть (Ctrl+Shift+Z или Ctrl+Y)",
+      "group": "Сгруппировать выделение",
+      "ungroup": "Разгруппировать",
+      "groupHint": "Обернуть выделение в рамку группы (Ctrl+G)",
+      "ungroupHint": "Убрать рамку группы, оставить ноды (Ctrl+Shift+G)"
     },
     "canvas": {
       "pinBadge": "Закреплённый вывод (gcPin): раннер может не запускать процесс и взять сохранённый processResult.",
@@ -32,6 +36,8 @@
         "notes": "Заметки"
       },
       "addNodeNestedEmptyWorkspace": "В привязанной папке graphs/ нет графов — привяжите workspace или выберите другую категорию.",
+      "groupSelectionNotPossible": "Нельзя сгруппировать это выделение. Выберите минимум две ноды, которые не являются start, рамкой комментария или рамкой группы.",
+      "ungroupNotPossible": "Не удалось разгруппировать. Выберите одну рамку группы.",
       "onlyOneStart": "В графе уже есть нода start.",
       "addNodeGraphsHeading": "Графы в папке",
       "addNodeCursorAgent": "Cursor Agent (пресет task)",
@@ -45,6 +51,7 @@
         "merge": "Слияние",
         "fork": "Разветвление",
         "comment": "Комментарий (рамка)",
+        "group": "Группа (рамка)",
         "ai_route": "ИИ-маршрут",
         "mcp_tool": "MCP tool",
         "llm_agent": "LLM-агент"
@@ -69,10 +76,10 @@
       "multipleStarts": "Больше одной ноды start: {{ids}}.",
       "startHasIncoming": "У start {{id}} есть входящие рёбра (не должно быть).",
       "unreachableNodes": "Ноды недостижимы из start (статика; все рёбра считаются возможными): {{ids}}.",
-      "mergeFewInputs": "У merge {{id}} только {{count}} входящее(их) ребро(а) от не-comment нод (обычно 2+ после разветвления).",
+      "mergeFewInputs": "У merge {{id}} только {{count}} входящее(их) ребро(а) от нод вне рамок comment/group (обычно 2+ после разветвления).",
       "forkFewOutputs": "У fork {{id}} только {{count}} безусловных исходящих веток (нужно 2+ для fan-out).",
       "barrierMergeOutErrorIncoming": "У barrier-merge {{mergeId}} входящее ребро out_error {{edgeId}} (не поддерживается; для ошибок используйте passthrough merge).",
-      "barrierMergeNoSuccessIncoming": "У barrier-merge {{id}} нет входящих рёбер успешного пути (out_default) от не-comment нод.",
+      "barrierMergeNoSuccessIncoming": "У barrier-merge {{id}} нет входящих рёбер успешного пути (out_default) от нод вне рамок comment/group.",
       "graphRefWorkspaceCycle": "В graphs/ обнаружен цикл ссылок graph_ref (вложенные графы зациклились бы): {{cycle}}. Удалите или переназначьте ссылки.",
       "aiRouteNoOutgoing": "У ноды ai_route {{id}} нет исходящих веток к исполняемым нодам (добавьте рёбра out_default).",
       "aiRouteMissingDescriptions": "У ноды ai_route {{id}}: у {{missing}} из {{total}} исходящих веток нет data.routeDescription (качество маршрутизации может упасть).",
@@ -92,7 +99,8 @@
       "deleteSelected": "Удалить выбранные",
       "clipboardCopyFailed": "Не удалось записать в буфер обмена. Проверьте разрешения браузера.",
       "clipboardInvalid": "В буфере нет фрагмента графа GraphCaster (ожидается наш JSON).",
-      "commentFrameHint": "Заголовок области только для редактора. Перетащите ноды в рамку (или создайте внутри) — они поедут вместе с рамкой. Тяните за маркеры, чтобы изменить размер. В JSON: поля \"title\", \"width\", \"height\".",
+      "commentFrameHint": "Рамка-заметка (только для редактора). Перетащите ноды в рамку (или создайте внутри) — они поедут вместе с рамкой. Тяните за маркеры, чтобы изменить размер. В JSON: поля \"title\", \"width\", \"height\".",
+      "groupFrameHint": "Рамка группы (только для редактора, не шаг сценария). Вложение как у заметки: перетащите ноды внутрь или используйте Правка → Сгруппировать. Размер — маркеры. JSON: \"title\", \"width\", \"height\".",
       "nodeId": "Id",
       "nodeType": "Тип",
       "label": "Заголовок",

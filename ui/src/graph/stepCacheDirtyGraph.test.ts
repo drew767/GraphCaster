@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_TASK,
@@ -28,6 +29,7 @@ function docWith(
 describe("stepCacheDirtyGraph", () => {
   it("nodeTypeTriggersStepCacheDirtyOnDataEdit skips comment only", () => {
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_COMMENT)).toBe(false);
+    expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_GROUP)).toBe(false);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_TASK)).toBe(true);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_AI_ROUTE)).toBe(true);
     expect(nodeTypeTriggersStepCacheDirtyOnDataEdit(GRAPH_NODE_TYPE_LLM_AGENT)).toBe(true);

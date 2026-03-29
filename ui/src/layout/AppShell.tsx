@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import exampleDocument from "@schemas/graph-document.example.json";
+import type { Node } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,7 +30,13 @@ import type {
   GraphEdgeJson,
 } from "../graph/types";
 import { findBranchAmbiguities } from "../graph/branchWarnings";
+import { flowToDocument } from "../graph/fromReactFlow";
 import { pickCommentParentId } from "../graph/flowHierarchy";
+import {
+  applyGroupSelection,
+  applyUngroupSelection,
+  canApplyGroupSelection,
+} from "../graph/groupSelection";
 import {
   defaultCursorAgentTaskData,
   defaultDataForNodeType,
@@ -37,12 +44,14 @@ import {
   newGraphNodeId,
 } from "../graph/nodePalette";
 import {
-  GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_GRAPH_REF,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_TASK,
+  isGraphDocumentFrameType,
 } from "../graph/nodeKinds";
 import type { AppMessagePresentation } from "../graph/openGraphErrorPresentation";
 import {
+  presentationForInspectorSimple,
   presentationForJsonSyntaxError,
   presentationForParseError,
   presentationForReadFailure,
@@ -62,7 +71,7 @@ import {
   workspaceGraphRefCycleIssues,
 } from "../graph/structureWarnings";
 import { collectCanvasWarningEdgeIds } from "../graph/warningEdges";
-import { nodeLabel } from "../graph/toReactFlow";
+import { graphDocumentToFlow, nodeLabel, type GcNodeData } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
   ensureGraphsDirectory,
@@ -986,10 +995,9 @@ export function AppShell({ onLangChange }: Props) {
         }
         const id = newGraphNodeId();
         const data = defaultDataForNodeType(pick.nodeType);
-        const parentId =
-          pick.nodeType !== GRAPH_NODE_TYPE_COMMENT
-            ? pickCommentParentId(nodes, flowPosition.x, flowPosition.y)
-            : undefined;
+        const parentId = !isGraphDocumentFrameType(pick.nodeType)
+          ? pickCommentParentId(nodes, flowPosition.x, flowPosition.y)
+          : undefined;
         const newNode = {
           id,
           type: pick.nodeType,
@@ -1015,6 +1023,85 @@ export function AppShell({ onLangChange }: Props) {
     },
     [commitHistorySnapshot, t],
   );
+
+  const canGroupSelection = useMemo(() => {
+    if (runSessionBlocking) {
+      return false;
+    }
+    if (selection?.kind !== "multiNode" || selection.ids.length < 2) {
+      return false;
+    }
+    const { nodes } = graphDocumentToFlow(graphDocument);
+    return canApplyGroupSelection(nodes as Node<GcNodeData>[], new Set(selection.ids));
+  }, [runSessionBlocking, selection, graphDocument]);
+
+  const canUngroupSelection = useMemo(() => {
+    if (runSessionBlocking) {
+      return false;
+    }
+    return selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_GROUP;
+  }, [runSessionBlocking, selection]);
+
+  const performCanvasGroup = useCallback(() => {
+    if (runSessionBlocking) {
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const sel = selectionRef.current;
+    if (sel?.kind !== "multiNode" || sel.ids.length < 2) {
+      return;
+    }
+    const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+    const { nodes, edges } = graphDocumentToFlow(doc);
+    const applied = applyGroupSelection(nodes, new Set(sel.ids));
+    if (!applied) {
+      setAppMessageModal(presentationForInspectorSimple(t, "app.canvas.groupSelectionNotPossible"));
+      return;
+    }
+    const merged = flowToDocument(applied.nodes, edges, doc);
+    const gNode = merged.nodes?.find((n) => n.id === applied.groupId);
+    commitHistorySnapshot();
+    setGraphDocument(merged);
+    setLayoutDirtyEpoch((n) => n + 1);
+    if (gNode) {
+      const raw = gNode.data ?? {};
+      setSelection({
+        kind: "node",
+        id: gNode.id,
+        graphNodeType: gNode.type,
+        label: nodeLabel(raw, gNode.id),
+        raw: raw as Record<string, unknown>,
+      });
+    }
+  }, [commitHistorySnapshot, runSessionBlocking, t]);
+
+  const performCanvasUngroup = useCallback(() => {
+    if (runSessionBlocking) {
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const sel = selectionRef.current;
+    if (sel?.kind !== "node" || sel.graphNodeType !== GRAPH_NODE_TYPE_GROUP) {
+      return;
+    }
+    const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+    const { nodes, edges } = graphDocumentToFlow(doc);
+    const next = applyUngroupSelection(nodes, sel.id);
+    if (!next) {
+      setAppMessageModal(presentationForInspectorSimple(t, "app.canvas.ungroupNotPossible"));
+      return;
+    }
+    commitHistorySnapshot();
+    setGraphDocument(flowToDocument(next, edges, doc));
+    setLayoutDirtyEpoch((n) => n + 1);
+    setSelection(null);
+  }, [commitHistorySnapshot, runSessionBlocking, t]);
 
   const runStartDisabled =
     pyProbe != null && !pyProbe.ok;
@@ -1224,6 +1311,49 @@ export function AppShell({ onLangChange }: Props) {
     };
   }, [commitHistorySnapshot, runSessionBlocking, t]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) {
+        return;
+      }
+      if (e.key.toLowerCase() !== "g") {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      if (nodeSearchOpenRef.current) {
+        return;
+      }
+      if (runSessionBlocking) {
+        return;
+      }
+      if (e.shiftKey) {
+        if (!canUngroupSelection) {
+          return;
+        }
+        e.preventDefault();
+        performCanvasUngroup();
+        return;
+      }
+      if (!canGroupSelection) {
+        return;
+      }
+      e.preventDefault();
+      performCanvasGroup();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [
+    canGroupSelection,
+    canUngroupSelection,
+    performCanvasGroup,
+    performCanvasUngroup,
+    runSessionBlocking,
+  ]);
+
   return (
     <div className="app-root" data-gc-history-revision={historyTick}>
       <input
@@ -1242,6 +1372,10 @@ export function AppShell({ onLangChange }: Props) {
         canRedo={historyRef.current.future.length > 0}
         onUndo={performUndo}
         onRedo={performRedo}
+        canGroupSelection={canGroupSelection}
+        canUngroupSelection={canUngroupSelection}
+        onGroupSelection={performCanvasGroup}
+        onUngroupSelection={performCanvasUngroup}
         workspaceLinked={workspaceGraphsDir != null}
         onLinkWorkspace={() => {
           void onLinkWorkspace();

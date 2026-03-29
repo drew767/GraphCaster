@@ -8,7 +8,12 @@ import {
   sanitizeNodeParents,
   sortNodesParentsFirst,
 } from "./flowHierarchy";
-import { GRAPH_NODE_TYPE_COMMENT, GRAPH_NODE_TYPE_START } from "./nodeKinds";
+import {
+  GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
+  GRAPH_NODE_TYPE_START,
+  isGraphDocumentFrameType,
+} from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 import type { NodeRunPhase } from "../run/nodeRunOverlay";
@@ -73,12 +78,33 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
       };
     }
 
+    if (graphNodeType === GRAPH_NODE_TYPE_GROUP) {
+      const { w, h } = commentSizeFromData(data);
+      const pos = absoluteJsonPosition(n);
+      return {
+        id: n.id,
+        type: "gcGroup",
+        position: pos,
+        zIndex: 0,
+        data: {
+          graphNodeType: GRAPH_NODE_TYPE_GROUP,
+          label: nodeLabel(data, n.id),
+          raw: { ...data },
+        },
+        style: { width: w, height: h, zIndex: 0 },
+        connectable: false,
+        selectable: true,
+        draggable: true,
+        focusable: true,
+      };
+    }
+
     const abs = absoluteJsonPosition(n);
     const pidRaw = n.parentId;
     const pid = typeof pidRaw === "string" && pidRaw.trim() !== "" ? pidRaw.trim() : undefined;
     const parentJson = pid ? byJsonId.get(pid) : undefined;
     const parentId =
-      pid && parentJson?.type === GRAPH_NODE_TYPE_COMMENT ? pid : undefined;
+      pid && parentJson && isGraphDocumentFrameType(parentJson.type) ? pid : undefined;
     const pAbs = parentId ? absoluteJsonPosition(parentJson!) : null;
     const position =
       parentId && pAbs

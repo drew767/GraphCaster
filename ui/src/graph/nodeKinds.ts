@@ -5,8 +5,19 @@ export const GRAPH_NODE_TYPE_EXIT = "exit" as const;
 export const GRAPH_NODE_TYPE_TASK = "task" as const;
 export const GRAPH_NODE_TYPE_GRAPH_REF = "graph_ref" as const;
 export const GRAPH_NODE_TYPE_COMMENT = "comment" as const;
+/** Organizational canvas frame (n8n-style); non-executable, like comment. */
+export const GRAPH_NODE_TYPE_GROUP = "group" as const;
 export const GRAPH_NODE_TYPE_MERGE = "merge" as const;
 export const GRAPH_NODE_TYPE_FORK = "fork" as const;
 export const GRAPH_NODE_TYPE_AI_ROUTE = "ai_route" as const;
 export const GRAPH_NODE_TYPE_MCP_TOOL = "mcp_tool" as const;
 export const GRAPH_NODE_TYPE_LLM_AGENT = "llm_agent" as const;
+
+export function isGraphDocumentFrameType(type: string): boolean {
+  return type === GRAPH_NODE_TYPE_COMMENT || type === GRAPH_NODE_TYPE_GROUP;
+}
+
+/** React Flow custom types for sticky / group frames. */
+export function isReactFlowFrameNodeType(type: string | undefined): boolean {
+  return type === "gcComment" || type === "gcGroup";
+}

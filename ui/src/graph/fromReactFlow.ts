@@ -2,7 +2,8 @@
 
 import type { Edge, Node } from "@xyflow/react";
 
-import { getCommentNodeSize, sanitizeNodeParents } from "./flowHierarchy";
+import { getCommentNodeSize, sanitizeNodeParents, sortNodesParentsFirst } from "./flowHierarchy";
+import { GRAPH_NODE_TYPE_GROUP } from "./nodeKinds";
 import { flowConnectionHandle } from "./normalizeHandles";
 import type { GraphDocumentJson, GraphEdgeJson, GraphNodeJson } from "./types";
 import type { GcNodeData } from "./toReactFlow";
@@ -78,6 +79,23 @@ export function flowToDocument(
       return row;
     }
 
+    if (n.type === "gcGroup") {
+      const s = getCommentNodeSize(n);
+      rawBase.width = s.w;
+      rawBase.height = s.h;
+      const hasTitle = typeof rawBase.title === "string" && rawBase.title.trim() !== "";
+      if (!hasTitle && typeof n.data?.label === "string" && n.data.label.trim() !== "") {
+        rawBase.title = n.data.label.trim();
+      }
+      const row: GraphNodeJson = {
+        id: n.id,
+        type: GRAPH_NODE_TYPE_GROUP,
+        position: abs,
+        data: rawBase,
+      };
+      return row;
+    }
+
     const row: GraphNodeJson = {
       id: n.id,
       type: n.data?.graphNodeType ?? "unknown",
@@ -90,6 +108,8 @@ export function flowToDocument(
     }
     return row;
   });
+
+  const outNodesSorted = sortNodesParentsFirst(outNodes);
 
   const outEdges: GraphEdgeJson[] = edges.map((e) => {
     const sh = flowConnectionHandle(e.sourceHandle, "out_default");
@@ -140,7 +160,7 @@ export function flowToDocument(
     schemaVersion: resolvedSv,
     meta: nextMeta,
     viewport: base.viewport ?? { x: 0, y: 0, zoom: 1 },
-    nodes: sanitizeNodeParents(outNodes),
+    nodes: sanitizeNodeParents(outNodesSorted),
     edges: outEdges,
     graphId,
   };

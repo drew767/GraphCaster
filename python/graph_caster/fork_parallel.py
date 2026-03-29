@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 from graph_caster.validate import merge_mode
 
 EDGE_SOURCE_OUT_ERROR = "out_error"
@@ -27,7 +27,7 @@ def _unconditional_success_edges(doc: GraphDocument, from_id: str, by_id: dict[s
         if e.source != from_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
             continue
         tgt = by_id.get(e.target)
-        if tgt is None or tgt.type == "comment":
+        if tgt is None or is_editor_frame_node_type(tgt.type):
             continue
         c = e.condition
         if c is not None and str(c).strip() != "":
@@ -42,7 +42,7 @@ def barrier_required_predecessors(doc: GraphDocument, merge_id: str, by_id: dict
         if e.target != merge_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
             continue
         src = by_id.get(e.source)
-        if src is None or src.type == "comment":
+        if src is None or is_editor_frame_node_type(src.type):
             continue
         req.add(e.source)
     return req

@@ -16,6 +16,10 @@ type Props = {
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  canGroupSelection?: boolean;
+  canUngroupSelection?: boolean;
+  onGroupSelection?: () => void;
+  onUngroupSelection?: () => void;
   workspaceLinked: boolean;
   onLinkWorkspace: () => void;
   workspaceGraphOptions: WorkspaceGraphOption[];
@@ -55,6 +59,10 @@ export function TopBar({
   canRedo = false,
   onUndo = () => {},
   onRedo = () => {},
+  canGroupSelection = false,
+  canUngroupSelection = false,
+  onGroupSelection = () => {},
+  onUngroupSelection = () => {},
   workspaceLinked,
   onLinkWorkspace,
   workspaceGraphOptions,
@@ -121,6 +129,24 @@ export function TopBar({
           title={t("app.edit.redoHint")}
         >
           {t("app.edit.redo")}
+        </button>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onGroupSelection}
+          disabled={sessionBlocking || !canGroupSelection}
+          title={t("app.edit.groupHint")}
+        >
+          {t("app.edit.group")}
+        </button>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onUngroupSelection}
+          disabled={sessionBlocking || !canUngroupSelection}
+          title={t("app.edit.ungroupHint")}
+        >
+          {t("app.edit.ungroup")}
         </button>
         <span className="gc-top-menu-label">{t("app.menu.view")}</span>
         <button

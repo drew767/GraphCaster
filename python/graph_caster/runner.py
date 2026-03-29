@@ -17,7 +17,7 @@ from graph_caster.document_revision import graph_document_revision
 from graph_caster.fork_parallel import ForkBranchPlan, build_fork_parallel_plans
 from graph_caster.edge_conditions import eval_edge_condition
 from graph_caster.host_context import RunHostContext
-from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 from graph_caster.nested_run_subprocess import graph_ref_subprocess_enabled, run_nested_graph_ref_subprocess
 from graph_caster.node_output_cache import (
     StepCachePolicy,
@@ -73,7 +73,7 @@ def _fork_unconditional_edges(doc: GraphDocument, fork_id: str, by_id: dict[str,
         if e.source != fork_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
             continue
         tgt = by_id.get(e.target)
-        if tgt is None or tgt.type == "comment":
+        if tgt is None or is_editor_frame_node_type(tgt.type):
             continue
         c = e.condition
         if c is not None and str(c).strip() != "":
@@ -324,7 +324,7 @@ class GraphRunner:
             if e.target != merge_id or e.source_handle == EDGE_SOURCE_OUT_ERROR:
                 continue
             src = self._node_by_id.get(e.source)
-            if src is None or src.type == "comment":
+            if src is None or is_editor_frame_node_type(src.type):
                 continue
             req.add(e.source)
         return frozenset(req)
@@ -1608,7 +1608,7 @@ class GraphRunner:
                     else:
                         outs_map[node.id]["merge"] = {"passthrough": True}
 
-                if node.type == "comment":
+                if is_editor_frame_node_type(node.type):
                     pass
                 elif node.type == "graph_ref":
                     ok = self._execute_graph_ref(node, ctx)

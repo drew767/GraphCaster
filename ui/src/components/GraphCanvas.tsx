@@ -38,7 +38,7 @@ import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
-import { GRAPH_NODE_TYPE_START } from "../graph/nodeKinds";
+import { GRAPH_NODE_TYPE_START, isReactFlowFrameNodeType } from "../graph/nodeKinds";
 import { newGraphEdgeId } from "../graph/nodePalette";
 import {
   gcFlowEdgeDocumentPayloadEqual,
@@ -48,6 +48,7 @@ import { graphDocumentToFlow } from "../graph/toReactFlow";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
+import { GcGroupNode } from "./nodes/GcGroupNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
 import {
   nodeRunOverlayMapsEqual,
@@ -183,6 +184,7 @@ type Props = {
 const nodeTypes = {
   gcNode: GcFlowNode,
   gcComment: GcCommentNode,
+  gcGroup: GcGroupNode,
 } as const satisfies NodeTypes;
 
 function flowStateAfterRemovingNodeIds(
@@ -195,7 +197,7 @@ function flowStateAfterRemovingNodeIds(
   next = next.map((n) => {
     if (n.parentId && removeIds.has(n.parentId)) {
       const p = oldById.get(n.parentId);
-      if (p?.type === "gcComment") {
+      if (p && isReactFlowFrameNodeType(p.type)) {
         const abs = getWorldTopLeft(n as Node<GcNodeData>, oldById);
         const { parentId: _p, extent: _e, ...rest } = n as Node<GcNodeData> & {
           parentId?: string;
@@ -431,7 +433,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         }
         const src = nodes.find((n) => n.id === c.source);
         const tgt = nodes.find((n) => n.id === c.target);
-        if (src?.type === "gcComment" || tgt?.type === "gcComment") {
+        if (isReactFlowFrameNodeType(src?.type) || isReactFlowFrameNodeType(tgt?.type)) {
           return;
         }
         const sh = flowConnectionHandle(c.sourceHandle, "out_default");
@@ -470,7 +472,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           }
           if (n.parentId && removeIds.has(n.parentId)) {
             const parent = all.find((p) => p.id === n.parentId);
-            if (parent?.type === "gcComment") {
+            if (parent && isReactFlowFrameNodeType(parent.type)) {
               return false;
             }
           }
@@ -484,7 +486,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const onNodesDelete = useCallback(
       (deleted: Node[]) => {
         const deadCommentIds = new Set(
-          deleted.filter((n) => n.type === "gcComment").map((n) => n.id),
+          deleted.filter((n) => isReactFlowFrameNodeType(n.type)).map((n) => n.id),
         );
         if (deadCommentIds.size === 0) {
           return;
@@ -506,7 +508,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     const onNodeDragStopWrapped = useCallback(
       (_e: unknown, node: Node) => {
-        if (node.type === "gcComment") {
+        if (isReactFlowFrameNodeType(node.type)) {
           window.requestAnimationFrame(() => {
             onBeforeNodeDragStructureSync?.();
             onFlowStructureChange();

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from graph_caster.models import GraphDocument, Node
+from graph_caster.models import GraphDocument, Node, is_editor_frame_node_type
 
 HANDLE_IN_DEFAULT = "in_default"
 HANDLE_OUT_DEFAULT = "out_default"
@@ -15,6 +15,7 @@ _GRAPH_REF = "graph_ref"
 _MCP_TOOL = "mcp_tool"
 _LLM_AGENT = "llm_agent"
 _COMMENT = "comment"
+_GROUP = "group"
 _MERGE = "merge"
 _FORK = "fork"
 _AI_ROUTE = "ai_route"
@@ -29,7 +30,7 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_OUT_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL, _LLM_AGENT):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
-    if node_type == _COMMENT:
+    if node_type in (_COMMENT, _GROUP):
         return frozenset()
     return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
 
@@ -43,7 +44,7 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL, _LLM_AGENT):
         return frozenset({HANDLE_IN_DEFAULT})
-    if node_type == _COMMENT:
+    if node_type in (_COMMENT, _GROUP):
         return frozenset()
     return frozenset({HANDLE_IN_DEFAULT})
 
@@ -55,7 +56,7 @@ def _node_by_id(nodes: list[Node]) -> dict[str, Node]:
 def find_handle_compatibility_violations(doc: GraphDocument) -> list[dict[str, str]]:
     """
     Static handle/port compatibility (F18). Skips edges whose source or target
-    is a comment node. Matches UI `findHandleCompatibilityIssues`.
+    is a comment or group frame. Matches UI `findHandleCompatibilityIssues`.
     """
     by_id = _node_by_id(doc.nodes)
     out: list[dict[str, str]] = []
@@ -64,7 +65,7 @@ def find_handle_compatibility_violations(doc: GraphDocument) -> list[dict[str, s
         tgt = by_id.get(e.target)
         if src is None or tgt is None:
             continue
-        if src.type == _COMMENT or tgt.type == _COMMENT:
+        if is_editor_frame_node_type(src.type) or is_editor_frame_node_type(tgt.type):
             continue
         sh = e.source_handle
         th = e.target_handle

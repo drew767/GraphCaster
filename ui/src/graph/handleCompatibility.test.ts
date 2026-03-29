@@ -117,6 +117,25 @@ describe("findHandleCompatibilityIssues", () => {
     expect(findHandleCompatibilityIssues(doc)).toEqual([]);
   });
 
+  it("skips edges touching group nodes", () => {
+    const doc = baseDoc();
+    doc.nodes = [
+      ...(doc.nodes ?? []),
+      { id: "g1", type: "group", position: { x: 0, y: 0 }, data: {} },
+    ];
+    doc.edges = [
+      {
+        id: "eg",
+        source: "start1",
+        sourceHandle: "out_default",
+        target: "g1",
+        targetHandle: "in_default",
+        condition: null,
+      },
+    ];
+    expect(findHandleCompatibilityIssues(doc)).toEqual([]);
+  });
+
   it("skips edges touching comment nodes", () => {
     const doc = baseDoc();
     doc.nodes = [

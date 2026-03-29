@@ -4,7 +4,7 @@ export type GraphNodeJson = {
   id: string;
   type: string;
   position?: { x?: number; y?: number };
-  /** When set, this node is visually grouped inside a `comment` frame (`parentId` targets that frame). */
+  /** When set, this node is visually inside an editor frame (`comment` or `group`); `parentId` is that frame's id. */
   parentId?: string;
   data?: Record<string, unknown>;
 };

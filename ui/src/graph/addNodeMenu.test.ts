@@ -11,6 +11,7 @@ import {
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_MERGE,
@@ -51,8 +52,11 @@ describe("primitivesForAddNodeCategory", () => {
     expect(primitivesForAddNodeCategory("nested")).toEqual([]);
   });
 
-  it("notes is comment only", () => {
-    expect(primitivesForAddNodeCategory("notes")).toEqual([GRAPH_NODE_TYPE_COMMENT]);
+  it("notes lists comment and group frames", () => {
+    expect(primitivesForAddNodeCategory("notes")).toEqual([
+      GRAPH_NODE_TYPE_COMMENT,
+      GRAPH_NODE_TYPE_GROUP,
+    ]);
   });
 });
 

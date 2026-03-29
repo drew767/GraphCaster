@@ -109,7 +109,7 @@
 ### Уже закрыто (контекст для плана)
 
 - Паритет типов полей JSON (ручки, `graphId`, `schemaVersion`, `condition`, `author`/`title`); единый `schemaVersion` на экспорте; общий `flowConnectionHandle`; стартовый пример через `parseGraphDocumentJson`; Vitest на парсер и `flowToDocument` — **в коде**; каталог автотестов в монорепо обновлён под `npm test`.
-- Статическое предупреждение **недостижимых из `start` нод** (все рёбра как возможные; **`comment`** исключены): UI + `validate.find_unreachable_non_comment_nodes` — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел F3 / достижимость).
+- Статическое предупреждение **недостижимых из `start` нод** (все рёбра как возможные; рамки **`comment`** / **`group`** исключены): UI + `validate.find_unreachable_non_frame_nodes` (**`find_unreachable_non_comment_nodes`** — алиас) — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел F3 / достижимость).
 - Уведомление при **отбрасывании рёбер без конечных нод** при экспорте (**P2** выше) — там же в **IMPLEMENTED_FEATURES**.
 
 ## Фаза 5 — Отмена / повтор и сериализация

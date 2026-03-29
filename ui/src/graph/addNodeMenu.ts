@@ -5,6 +5,7 @@ import {
   GRAPH_NODE_TYPE_COMMENT,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_LLM_AGENT,
@@ -22,6 +23,7 @@ export const ADD_MENU_PRIMITIVE_ORDER = [
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
 ] as const;
 
 export type AddMenuPrimitiveType = (typeof ADD_MENU_PRIMITIVE_ORDER)[number];
@@ -71,7 +73,7 @@ export function primitivesForAddNodeCategory(category: AddNodeCategoryId): reado
       return [];
     case "notes":
       return ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
-        return ty === GRAPH_NODE_TYPE_COMMENT;
+        return ty === GRAPH_NODE_TYPE_COMMENT || ty === GRAPH_NODE_TYPE_GROUP;
       });
     default: {
       return ADD_MENU_PRIMITIVE_ORDER;

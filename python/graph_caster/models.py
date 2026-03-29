@@ -6,6 +6,13 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+# Non-executable canvas frames (editor-only); runner and static graph checks skip these like edges.
+EDITOR_FRAME_NODE_TYPES: frozenset[str] = frozenset({"comment", "group"})
+
+
+def is_editor_frame_node_type(node_type: str) -> bool:
+    return node_type in EDITOR_FRAME_NODE_TYPES
+
 
 def _normalize_edge_condition(value: Any) -> str | None:
     if value is None:

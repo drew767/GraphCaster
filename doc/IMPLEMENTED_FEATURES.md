@@ -96,7 +96,11 @@
 | Не оплачивать полный DOM/React для невидимых нод (React Flow / паттерны n8n «не рисовать лишнее») | В **`GraphCanvas`**: **`onlyRenderVisibleElements`** на **`<ReactFlow>`** (**`@xyflow/react`**) |
 | Не делать **O(N)** пересборку массива нод на каждое событие прогона, если поменялась одна нода | Тот же файл: **`setNodes`** с сохранением ссылок на неизменённые ноды при стабильном порядке и совпадении структуры; рёбра — **`setEdges`**: **`gcFlowEdgeDocumentPayloadEqual`** (поля документа без `className` предупреждений; **`data`/`style`** — сравнение после нормализации порядка ключей JSON) + **`gcFlowEdgesSyncKeepSelection`** (перенос **`selected`/`selectable`** по **`id`**, не по индексу в массиве); оверлей — **`nodeRunOverlayRevision`** в **`runSessionStore`** + стабилизация карты в **`useMemo`** в **`GraphCanvas`** |
 
-Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/graph/gcFlowEdgeSync.ts`**, Vitest **`gcFlowEdgeSync.test.ts`**; **`ui/src/run/runSessionStore.ts`** (**`nodeRunOverlayRevision`**), **`ui/src/run/nodeRunOverlay.ts`**, Vitest **`nodeRunOverlayBatch.test.ts`**. Локальный стресс-фикстур (stdout, не коммитить большие JSON): **`npm run fixture:large-graph`** в **`ui/`** (аргумент — число нод, по умолчанию **500**). **Baseline / Chrome Performance / целевые пороги** (процедура и таблица критериев): **`ui/README.md`** раздел **«Большой граф: фикстура и baseline»**. Сравнение с конкурентами и **остаток** F1 (**lazy**-подграфы в **A**, группы **§28.2** п.7) — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28**, таблица **F1** (строка GraphCaster).
+Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/graph/gcFlowEdgeSync.ts`**, Vitest **`gcFlowEdgeSync.test.ts`**; **`ui/src/run/runSessionStore.ts`** (**`nodeRunOverlayRevision`**), **`ui/src/run/nodeRunOverlay.ts`**, Vitest **`nodeRunOverlayBatch.test.ts`**. Локальный стресс-фикстур (stdout, не коммитить большие JSON): **`npm run fixture:large-graph`** в **`ui/`** (аргумент — число нод, по умолчанию **500**). **Baseline / Chrome Performance / целевые пороги** (процедура и таблица критериев): **`ui/README.md`** раздел **«Большой граф: фикстура и baseline»**.
+
+**Рамки `group` и группировка выделения** (закрывает **§28.2** п.7 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md), там остаётся только отсылка сюда): в документе первоклассный тип **`group`** (как у **`comment`**, не шаг раннера); **`parentId`** может указывать на **`comment`** или **`group`**. Полотно: **`GcGroupNode`** / **`gcGroup`**, репарент при перетаскивании и команды **Group selection** / **Ungroup** в **Правка** (**Ctrl+G** / **Ctrl+Shift+G**). Код: **`ui/src/graph/groupSelection.ts`**, **`flowHierarchy.ts`**, **`toReactFlow.ts`**, **`fromReactFlow.ts`**, **`AppShell.tsx`**, **`TopBar.tsx`**, **`nodeKinds.ts`**; схема и Python — **`schemas/graph-document.schema.json`**, **`python/graph_caster/validate.py`**, **`runner.py`**, **`handle_contract.py`**; тесты — **`ui/src/graph/groupSelection.test.ts`**, **`python/tests/test_group_frame_node.py`**.
+
+Сравнение с конкурентами и **остаток** F1 (**lazy**-подграфы в **A**, **§28.2** п.4) — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28**, таблица **F1** (строка GraphCaster).
 
 ---
 
@@ -201,7 +205,7 @@
 | Предупреждение о нодах вне обхода от входа | UI: **`findUnreachableWorkflowNodeIds`** (`ui/src/graph/reachability.ts`), **`findStructureIssues`** → **`unreachable_nodes`**; жёлтая строка рядом с прочими предупреждениями (`AppShell`). **`comment`** не попадает в список |
 | Все исходящие рёбра считаем возможными (без симуляции **`condition`**) | Over-approximation: directed BFS по **`edges`** |
 | Run / Save | Run **не** блокируется только из‑за **`unreachable_nodes`** (**`structureIssuesBlockRun`**); критичные проблемы **`start`** по-прежнему блокируют запуск |
-| Паритет с хостом / CLI | **`find_unreachable_non_comment_nodes`** в **`python/graph_caster/validate.py`**, тесты в **`tests/test_validate_structure.py`** |
+| Паритет с хостом / CLI | **`find_unreachable_non_frame_nodes`** в **`python/graph_caster/validate.py`** (исключает **`comment`** / **`group`**; имя **`find_unreachable_non_comment_nodes`** оставлено как совместимый алиас), тесты в **`tests/test_validate_structure.py`** |
 | Визуальная точка **join** после ветвления (**F4**) | **`merge`** (**passthrough** / **barrier**) и **`fork`** — подраздел **Merge (`join`)** выше; BFS **F3** по-прежнему не симулирует **F4** |
 
 ---
@@ -629,4 +633,4 @@
 
 ---
 
-*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане). После выполнения плана удалите соответствующий **`.md`** из **`doc/plans/`**; если в каталоге нет файлов — удалять нечего. Коммиты по плану не обязательны.*
+*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане). После выполнения плана удалите соответствующий **`.md`** из **`doc/plans/`** (временные файлы вида **`doc/*-plan.md`** в корне **`doc/`** — по тому же правилу). Если удалять нечего — ок. Коммиты по плану не обязательны.*

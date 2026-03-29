@@ -589,6 +589,52 @@ body {
   background: var(--gc-surface-1) !important;
 }
 
+/* Organizational frame (n8n-style group): lighter chrome than sticky comment. */
+.gc-flow-group {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--gc-radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--gc-text-secondary) 70%, var(--gc-border));
+  background: color-mix(in srgb, var(--gc-surface-0) 96%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gc-flow-group--selected {
+  border-color: color-mix(in srgb, var(--gc-accent) 50%, var(--gc-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gc-accent) 22%, transparent);
+}
+
+.gc-flow-group__title {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gc-text-secondary);
+  padding: 0.28rem 0.4rem;
+  cursor: grab;
+}
+
+.gc-flow-group__body {
+  flex: 1;
+  min-height: 0;
+}
+
+.gc-flow-group-resize-line {
+  border-color: color-mix(in srgb, var(--gc-text-secondary) 40%, var(--gc-border)) !important;
+}
+
+.gc-flow-group-resize-handle {
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 2px !important;
+  border-color: color-mix(in srgb, var(--gc-text-secondary) 55%, var(--gc-border)) !important;
+  background: var(--gc-surface-1) !important;
+}
+
 .gc-flow-node {
   position: relative;
   min-width: 140px;

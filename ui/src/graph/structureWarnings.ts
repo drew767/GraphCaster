@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import type { WorkspaceGraphEntry } from "../lib/workspaceFs";
+import { isGraphDocumentFrameType } from "./nodeKinds";
 import { comparableSchemaVersions } from "./parseDocument";
 import { findUnreachableWorkflowNodeIds } from "./reachability";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
@@ -148,7 +149,7 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
       continue;
     }
     const src = byId.get(e.source);
-    if (!src || src.type === "comment") {
+    if (!src || isGraphDocumentFrameType(src.type)) {
       continue;
     }
     mergeIncoming.set(tgt.id, (mergeIncoming.get(tgt.id) ?? 0) + 1);
@@ -175,7 +176,7 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
         continue;
       }
       const tgt = byId.get(e.target);
-      if (!tgt || tgt.type === "comment") {
+      if (!tgt || isGraphDocumentFrameType(tgt.type)) {
         continue;
       }
       if (!edgeConditionEmpty(e.condition)) {
@@ -218,7 +219,7 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
         continue;
       }
       const src = byId.get(e.source);
-      if (!src || src.type === "comment") {
+      if (!src || isGraphDocumentFrameType(src.type)) {
         continue;
       }
       hasSuccess = true;
@@ -241,7 +242,7 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
         continue;
       }
       const tgt = byId.get(e.target);
-      if (!tgt || tgt.type === "comment") {
+      if (!tgt || isGraphDocumentFrameType(tgt.type)) {
         continue;
       }
       usable.push(e);
@@ -353,7 +354,7 @@ export function edgeIdsForStructureIssueHighlights(
           continue;
         }
         const tgt = byId.get(e.target);
-        if (!tgt || tgt.type === "comment") {
+        if (!tgt || isGraphDocumentFrameType(tgt.type)) {
           continue;
         }
         if (edgeRouteDescriptionText(e) === "") {

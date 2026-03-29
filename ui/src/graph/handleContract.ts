@@ -8,6 +8,7 @@
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
@@ -51,6 +52,7 @@ export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
     case GRAPH_NODE_TYPE_AI_ROUTE:
       return SET_MERGE_IO;
     case GRAPH_NODE_TYPE_COMMENT:
+    case GRAPH_NODE_TYPE_GROUP:
       return EMPTY;
     default:
       return SET_GENERIC_OUT;
@@ -73,6 +75,7 @@ export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
     case GRAPH_NODE_TYPE_AI_ROUTE:
       return SET_MERGE_IN;
     case GRAPH_NODE_TYPE_COMMENT:
+    case GRAPH_NODE_TYPE_GROUP:
       return EMPTY;
     default:
       return SET_GENERIC_IN;
@@ -80,5 +83,5 @@ export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
 }
 
 export function isExecutableCommentOrDecorativeNodeType(type: string): boolean {
-  return type === GRAPH_NODE_TYPE_COMMENT;
+  return type === GRAPH_NODE_TYPE_COMMENT || type === GRAPH_NODE_TYPE_GROUP;
 }

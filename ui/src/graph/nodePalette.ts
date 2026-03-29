@@ -3,6 +3,7 @@
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_COMMENT,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_EXIT,
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_GRAPH_REF,
@@ -52,6 +53,8 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
       return { title: "Exit" };
     case GRAPH_NODE_TYPE_COMMENT:
       return { title: "Section", width: 360, height: 220 };
+    case GRAPH_NODE_TYPE_GROUP:
+      return { title: "Group", width: 360, height: 220 };
     case GRAPH_NODE_TYPE_MERGE:
       return { title: "Merge" };
     case GRAPH_NODE_TYPE_FORK:

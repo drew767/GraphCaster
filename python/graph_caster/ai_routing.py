@@ -11,7 +11,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 
 AI_ROUTE_MAX_ROUTE_DESCRIPTION_LEN = 1024
 
@@ -87,7 +87,7 @@ def usable_ai_route_out_edges(doc: GraphDocument, node_id: str) -> list[Edge]:
     out: list[Edge] = []
     for e in ordered_ai_route_out_edges(doc, node_id):
         t = by_id.get(e.target)
-        if t is None or t.type == "comment":
+        if t is None or is_editor_frame_node_type(t.type):
             continue
         out.append(e)
     return out

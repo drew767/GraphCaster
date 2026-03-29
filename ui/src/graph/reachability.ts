@@ -1,5 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
+import { isGraphDocumentFrameType } from "./nodeKinds";
 import type { GraphDocumentJson } from "./types";
 
 export function findUnreachableWorkflowNodeIds(doc: GraphDocumentJson, startId: string): string[] {
@@ -35,7 +36,7 @@ export function findUnreachableWorkflowNodeIds(doc: GraphDocumentJson, startId: 
   }
   const out: string[] = [];
   for (const n of nodes) {
-    if (n.type === "comment") {
+    if (isGraphDocumentFrameType(n.type)) {
       continue;
     }
     if (!visited.has(n.id)) {

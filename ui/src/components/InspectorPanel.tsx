@@ -11,7 +11,9 @@ import {
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_LLM_AGENT,
+  GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_TASK,
+  isGraphDocumentFrameType,
 } from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
 import {
@@ -1312,8 +1314,12 @@ export function InspectorPanel({
             </div>
             </>
           ) : null}
-          {selection.graphNodeType === "comment" ? (
-            <p className="gc-inspector-edge-hint">{t("app.inspector.commentFrameHint")}</p>
+          {isGraphDocumentFrameType(selection.graphNodeType) ? (
+            <p className="gc-inspector-edge-hint">
+              {selection.graphNodeType === GRAPH_NODE_TYPE_GROUP
+                ? t("app.inspector.groupFrameHint")
+                : t("app.inspector.commentFrameHint")}
+            </p>
           ) : null}
           {selection.graphNodeType === "graph_ref" ? (
             <div className="gc-inspector-graphref">

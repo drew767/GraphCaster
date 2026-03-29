@@ -31,6 +31,23 @@ describe("flowToDocument", () => {
     expect(doc.meta?.schemaVersion).toBe(2);
   });
 
+  it("orders exported JSON nodes parents before children", () => {
+    const base: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "ord-test" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "child", type: "task", position: { x: 5, y: 5 }, parentId: "frame", data: { title: "T" } },
+        { id: "frame", type: "group", position: { x: 0, y: 0 }, data: { title: "G", width: 200, height: 200 } },
+      ],
+      edges: [],
+    };
+    const { nodes, edges } = graphDocumentToFlow(base);
+    const doc = flowToDocument(nodes, edges, base);
+    const ids = (doc.nodes ?? []).map((n) => n.id);
+    expect(ids.indexOf("frame")).toBeLessThan(ids.indexOf("child"));
+  });
+
   it("falls back to root when meta schemaVersion absent", () => {
     const base: GraphDocumentJson = {
       schemaVersion: 7,

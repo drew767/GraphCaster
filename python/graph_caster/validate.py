@@ -6,7 +6,7 @@ from typing import Any
 
 from graph_caster.ai_routing import edge_route_description, usable_ai_route_out_edges
 from graph_caster.handle_contract import find_handle_compatibility_violations
-from graph_caster.models import Edge, GraphDocument, Node
+from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 
 _OUT_ERROR_HANDLE = "out_error"
 
@@ -34,7 +34,7 @@ def find_fork_few_outputs_warnings(doc: GraphDocument) -> list[dict[str, int | s
             if e.source_handle == _OUT_ERROR_HANDLE:
                 continue
             tgt = by_id.get(e.target)
-            if tgt is None or tgt.type == "comment":
+            if tgt is None or is_editor_frame_node_type(tgt.type):
                 continue
             c = e.condition
             if c is not None and str(c).strip() != "":
@@ -71,7 +71,7 @@ def find_barrier_merge_no_success_incoming_warnings(doc: GraphDocument) -> list[
             if e.target != n.id or e.source_handle == _OUT_ERROR_HANDLE:
                 continue
             src = by_id.get(e.source)
-            if src is None or src.type == "comment":
+            if src is None or is_editor_frame_node_type(src.type):
                 continue
             ok = True
             break
@@ -127,11 +127,11 @@ def find_mcp_tool_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]
     return out
 
 
-def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> list[str]:
+def find_unreachable_non_frame_nodes(doc: GraphDocument, start_id: str) -> list[str]:
     """
-    Node ids (excluding comment frames) with no directed path from start_id when
-    every edge is treated as traversable (static over-approximation; ignores
-    edge.condition and runtime branch choice).
+    Node ids for non-frame nodes (excludes editor-only ``comment`` / ``group``) with no
+    directed path from ``start_id`` when every edge is treated as traversable (static
+    over-approximation; ignores ``edge.condition`` and runtime branch choice).
     """
     adj: dict[str, set[str]] = {}
     for e in doc.edges:
@@ -147,17 +147,23 @@ def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> lis
                 stack.append(v)
     out: list[str] = []
     for n in doc.nodes:
-        if n.type == "comment":
+        if is_editor_frame_node_type(n.type):
             continue
         if n.id not in visited:
             out.append(n.id)
     return sorted(out)
 
 
+def find_unreachable_non_comment_nodes(doc: GraphDocument, start_id: str) -> list[str]:
+    """Backward-compatible name for :func:`find_unreachable_non_frame_nodes`."""
+    return find_unreachable_non_frame_nodes(doc, start_id)
+
+
 def find_merge_incoming_warnings(doc: GraphDocument) -> list[dict[str, int | str]]:
     """
-    Non-blocking: merge nodes with fewer than two incoming edges from non-comment
-    sources look degenerate (n8n Merge typically expects multiple inputs).
+    Non-blocking: merge nodes with fewer than two incoming edges from non-frame
+    sources (excludes comment/group) look degenerate (n8n Merge typically expects
+    multiple inputs).
     """
     by_id = {n.id: n for n in doc.nodes}
     incoming_non_comment: dict[str, int] = {}
@@ -166,7 +172,7 @@ def find_merge_incoming_warnings(doc: GraphDocument) -> list[dict[str, int | str
         if tgt is None or tgt.type != "merge":
             continue
         src = by_id.get(e.source)
-        if src is None or src.type == "comment":
+        if src is None or is_editor_frame_node_type(src.type):
             continue
         incoming_non_comment[tgt.id] = incoming_non_comment.get(tgt.id, 0) + 1
     out: list[dict[str, int | str]] = []

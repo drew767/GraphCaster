@@ -2,6 +2,7 @@
 
 import type { Node } from "@xyflow/react";
 
+import { isGraphDocumentFrameType, isReactFlowFrameNodeType } from "./nodeKinds";
 import type { GcNodeData } from "./toReactFlow";
 import type { GraphNodeJson } from "./types";
 
@@ -69,7 +70,7 @@ export function getCommentNodeSize(n: Node<GcNodeData>): { w: number; h: number 
 export function reparentDraggedNode(nodes: Node<GcNodeData>[], draggedId: string): Node<GcNodeData>[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const dragged = byId.get(draggedId);
-  if (!dragged || dragged.type === "gcComment") {
+  if (!dragged || isReactFlowFrameNodeType(dragged.type)) {
     return nodes;
   }
 
@@ -79,7 +80,7 @@ export function reparentDraggedNode(nodes: Node<GcNodeData>[], draggedId: string
   const cy = worldPos.y + dims.h / 2;
 
   const hitComments = nodes
-    .filter((n) => n.type === "gcComment")
+    .filter((n) => isReactFlowFrameNodeType(n.type))
     .map((n) => {
       const p = getWorldTopLeft(n, byId);
       const s = getCommentNodeSize(n as Node<GcNodeData>);
@@ -124,7 +125,7 @@ export function absoluteJsonPosition(n: GraphNodeJson): { x: number; y: number }
 export function pickCommentParentId(nodes: GraphNodeJson[], x: number, y: number): string | undefined {
   const candidates: { id: string; area: number }[] = [];
   for (const n of nodes) {
-    if (n.type !== "comment") {
+    if (!isGraphDocumentFrameType(n.type)) {
       continue;
     }
     const p = absoluteJsonPosition(n);
@@ -164,7 +165,7 @@ export function sortNodesParentsFirst<T extends { id: string; parentId?: string 
 export function sanitizeNodeParents(nodes: GraphNodeJson[]): GraphNodeJson[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   return nodes.map((n) => {
-    if (n.type === "comment") {
+    if (isGraphDocumentFrameType(n.type)) {
       if (n.parentId !== undefined) {
         const { parentId: _, ...rest } = n;
         return rest as GraphNodeJson;
@@ -180,7 +181,7 @@ export function sanitizeNodeParents(nodes: GraphNodeJson[]): GraphNodeJson[] {
       return n;
     }
     const parent = byId.get(pid.trim());
-    if (!parent || parent.type !== "comment") {
+    if (!parent || !isGraphDocumentFrameType(parent.type)) {
       const { parentId: _, ...rest } = n;
       return rest as GraphNodeJson;
     }
