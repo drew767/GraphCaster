@@ -7,6 +7,8 @@ import {
   ReactFlow,
   ReactFlowProvider,
   type Connection,
+  type OnConnectEnd,
+  type OnConnectStart,
   type Edge,
   type EdgeChange,
   type EdgeTypes,
@@ -56,6 +58,7 @@ import {
 } from "../graph/flowHierarchy";
 import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
+import { isGcFlowConnectionAllowed } from "../graph/connectionCompatibility";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
@@ -75,6 +78,7 @@ import {
   VIEWPORT_OFFSCREEN_PADDING_PX,
 } from "../graph/viewportNodeTier";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
+import { GcConnectionDragContext, type GcConnectionDragOrigin } from "./GcConnectionDragContext";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
 import { GcViewportTierProvider } from "./GcViewportTierContext";
 import { NodeContextMenu } from "./NodeContextMenu";
@@ -504,6 +508,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       fy: number;
     } | null>(null);
     const [nodeCtxMenu, setNodeCtxMenu] = useState<{ sx: number; sy: number; nodeId: string } | null>(null);
+    const [connectionDrag, setConnectionDrag] = useState<GcConnectionDragOrigin>(null);
     const hasStartNode = useMemo(
       () => (graphDocument.nodes ?? []).some((n) => n.type === "start"),
       [graphDocument],
@@ -663,42 +668,60 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [structureLocked, onBeforeStructureRemove, onEdgesChange, onFlowStructureChange],
     );
 
+    const onConnectStart = useCallback<OnConnectStart>((_ev, { nodeId, handleId, handleType }) => {
+      if (handleType === "source" && nodeId) {
+        setConnectionDrag({
+          nodeId,
+          handleId: flowConnectionHandle(handleId, "out_default"),
+        });
+      } else {
+        setConnectionDrag(null);
+      }
+    }, []);
+
+    const onConnectEnd = useCallback<OnConnectEnd>((_event, _connectionState) => {
+      setConnectionDrag(null);
+    }, []);
+
+    const isValidConnection = useCallback(
+      (c: Connection | Edge) => {
+        if (structureLocked) {
+          return false;
+        }
+        return isGcFlowConnectionAllowed(
+          {
+            source: c.source,
+            target: c.target,
+            sourceHandle: c.sourceHandle ?? null,
+            targetHandle: c.targetHandle ?? null,
+          },
+          nodes,
+          edges,
+        );
+      },
+      [structureLocked, nodes, edges],
+    );
+
     const onConnect = useCallback(
       (c: Connection) => {
         if (structureLocked) {
           return;
         }
-        if (!c.source || !c.target || c.source === c.target) {
-          return;
-        }
-        const src = nodes.find((n) => n.id === c.source);
-        const tgt = nodes.find((n) => n.id === c.target);
-        if (isReactFlowFrameNodeType(src?.type) || isReactFlowFrameNodeType(tgt?.type)) {
+        if (!isGcFlowConnectionAllowed(c, nodes, edges)) {
           return;
         }
         const sh = flowConnectionHandle(c.sourceHandle, "out_default");
         const th = flowConnectionHandle(c.targetHandle, "in_default");
-        if (
-          edges.some(
-            (e) =>
-              e.source === c.source &&
-              e.target === c.target &&
-              flowConnectionHandle(e.sourceHandle, "out_default") === sh &&
-              flowConnectionHandle(e.targetHandle, "in_default") === th,
-          )
-        ) {
-          return;
-        }
         onConnectNewEdge({
           id: newGraphEdgeId(),
-          source: c.source,
-          target: c.target,
+          source: c.source!,
+          target: c.target!,
           sourceHandle: sh,
           targetHandle: th,
           condition: null,
         });
       },
-      [structureLocked, edges, nodes, onConnectNewEdge],
+      [structureLocked, nodes, edges, onConnectNewEdge],
     );
 
     const onBeforeDelete = useCallback(
@@ -1014,6 +1037,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         <GcBranchEdgeUiContext.Provider value={branchEdgeUiValue}>
         <GcViewportTierProvider value={viewportTierValue}>
           <GcCanvasLodProvider value={canvasLod}>
+          <GcConnectionDragContext.Provider value={connectionDrag}>
           <ReactFlow
             colorMode="system"
             ariaLabelConfig={flowAriaLabels}
@@ -1028,6 +1052,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             onNodesChange={onNodesChangeWrapped}
             onEdgesChange={onEdgesChangeWrapped}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
+            isValidConnection={isValidConnection}
             nodeTypes={nodeTypes}
             edgeTypes={gcEdgeTypes}
             fitView
@@ -1076,6 +1103,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
               nodeStrokeColor={minimapNodeStrokeColor}
             />
           </ReactFlow>
+          </GcConnectionDragContext.Provider>
           </GcCanvasLodProvider>
         </GcViewportTierProvider>
         </GcBranchEdgeUiContext.Provider>

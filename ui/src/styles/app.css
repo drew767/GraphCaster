@@ -875,6 +875,19 @@ body {
   border-color: color-mix(in srgb, #ff3b30 75%, var(--gc-border));
 }
 
+/* F18: valid / invalid drop targets while dragging a connection (React Flow Handle className). */
+.gc-flow-node .react-flow__handle.gc-handle--drop-allowed {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--gc-accent) 65%, var(--gc-surface-0)),
+    0 0 0 4px color-mix(in srgb, var(--gc-accent) 35%, transparent);
+  border-color: var(--gc-accent-hover);
+}
+
+.gc-flow-node .react-flow__handle.gc-handle--drop-rejected {
+  opacity: 0.38;
+  filter: grayscale(0.35);
+}
+
 .gc-inspector-pin {
   display: flex;
   flex-direction: column;

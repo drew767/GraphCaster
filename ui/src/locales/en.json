@@ -26,6 +26,8 @@
       "lodAriaStepCache": "Step cache enabled",
       "lodAriaGhostOffViewport": "Simplified appearance; node is outside the visible canvas.",
       "errorOutHandle": "On error — run follows this path after task, graph_ref, or mcp_tool failure (task retries exhausted).",
+      "connectionDropTargetAllowed": "Valid connection target for the wire you are dragging.",
+      "connectionDropTargetRejected": "Incompatible target for this connection (handle or data kind).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
       "addNodeFilterPh": "Filter by type…",

@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import type { GcNodeData } from "../../graph/toReactFlow";
 import { useGcEffectiveNodeTier } from "../../graph/useGcEffectiveNodeTier";
+import { useGcConnectionDrag } from "../GcConnectionDragContext";
+import { GcFlowTargetHandle } from "./GcFlowTargetHandle";
 
 function GcFlowNodeInner(props: NodeProps) {
   const { t } = useTranslation();
@@ -59,6 +61,7 @@ function GcFlowNodeInner(props: NodeProps) {
   }
   const compactAria =
     compactAriaParts.length > 0 ? `${compactAriaParts.join(". ")}.` : null;
+  const connectionDrag = useGcConnectionDrag();
   let ariaLabel: string | undefined;
   if (overlayAria != null && compactAria != null) {
     ariaLabel = `${overlayAria} ${compactAria}`;
@@ -72,7 +75,13 @@ function GcFlowNodeInner(props: NodeProps) {
 
   return (
     <div className={cls} title={overlayStatus} aria-label={ariaLabel}>
-      {showTarget ? <Handle type="target" position={Position.Left} id="in_default" /> : null}
+      {showTarget ? (
+        connectionDrag != null ? (
+          <GcFlowTargetHandle nodeId={props.id} drag={connectionDrag} />
+        ) : (
+          <Handle type="target" position={Position.Left} id="in_default" />
+        )
+      ) : null}
       <div className="gc-flow-node__body">
         {tier === "full" ? (
           <span className="gc-flow-node__pillrow">

@@ -26,6 +26,8 @@
       "lodAriaStepCache": "Включён step cache",
       "lodAriaGhostOffViewport": "Упрощённый вид: нода вне видимой области полотна.",
       "errorOutHandle": "При ошибке — после сбоя task, graph_ref или mcp_tool (для task — после ретраев) выполнение идёт по этой ветке.",
+      "connectionDropTargetAllowed": "Допустимая цель для протягиваемой связи.",
+      "connectionDropTargetRejected": "Несовместимая цель (ручка или вид данных порта).",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
       "addNodeFilterPh": "Фильтр по типу…",
