@@ -9,8 +9,11 @@ pip install -e .
 pip install -e ".[dev]"
 pip install -e ".[broker]"   # опционально: HTTP+SSE брокер для web-режима UI
 pip install -e ".[mcp]"      # опционально: MCP stdio server (`graph_caster mcp`) для IDE/агентов
+pip install -e ".[otel]"    # опционально: OpenTelemetry → OTLP (трассы прогона в Jaeger/Tempo и т.д.)
 pytest -q
 ```
+
+**OpenTelemetry (опционально):** без extra **`[otel]`** рантайм ведёт себя как раньше; трассы не пишутся. С extra задайте **`GC_OTEL_EXPORTER_OTLP_ENDPOINT`** (например `http://127.0.0.1:4318`) или стандартные **`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`** / **`OTEL_EXPORTER_OTLP_ENDPOINT`**; при необходимости **`OTEL_SERVICE_NAME`** (по умолчанию **`graph-caster`**). Если переменные заданы, но пакеты OTel не установлены, в лог пишется **предупреждение** — прогон не падает. Корневой прогон (**`nesting_depth == 0`**) создаёт span **`gc.run`**, каждый визит ноды — **`gc.node`** (атрибуты **`graph_caster.run_id`**, **`graph_caster.graph_id`**, **`graph_caster.node_id`**, **`graph_caster.node_type`**). При **`fork`** с параллельными ветками (**`ThreadPoolExecutor`**) дочерние **`gc.node`** могут не слинковаться с родительским trace в бэкенде без явной передачи контекста (ограничение MVP). Схема **`run-event`** и NDJSON **не** меняются. Реализация: **`graph_caster/otel_tracing.py`**, встройка в **`runner.py`**. Сводка возможностей: **[`doc/IMPLEMENTED_FEATURES.md`](../doc/IMPLEMENTED_FEATURES.md)** (раздел **F13**, строка OTLP). Локальный пример коллектора: **Jaeger all-in-one** — `docker run -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest` (OTLP HTTP на **4318**). Тесты: **`pytest tests/test_otel_tracing.py`** (нужен **`[otel]`**).
 
 Запуск CLI:
 

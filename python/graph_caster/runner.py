@@ -829,29 +829,41 @@ class GraphRunner:
         if node is None:
             return
         try:
-            self._fork_worker_begin_task_visit(node, ctx)
-            if node.type == "task" and _task_has_process_command(node):
-                outcome, used_pin = self._run_subprocess_task_visit(
-                    node, ctx, step_q, fork_parallel_worker=True
-                )
-            elif node.type == "llm_agent":
-                outcome, used_pin = self._run_llm_agent_visit(
-                    node, ctx, step_q, fork_parallel_worker=True
-                )
-            else:
-                return
-            if ctx.get("_run_cancelled"):
-                return
-            if outcome == "ok":
-                ne: dict[str, Any] = {
-                    "nodeId": node.id,
-                    "nodeType": node.type,
-                    "graphId": self._doc.graph_id,
-                }
-                if used_pin:
-                    ne["usedPin"] = True
-                self.emit("node_exit", **ne)
-                self._merge_barrier_arrive(plan.merge_id, plan.arrive_source, ctx, step_q)
+            from graph_caster import otel_tracing
+
+            _otel_t = otel_tracing.get_tracer()
+            with otel_tracing.node_visit_span(
+                _otel_t,
+                run_id=str(ctx.get("run_id") or ""),
+                graph_id=self._doc.graph_id,
+                node_id=node.id,
+                node_type=str(node.type),
+            ):
+                self._fork_worker_begin_task_visit(node, ctx)
+                if node.type == "task" and _task_has_process_command(node):
+                    outcome, used_pin = self._run_subprocess_task_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "llm_agent":
+                    outcome, used_pin = self._run_llm_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                else:
+                    return
+                if ctx.get("_run_cancelled"):
+                    return
+                if outcome == "ok":
+                    ne: dict[str, Any] = {
+                        "nodeId": node.id,
+                        "nodeType": node.type,
+                        "graphId": self._doc.graph_id,
+                    }
+                    if used_pin:
+                        ne["usedPin"] = True
+                    self.emit("node_exit", **ne)
+                    self._merge_barrier_arrive(plan.merge_id, plan.arrive_source, ctx, step_q)
+                else:
+                    otel_tracing.mark_current_span_error(f"{node.type}_fork_parallel_non_ok")
         except BaseException:
             ctx["_run_cancelled"] = True
 
@@ -1435,6 +1447,267 @@ class GraphRunner:
         )
         return True
 
+    def _run_from_execution_phase(
+        self, start_node_id: str, ctx: dict[str, Any], nd0: int, otel_tracer: Any
+    ) -> None:
+        from graph_caster import otel_tracing
+        from graph_caster.validate import (
+            find_barrier_merge_no_success_incoming_warnings,
+            find_merge_incoming_warnings,
+        )
+
+        for w in find_merge_incoming_warnings(self._doc):
+            self.emit(
+                "structure_warning",
+                kind="merge_few_inputs",
+                nodeId=w["nodeId"],
+                incomingEdges=w["incomingEdges"],
+                graphId=self._doc.graph_id,
+            )
+        for w in find_fork_few_outputs_warnings(self._doc):
+            self.emit(
+                "structure_warning",
+                kind="fork_few_outputs",
+                nodeId=w["nodeId"],
+                unconditionalOutgoing=w["unconditionalOutgoing"],
+                graphId=self._doc.graph_id,
+            )
+        for w in find_barrier_merge_out_error_incoming(self._doc):
+            self.emit(
+                "structure_warning",
+                kind="barrier_merge_out_error_incoming",
+                edgeId=w["edgeId"],
+                mergeNodeId=w["mergeNodeId"],
+                graphId=self._doc.graph_id,
+            )
+        for w in find_barrier_merge_no_success_incoming_warnings(self._doc):
+            self.emit(
+                "structure_warning",
+                kind="barrier_merge_no_success_incoming",
+                nodeId=w["nodeId"],
+                graphId=self._doc.graph_id,
+            )
+        for w in find_gc_pin_empty_payload_warnings(self._doc):
+            self.emit(
+                "structure_warning",
+                kind="gc_pin_enabled_empty_payload",
+                nodeId=w["nodeId"],
+                graphId=self._doc.graph_id,
+            )
+        for w in find_ai_route_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_mcp_tool_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_llm_agent_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
+        for w in find_port_data_kind_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        ctx["graph_rev"] = graph_document_revision(self._doc)
+        step_q = StepQueue(start_node_id)
+        visited_guard = 0
+        max_steps = max(1, len(self._doc.nodes) * 4)
+
+        while step_q and visited_guard < max_steps:
+            visited_guard += 1
+            sess_coop = ctx.get("_gc_run_session")
+            if sess_coop is not None and sess_coop.cancel_event.is_set():
+                if nd0 == 0:
+                    self.emit("run_end", reason="cancel_requested")
+                ctx["_run_cancelled"] = True
+                break
+            frame = step_q.popleft()
+            current_id = frame.node_id
+            node = self._node_by_id.get(current_id)
+            if node is None:
+                self.emit("error", nodeId=current_id, message="unknown_node")
+                break
+
+            with otel_tracing.node_visit_span(
+                otel_tracer,
+                run_id=str(ctx.get("run_id") or ""),
+                graph_id=self._doc.graph_id,
+                node_id=node.id,
+                node_type=str(node.type),
+            ):
+                self.emit("node_enter", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                if node.type == "task":
+                    red_task = redact_task_data_for_node_execute(node.data)
+                    exec_data = red_task
+                    stored_node_data = dict(node.data) if red_task is node.data else red_task
+                elif node.type == "llm_agent":
+                    red_a = redact_task_data_for_node_execute(node.data)
+                    exec_data = red_a
+                    stored_node_data = dict(node.data) if red_a is node.data else red_a
+                elif node.type == "mcp_tool":
+                    red_m = redact_mcp_tool_data_for_execute(node.data)
+                    exec_data = red_m
+                    stored_node_data = dict(node.data) if red_m is node.data else red_m
+                else:
+                    exec_data = node.data
+                    stored_node_data = dict(node.data)
+                self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=exec_data)
+
+                task_exit_used_pin = False
+                outs_map = ctx.setdefault("node_outputs", {})
+                prev_out = outs_map.get(node.id)
+                outs_map[node.id] = {"nodeType": node.type, "data": stored_node_data}
+                if isinstance(prev_out, dict):
+                    for k, v in prev_out.items():
+                        if k not in ("nodeType", "data"):
+                            outs_map[node.id][k] = copy.deepcopy(v)
+                if node.type == "fork":
+                    outs_map[node.id]["fork"] = True
+                elif node.type == "merge":
+                    if merge_mode(node) == "barrier":
+                        with self._state_lock:
+                            st = (ctx.get("_gc_merge_barrier") or {}).get(node.id, {})
+                            arrived = set(st.get("arrived") or set())
+                        outs_map[node.id]["merge"] = {
+                            "passthrough": False,
+                            "barrier": True,
+                            "arrivedFrom": sorted(arrived),
+                        }
+                    else:
+                        outs_map[node.id]["merge"] = {"passthrough": True}
+
+                if is_editor_frame_node_type(node.type):
+                    pass
+                elif node.type == "graph_ref":
+                    ok = self._execute_graph_ref(node, ctx)
+                    if not ok:
+                        otel_tracing.mark_current_span_error("graph_ref_failed")
+                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        if not ctx.get("_run_cancelled"):
+                            ctx["last_result"] = False
+                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+                                continue
+                        break
+                elif node.type == "mcp_tool":
+                    ok = self._execute_mcp_tool(node, ctx)
+                    if not ok:
+                        otel_tracing.mark_current_span_error("mcp_tool_failed")
+                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
+                        if not ctx.get("_run_cancelled"):
+                            ctx["last_result"] = False
+                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+                                continue
+                        break
+                elif node.type == "llm_agent":
+                    outcome, _pin_u = self._run_llm_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("llm_agent_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("llm_agent_break_non_ok")
+                        break
+                elif node.type == "task" and _task_has_process_command(node):
+                    outcome, task_exit_used_pin = self._run_subprocess_task_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("task_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("task_break_non_ok")
+                        break
+
+                ne: dict[str, Any] = {
+                    "nodeId": node.id,
+                    "nodeType": node.type,
+                    "graphId": self._doc.graph_id,
+                }
+                if task_exit_used_pin:
+                    ne["usedPin"] = True
+                if node.type != "ai_route":
+                    self.emit("node_exit", **ne)
+
+                if node.type == "exit":
+                    self.emit("run_success", nodeId=node.id, graphId=self._doc.graph_id)
+                    ctx["_run_success"] = True
+                    break
+
+                if (
+                    self._stop_after_node_id is not None
+                    and self._stop_after_node_id == node.id
+                    and not ctx.get("_run_cancelled")
+                ):
+                    ctx["_run_partial_stop"] = True
+                    break
+
+                if node.type == "fork":
+                    if not self._enqueue_fork_branches(node.id, ctx, step_q):
+                        otel_tracing.mark_current_span_error("fork_enqueue_failed")
+                        break
+                    continue
+                if node.type == "ai_route":
+                    ctx["last_result"] = True
+                    ok_ai = self._follow_ai_route_from(node, ctx, step_q)
+                    self.emit("node_exit", **ne)
+                    if not ok_ai:
+                        otel_tracing.mark_current_span_error("ai_route_failed")
+                        break
+                    continue
+                if not self._follow_edges_from(node.id, ctx, error_route=False, step_q=step_q):
+                    otel_tracing.mark_current_span_error("no_successor_edges")
+                    break
+
+        if visited_guard >= max_steps:
+            self.emit("error", message="run_aborted_cycle_guard")
+        elif (
+            not ctx.get("_run_success")
+            and not ctx.get("_run_cancelled")
+            and not ctx.get("_run_partial_stop")
+            and self._has_incomplete_barrier(ctx)
+        ):
+            self.emit("error", message="merge_barrier_incomplete")
+
+    def _run_from_root_finally(self, ctx: dict[str, Any], nd0: int, root_span: Any) -> None:
+        if nd0 == 0 and self._run_id:
+            if ctx.get("_run_cancelled"):
+                st = "cancelled"
+            elif ctx.get("_run_partial_stop"):
+                st = "partial"
+            elif ctx.get("_run_success"):
+                st = "success"
+            else:
+                st = "failed"
+            finished_at = datetime.now(UTC).isoformat()
+            self.emit(
+                "run_finished",
+                rootGraphId=self._doc.graph_id,
+                status=st,
+                finishedAt=finished_at,
+            )
+            try:
+                if self._persist_run_events:
+                    rrd = ctx.get("root_run_artifact_dir")
+                    if rrd:
+                        from graph_caster.artifacts import write_run_summary
+
+                        write_run_summary(
+                            Path(str(rrd)),
+                            {
+                                "schemaVersion": 1,
+                                "runId": self._run_id,
+                                "rootGraphId": self._doc.graph_id,
+                                "status": st,
+                                "startedAt": ctx.get("_gc_started_at_iso"),
+                                "finishedAt": finished_at,
+                            },
+                        )
+            finally:
+                if self._persist_file_sink is not None:
+                    self._persist_file_sink.close()
+                    self._persist_file_sink = None
+                if self._session_registry is not None:
+                    self._session_registry.complete(self._run_id, st)
+
+        from graph_caster import otel_tracing
+        otel_tracing.finalize_root_run_span(root_span, ctx)
+
     def run(self, context: dict[str, Any] | None = None, start_node_id: str | None = None) -> None:
         from graph_caster.validate import validate_graph_structure
 
@@ -1498,243 +1771,27 @@ class GraphRunner:
                 self._session_registry.register(sess)
                 ctx["_gc_run_session"] = sess
             self.emit("run_started", **started_payload)
-        try:
-            from graph_caster.validate import (
-                find_barrier_merge_no_success_incoming_warnings,
-                find_merge_incoming_warnings,
+        from graph_caster import otel_tracing
+        import contextlib
+        otel_tracing.configure_otel()
+        _otel_tracer = otel_tracing.get_tracer()
+        _otel_root_cm = (
+            _otel_tracer.start_as_current_span(
+                "gc.run",
+                attributes=otel_tracing.root_run_attributes(
+                    run_id=str(ctx.get("run_id") or ""),
+                    graph_id=self._doc.graph_id,
+                    nesting_depth=nd0,
+                ),
             )
-
-            for w in find_merge_incoming_warnings(self._doc):
-                self.emit(
-                    "structure_warning",
-                    kind="merge_few_inputs",
-                    nodeId=w["nodeId"],
-                    incomingEdges=w["incomingEdges"],
-                    graphId=self._doc.graph_id,
-                )
-            for w in find_fork_few_outputs_warnings(self._doc):
-                self.emit(
-                    "structure_warning",
-                    kind="fork_few_outputs",
-                    nodeId=w["nodeId"],
-                    unconditionalOutgoing=w["unconditionalOutgoing"],
-                    graphId=self._doc.graph_id,
-                )
-            for w in find_barrier_merge_out_error_incoming(self._doc):
-                self.emit(
-                    "structure_warning",
-                    kind="barrier_merge_out_error_incoming",
-                    edgeId=w["edgeId"],
-                    mergeNodeId=w["mergeNodeId"],
-                    graphId=self._doc.graph_id,
-                )
-            for w in find_barrier_merge_no_success_incoming_warnings(self._doc):
-                self.emit(
-                    "structure_warning",
-                    kind="barrier_merge_no_success_incoming",
-                    nodeId=w["nodeId"],
-                    graphId=self._doc.graph_id,
-                )
-            for w in find_gc_pin_empty_payload_warnings(self._doc):
-                self.emit(
-                    "structure_warning",
-                    kind="gc_pin_enabled_empty_payload",
-                    nodeId=w["nodeId"],
-                    graphId=self._doc.graph_id,
-                )
-            for w in find_ai_route_structure_warnings(self._doc):
-                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
-            for w in find_mcp_tool_structure_warnings(self._doc):
-                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
-            for w in find_llm_agent_structure_warnings(self._doc):
-                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
-            # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
-            for w in find_port_data_kind_warnings(self._doc):
-                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
-            ctx["graph_rev"] = graph_document_revision(self._doc)
-            step_q = StepQueue(start_node_id)
-            visited_guard = 0
-            max_steps = max(1, len(self._doc.nodes) * 4)
-
-            while step_q and visited_guard < max_steps:
-                visited_guard += 1
-                sess_coop = ctx.get("_gc_run_session")
-                if sess_coop is not None and sess_coop.cancel_event.is_set():
-                    if nd0 == 0:
-                        self.emit("run_end", reason="cancel_requested")
-                    ctx["_run_cancelled"] = True
-                    break
-                frame = step_q.popleft()
-                current_id = frame.node_id
-                node = self._node_by_id.get(current_id)
-                if node is None:
-                    self.emit("error", nodeId=current_id, message="unknown_node")
-                    break
-
-                self.emit("node_enter", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
-                if node.type == "task":
-                    red_task = redact_task_data_for_node_execute(node.data)
-                    exec_data = red_task
-                    stored_node_data = dict(node.data) if red_task is node.data else red_task
-                elif node.type == "llm_agent":
-                    red_a = redact_task_data_for_node_execute(node.data)
-                    exec_data = red_a
-                    stored_node_data = dict(node.data) if red_a is node.data else red_a
-                elif node.type == "mcp_tool":
-                    red_m = redact_mcp_tool_data_for_execute(node.data)
-                    exec_data = red_m
-                    stored_node_data = dict(node.data) if red_m is node.data else red_m
-                else:
-                    exec_data = node.data
-                    stored_node_data = dict(node.data)
-                self.emit("node_execute", nodeId=node.id, nodeType=node.type, data=exec_data)
-
-                task_exit_used_pin = False
-                outs_map = ctx.setdefault("node_outputs", {})
-                prev_out = outs_map.get(node.id)
-                outs_map[node.id] = {"nodeType": node.type, "data": stored_node_data}
-                if isinstance(prev_out, dict):
-                    for k, v in prev_out.items():
-                        if k not in ("nodeType", "data"):
-                            outs_map[node.id][k] = copy.deepcopy(v)
-                if node.type == "fork":
-                    outs_map[node.id]["fork"] = True
-                elif node.type == "merge":
-                    if merge_mode(node) == "barrier":
-                        with self._state_lock:
-                            st = (ctx.get("_gc_merge_barrier") or {}).get(node.id, {})
-                            arrived = set(st.get("arrived") or set())
-                        outs_map[node.id]["merge"] = {
-                            "passthrough": False,
-                            "barrier": True,
-                            "arrivedFrom": sorted(arrived),
-                        }
-                    else:
-                        outs_map[node.id]["merge"] = {"passthrough": True}
-
-                if is_editor_frame_node_type(node.type):
-                    pass
-                elif node.type == "graph_ref":
-                    ok = self._execute_graph_ref(node, ctx)
-                    if not ok:
-                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
-                        if not ctx.get("_run_cancelled"):
-                            ctx["last_result"] = False
-                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                                continue
-                        break
-                elif node.type == "mcp_tool":
-                    ok = self._execute_mcp_tool(node, ctx)
-                    if not ok:
-                        self.emit("node_exit", nodeId=node.id, nodeType=node.type, graphId=self._doc.graph_id)
-                        if not ctx.get("_run_cancelled"):
-                            ctx["last_result"] = False
-                            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
-                                continue
-                        break
-                elif node.type == "llm_agent":
-                    outcome, _pin_u = self._run_llm_agent_visit(
-                        node, ctx, step_q, fork_parallel_worker=False
-                    )
-                    if outcome == "continue":
-                        continue
-                    if outcome == "break":
-                        break
-                elif node.type == "task" and _task_has_process_command(node):
-                    outcome, task_exit_used_pin = self._run_subprocess_task_visit(
-                        node, ctx, step_q, fork_parallel_worker=False
-                    )
-                    if outcome == "continue":
-                        continue
-                    if outcome == "break":
-                        break
-
-                ne: dict[str, Any] = {
-                    "nodeId": node.id,
-                    "nodeType": node.type,
-                    "graphId": self._doc.graph_id,
-                }
-                if task_exit_used_pin:
-                    ne["usedPin"] = True
-                if node.type != "ai_route":
-                    self.emit("node_exit", **ne)
-
-                if node.type == "exit":
-                    self.emit("run_success", nodeId=node.id, graphId=self._doc.graph_id)
-                    ctx["_run_success"] = True
-                    break
-
-                if (
-                    self._stop_after_node_id is not None
-                    and self._stop_after_node_id == node.id
-                    and not ctx.get("_run_cancelled")
-                ):
-                    ctx["_run_partial_stop"] = True
-                    break
-
-                if node.type == "fork":
-                    if not self._enqueue_fork_branches(node.id, ctx, step_q):
-                        break
-                    continue
-                if node.type == "ai_route":
-                    ctx["last_result"] = True
-                    ok_ai = self._follow_ai_route_from(node, ctx, step_q)
-                    self.emit("node_exit", **ne)
-                    if not ok_ai:
-                        break
-                    continue
-                if not self._follow_edges_from(node.id, ctx, error_route=False, step_q=step_q):
-                    break
-
-            if visited_guard >= max_steps:
-                self.emit("error", message="run_aborted_cycle_guard")
-            elif (
-                not ctx.get("_run_success")
-                and not ctx.get("_run_cancelled")
-                and not ctx.get("_run_partial_stop")
-                and self._has_incomplete_barrier(ctx)
-            ):
-                self.emit("error", message="merge_barrier_incomplete")
-        finally:
-            if nd0 == 0 and self._run_id:
-                if ctx.get("_run_cancelled"):
-                    st = "cancelled"
-                elif ctx.get("_run_partial_stop"):
-                    st = "partial"
-                elif ctx.get("_run_success"):
-                    st = "success"
-                else:
-                    st = "failed"
-                finished_at = datetime.now(UTC).isoformat()
-                self.emit(
-                    "run_finished",
-                    rootGraphId=self._doc.graph_id,
-                    status=st,
-                    finishedAt=finished_at,
-                )
-                try:
-                    if self._persist_run_events:
-                        rrd = ctx.get("root_run_artifact_dir")
-                        if rrd:
-                            from graph_caster.artifacts import write_run_summary
-
-                            write_run_summary(
-                                Path(str(rrd)),
-                                {
-                                    "schemaVersion": 1,
-                                    "runId": self._run_id,
-                                    "rootGraphId": self._doc.graph_id,
-                                    "status": st,
-                                    "startedAt": ctx.get("_gc_started_at_iso"),
-                                    "finishedAt": finished_at,
-                                },
-                            )
-                finally:
-                    if self._persist_file_sink is not None:
-                        self._persist_file_sink.close()
-                        self._persist_file_sink = None
-                    if self._session_registry is not None:
-                        self._session_registry.complete(self._run_id, st)
+            if nd0 == 0
+            else contextlib.nullcontext()
+        )
+        with _otel_root_cm as _otel_root_span:
+            try:
+                self._run_from_execution_phase(start_node_id, ctx, nd0, _otel_tracer)
+            finally:
+                self._run_from_root_finally(ctx, nd0, _otel_root_span)
 
     def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure
