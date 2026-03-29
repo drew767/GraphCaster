@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { AlignDistributeOp } from "../graph/canvasAlignSelection";
+import type { RunMotionPreference } from "../graph/canvasRunMotion";
 
 export type WorkspaceGraphOption = {
   fileName: string;
@@ -26,6 +27,8 @@ type Props = {
   onSnapToGridChange?: (enabled: boolean) => void;
   ghostOffViewportEnabled?: boolean;
   onGhostOffViewportChange?: (enabled: boolean) => void;
+  runMotionPreference?: RunMotionPreference;
+  onRunMotionPreferenceChange?: (mode: RunMotionPreference) => void;
   canAlignSelection?: boolean;
   canDistributeSelection?: boolean;
   onAlignDistribute?: (op: AlignDistributeOp) => void;
@@ -76,6 +79,8 @@ export function TopBar({
   onSnapToGridChange = () => {},
   ghostOffViewportEnabled = false,
   onGhostOffViewportChange = () => {},
+  runMotionPreference = "full",
+  onRunMotionPreferenceChange = () => {},
   canAlignSelection = false,
   canDistributeSelection = false,
   onAlignDistribute = () => {},
@@ -200,6 +205,20 @@ export function TopBar({
           />
           <span>{t("app.canvas.ghostOffViewport")}</span>
         </label>
+        <select
+          className="gc-workspace-select"
+          title={t("app.canvas.runMotionSelectTitle")}
+          aria-label={t("app.canvas.runMotionSelectLabel")}
+          disabled={sessionBlocking}
+          value={runMotionPreference}
+          onChange={(ev) => {
+            onRunMotionPreferenceChange(ev.target.value as RunMotionPreference);
+          }}
+        >
+          <option value="full">{t("app.canvas.runMotionFull")}</option>
+          <option value="minimal">{t("app.canvas.runMotionMinimal")}</option>
+          <option value="off">{t("app.canvas.runMotionOff")}</option>
+        </select>
         <select
           className="gc-workspace-select"
           aria-label={t("app.canvas.alignSelectLabel")}

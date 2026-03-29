@@ -543,6 +543,11 @@ body {
   stroke: color-mix(in srgb, #f5b041 72%, var(--gc-accent));
 }
 
+.gc-flow-wrap .react-flow__edge.gc-edge--run-active .react-flow__edge-path {
+  stroke: var(--gc-accent, #3b82f6);
+  stroke-width: 2.5px;
+}
+
 .gc-flow-wrap .react-flow {
   --xy-minimap-background-color-props: var(--gc-surface-2);
   --xy-controls-button-background-color: var(--gc-surface-1);
@@ -1236,11 +1241,34 @@ body {
   line-height: 1;
 }
 
+@keyframes gc-run-node-pulse {
+  0%,
+  100% {
+    outline-color: color-mix(in srgb, var(--gc-accent) 72%, var(--gc-border));
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gc-accent) 0%, transparent);
+  }
+
+  50% {
+    outline-color: var(--gc-accent);
+    box-shadow: 0 0 14px 1px color-mix(in srgb, var(--gc-accent) 35%, transparent);
+  }
+}
+
 .react-flow__node.gc-node--run-active,
 .react-flow__node.gc-node--run-running {
   outline: 2px solid var(--gc-accent);
   outline-offset: 2px;
   border-radius: var(--gc-radius-sm);
+}
+
+.react-flow__node.gc-node--run-running.gc-node--run-motion-pulse {
+  animation: gc-run-node-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node.gc-node--run-motion-pulse {
+    animation: none !important;
+  }
 }
 
 .react-flow__node.gc-node--run-success {

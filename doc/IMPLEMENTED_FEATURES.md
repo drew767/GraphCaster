@@ -111,6 +111,17 @@
 
 ---
 
+## Визуализация прогона на канвасе (edge highlight + motion modes)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Подсветка последней пройденной связи и ощущение «активного» прогона (React Flow animated edges, n8n running feedback) | События **`edge_traverse`** / **`branch_taken`** → **`runEdgeOverlay.ts`**; в снимке сессии — **`highlightedRunEdgeId`**, ревизия **`edgeRunOverlayRevision`** (**`runSessionStore.ts`**); **`GraphCanvas`** подмешивает класс **`gc-edge--run-active`** при разрешённой анимации; пульс на текущей ноде — **`gc-node--run-motion-pulse`** в режиме **`full`**; сброс активной ноды на **`run_success`** (и прочие финалы) — **`runEventSideEffects.ts`** |
+| Режимы «полная / только рёбра / без движения» (согласовано с идеей reduced motion) | Селектор в **`TopBar`**; **`localStorage`** **`gc-editor-run-motion`** — **`canvasRunMotion.ts`** (**`full`** \| **`minimal`** \| **`off`**); пульс ноды — CSS **`prefers-reduced-motion`** в **`app.css`** и флаг **`effectiveRunNodePulse`**; анимация ребра React Flow — отключается через **`effectiveRunEdgeAnimated`** и **`usePrefersReducedMotion`** (**`ui/src/lib/usePrefersReducedMotion.ts`**) |
+
+Код и проверки: **`ui/src/run/runEdgeOverlay.ts`**, Vitest **`ui/src/run/runEdgeOverlay.test.ts`**; **`ui/src/graph/canvasRunMotion.ts`**, Vitest **`ui/src/graph/canvasRunMotion.test.ts`**; **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/layout/AppShell.tsx`**, **`ui/src/components/TopBar.tsx`**, локали **`ui/src/locales/en.json`** / **`ru.json`**.
+
+---
+
 ## Открытие графа, инспектор и Save: ошибки (P1, как n8n/Dify — явная причина отказа)
 
 | Идея конкурента | Реализация GC |

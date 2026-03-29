@@ -89,4 +89,24 @@ describe("runSessionStore multi-run queue", () => {
     });
     expect(getRunSessionSnapshot().nodeRunOverlayRevision).toBeGreaterThan(afterReg);
   });
+
+  it("bumps edgeRunOverlayRevision and exposes highlightedRunEdgeId on edge_traverse", () => {
+    runSessionResetForTest();
+    const stub = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal("localStorage", stub);
+    runSessionRegisterLiveRun("r1");
+    const rev0 = getRunSessionSnapshot().edgeRunOverlayRevision;
+    expect(getRunSessionSnapshot().highlightedRunEdgeId).toBeNull();
+    runSessionApplyParsedRunEventToOverlay("r1", {
+      type: "edge_traverse",
+      edgeId: "e-1",
+      graphId: "g",
+    });
+    expect(getRunSessionSnapshot().highlightedRunEdgeId).toBe("e-1");
+    expect(getRunSessionSnapshot().edgeRunOverlayRevision).toBeGreaterThan(rev0);
+  });
 });

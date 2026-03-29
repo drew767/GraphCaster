@@ -69,7 +69,7 @@ export function applyRunnerNdjsonSideEffects(line: string, sourceRunId?: string)
     }
   }
 
-  if (t === "run_finished" || t === "run_end") {
+  if (t === "run_finished" || t === "run_end" || t === "run_success") {
     if (runKey != null) {
       store.runSessionClearActiveNodeForRun(runKey);
     }

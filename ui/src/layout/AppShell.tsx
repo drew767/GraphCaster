@@ -42,6 +42,11 @@ import {
   readGhostOffViewportEnabled,
   writeGhostOffViewportEnabled,
 } from "../graph/canvasGhostOffViewport";
+import {
+  readRunMotionPreference,
+  writeRunMotionPreference,
+  type RunMotionPreference,
+} from "../graph/canvasRunMotion";
 import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
 import {
   applyGroupSelection,
@@ -217,6 +222,9 @@ export function AppShell({ onLangChange }: Props) {
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
   const [ghostOffViewportEnabled, setGhostOffViewportEnabled] = useState(() =>
     readGhostOffViewportEnabled(),
+  );
+  const [runMotionPreference, setRunMotionPreference] = useState<RunMotionPreference>(() =>
+    readRunMotionPreference(),
   );
   const stepCacheDirtyCount = useStepCacheDirtyCount();
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
@@ -1561,6 +1569,11 @@ export function AppShell({ onLangChange }: Props) {
           writeGhostOffViewportEnabled(on);
           setGhostOffViewportEnabled(on);
         }}
+        runMotionPreference={runMotionPreference}
+        onRunMotionPreferenceChange={(mode) => {
+          writeRunMotionPreference(mode);
+          setRunMotionPreference(mode);
+        }}
         canAlignSelection={canAlignSelection}
         canDistributeSelection={canDistributeSelection}
         onAlignDistribute={performCanvasAlignDistribute}
@@ -1788,6 +1801,9 @@ export function AppShell({ onLangChange }: Props) {
               runHighlightNodeId={runSession.activeNodeId}
               nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}
               nodeRunOverlayRevision={runSession.nodeRunOverlayRevision}
+              highlightedRunEdgeId={runSession.highlightedRunEdgeId}
+              edgeRunOverlayRevision={runSession.edgeRunOverlayRevision}
+              runMotionPreference={runMotionPreference}
               warningEdgeIds={canvasWarningEdgeIds}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);

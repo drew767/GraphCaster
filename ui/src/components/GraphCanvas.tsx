@@ -32,6 +32,12 @@ import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
+import {
+  effectiveRunEdgeAnimated,
+  effectiveRunNodePulse,
+  type RunMotionPreference,
+} from "../graph/canvasRunMotion";
+import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
 import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
@@ -72,13 +78,20 @@ const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
 const GC_NODE_RUN_CLASS_RE = /\bgc-node--run-(active|running|success|failed|skipped)\b/g;
 
 const GC_EDGE_WARN_CLASS = "gc-edge--warning";
+const GC_EDGE_RUN_ACTIVE_CLASS = "gc-edge--run-active";
+
+const GC_NODE_RUN_PULSE_RE = /\bgc-node--run-motion-pulse\b/g;
 
 function runHighlightClassNameForNode(
   n: Node<GcNodeData>,
   nodeRunOverlayById: Readonly<Record<string, NodeRunOverlayEntry>>,
   hl: string | null,
+  runMotionPulse: boolean,
 ): { className: string | undefined; effectivePhase: NodeRunPhase | null } {
-  const strip = (n.className ?? "").replace(GC_NODE_RUN_CLASS_RE, "").trim();
+  const strip = (n.className ?? "")
+    .replace(GC_NODE_RUN_CLASS_RE, "")
+    .replace(GC_NODE_RUN_PULSE_RE, "")
+    .trim();
   const phase = nodeRunOverlayById[n.id]?.phase;
   const hlHere = hl !== null && n.id === hl;
   const effectivePhase = phase ?? (hlHere ? ("running" as const) : null);
@@ -94,6 +107,9 @@ function runHighlightClassNameForNode(
   } else if (hlHere) {
     runClass = "gc-node--run-active";
   }
+  if (runMotionPulse && phase === "running") {
+    runClass = runClass != null ? `${runClass} gc-node--run-motion-pulse` : "gc-node--run-motion-pulse";
+  }
   const className = runClass != null ? (strip ? `${strip} ${runClass}` : runClass) : strip || undefined;
   return { className, effectivePhase };
 }
@@ -108,6 +124,28 @@ function mergeEdgeWarningHighlight(edges: Edge[], warnIds: ReadonlySet<string>):
         : GC_EDGE_WARN_CLASS
       : strip || undefined;
     return { ...e, className };
+  });
+}
+
+function mergeRunEdgeHighlight(
+  edges: Edge[],
+  highlightedEdgeId: string | null,
+  edgeAnimated: boolean,
+): Edge[] {
+  const hilite =
+    highlightedEdgeId != null && highlightedEdgeId.trim() !== ""
+      ? highlightedEdgeId.trim()
+      : null;
+  return edges.map((e) => {
+    const stripRun = (e.className ?? "").replace(/\bgc-edge--run-active\b/g, "").trim();
+    const want = hilite != null && e.id === hilite;
+    const className = want
+      ? stripRun
+        ? `${stripRun} ${GC_EDGE_RUN_ACTIVE_CLASS}`
+        : GC_EDGE_RUN_ACTIVE_CLASS
+      : stripRun || undefined;
+    const animated = want && edgeAnimated ? true : Boolean(e.animated);
+    return { ...e, className, animated };
   });
 }
 
@@ -197,6 +235,12 @@ type Props = {
    * Default false — zoom LOD unchanged for existing layouts.
    */
   ghostOffViewportEnabled?: boolean;
+  /** Last traversed edge during run / replay (`edge_traverse` / `branch_taken`). */
+  highlightedRunEdgeId?: string | null;
+  /** Bump when run edge highlight changes (from `runSessionStore`). */
+  edgeRunOverlayRevision?: number;
+  /** Run visualization: full (pulse + animated edge), minimal (edge only), off (static). */
+  runMotionPreference?: RunMotionPreference;
 };
 
 const nodeTypes = {
@@ -335,6 +379,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
       snapToGridEnabled = false,
       ghostOffViewportEnabled = false,
+      highlightedRunEdgeId = null,
+      edgeRunOverlayRevision = 0,
+      runMotionPreference = "full",
     },
     ref,
   ) {
@@ -597,6 +644,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       onNodeDragCaptureBegin?.();
     }, [onNodeDragCaptureBegin]);
 
+    const prefersReducedMotion = usePrefersReducedMotion();
+    const runMotionPulseEnabled = effectiveRunNodePulse(runMotionPreference, prefersReducedMotion);
+    const runEdgeAnimated = effectiveRunEdgeAnimated(runMotionPreference, prefersReducedMotion);
+
     useEffect(() => {
       const base = flowFromDocument;
       const hl = runHighlightNodeId != null && runHighlightNodeId.trim() !== "" ? runHighlightNodeId.trim() : null;
@@ -613,6 +664,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
               n as Node<GcNodeData>,
               nodeRunOverlayForSync,
               hl,
+              runMotionPulseEnabled,
             );
             return {
               ...n,
@@ -630,6 +682,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             n as Node<GcNodeData>,
             nodeRunOverlayForSync,
             hl,
+            runMotionPulseEnabled,
           );
           if (
             cur &&
@@ -663,7 +716,12 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       });
 
       setEdges((prev) => {
-        const next = mergeEdgeWarningHighlight(base.edges, warningEdgeIds);
+        const warned = mergeEdgeWarningHighlight(base.edges, warningEdgeIds);
+        const he =
+          highlightedRunEdgeId != null && highlightedRunEdgeId.trim() !== ""
+            ? highlightedRunEdgeId.trim()
+            : null;
+        const next = mergeRunEdgeHighlight(warned, he, runEdgeAnimated);
         if (prev.length !== next.length) {
           return next;
         }
@@ -687,6 +745,10 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       nodeRunOverlayForSync,
       nodeRunOverlayRevision,
       warningEdgeIds,
+      highlightedRunEdgeId,
+      edgeRunOverlayRevision,
+      runMotionPulseEnabled,
+      runEdgeAnimated,
       setNodes,
       setEdges,
     ]);

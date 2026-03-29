@@ -2,6 +2,11 @@
 
 import { useSyncExternalStore } from "react";
 
+import {
+  applyParsedRunEventToEdgeRunOverlay,
+  initialEdgeRunOverlay,
+  type EdgeRunOverlayState,
+} from "./runEdgeOverlay";
 import { applyParsedRunEventToOverlayState, type NodeRunOverlayEntry } from "./nodeRunOverlay";
 
 const MAX_LINES_PER_RUN = 2000;
@@ -43,6 +48,10 @@ export type RunSessionSnapshot = {
    * Lets `GraphCanvas` skip O(n) structural compares of overlay maps on unrelated store emits.
    */
   nodeRunOverlayRevision: number;
+  /** Last traversed edge id for the visible run/replay (edge_traverse / branch_taken). */
+  highlightedRunEdgeId: string | null;
+  /** Bump when the visible run edge highlight changes; mirrors `nodeRunOverlayRevision` pattern. */
+  edgeRunOverlayRevision: number;
 };
 
 type InternalState = {
@@ -58,6 +67,8 @@ type InternalState = {
   outputSnapshotsByRunId: Record<string, Record<string, Record<string, unknown>>>;
   nodeRunOverlayByRunId: Record<string, Record<string, NodeRunOverlayEntry>>;
   nodeRunOverlayRevision: number;
+  edgeRunOverlayByRunId: Record<string, EdgeRunOverlayState>;
+  edgeRunOverlayRevision: number;
 };
 
 function trimBuffer(lines: string[]): string[] {
@@ -102,6 +113,17 @@ function publicActiveNodeId(s: InternalState): string | null {
   return null;
 }
 
+function publicHighlightedRunEdgeId(s: InternalState): string | null {
+  const replay = s.replaySourceLabel != null;
+  if (replay) {
+    return s.edgeRunOverlayByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY]?.highlightedEdgeId ?? null;
+  }
+  if (s.focusedRunId != null) {
+    return s.edgeRunOverlayByRunId[s.focusedRunId]?.highlightedEdgeId ?? null;
+  }
+  return null;
+}
+
 function buildPublicSnapshot(s: InternalState): RunSessionSnapshot {
   const replay = s.replaySourceLabel != null;
   const lines = replay
@@ -122,6 +144,8 @@ function buildPublicSnapshot(s: InternalState): RunSessionSnapshot {
     replaySourceLabel: s.replaySourceLabel,
     nodeRunOverlayByNodeId: publicNodeRunOverlay(s),
     nodeRunOverlayRevision: s.nodeRunOverlayRevision,
+    highlightedRunEdgeId: publicHighlightedRunEdgeId(s),
+    edgeRunOverlayRevision: s.edgeRunOverlayRevision,
   };
 }
 
@@ -138,6 +162,8 @@ let internal: InternalState = {
   outputSnapshotsByRunId: {},
   nodeRunOverlayByRunId: {},
   nodeRunOverlayRevision: 0,
+  edgeRunOverlayByRunId: {},
+  edgeRunOverlayRevision: 0,
 };
 
 let publicSnap: RunSessionSnapshot = buildPublicSnapshot(internal);
@@ -209,6 +235,7 @@ export function runSessionRegisterLiveRun(runId: string): void {
       ...internal,
       focusedRunId: rid,
       nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+      edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
     };
     emit();
     return;
@@ -223,6 +250,7 @@ export function runSessionRegisterLiveRun(runId: string): void {
     focusedRunId: rid,
     consoleByRunId,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -233,6 +261,7 @@ export function runSessionSetFocusedRunId(runId: string | null): void {
       ...internal,
       focusedRunId: null,
       nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+      edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
     };
     emit();
     return;
@@ -245,6 +274,7 @@ export function runSessionSetFocusedRunId(runId: string | null): void {
     ...internal,
     focusedRunId: rid,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -281,6 +311,7 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
   const { [rid]: _s, ...restSnaps } = internal.outputSnapshotsByRunId;
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
   const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
+  const { [rid]: _e, ...restEdgeOverlay } = internal.edgeRunOverlayByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   internal = {
@@ -291,8 +322,10 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
     outputSnapshotsByRunId: restSnaps,
     activeNodeIdByRunId: restActive,
     nodeRunOverlayByRunId: restOverlay,
+    edgeRunOverlayByRunId: restEdgeOverlay,
     pendingStarts: pending,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
   return next;
@@ -313,6 +346,7 @@ export function runSessionOnRunProcessExited(
   const { [rid]: _s, ...restSnaps } = internal.outputSnapshotsByRunId;
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
   const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
+  const { [rid]: _e, ...restEdgeOverlay } = internal.edgeRunOverlayByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   const setExit = wasFocused || liveRunOrder.length === 0;
@@ -324,9 +358,11 @@ export function runSessionOnRunProcessExited(
     outputSnapshotsByRunId: restSnaps,
     activeNodeIdByRunId: restActive,
     nodeRunOverlayByRunId: restOverlay,
+    edgeRunOverlayByRunId: restEdgeOverlay,
     pendingStarts: pending,
     lastExitCode: setExit ? code : internal.lastExitCode,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
   return next;
@@ -396,6 +432,10 @@ export function runSessionBeginReplay(sourceLabel: string): void {
     ...internal.nodeRunOverlayByRunId,
     [RUN_SESSION_REPLAY_SNAPSHOT_KEY]: {},
   };
+  const edgeRunOverlayByRunId = {
+    ...internal.edgeRunOverlayByRunId,
+    [RUN_SESSION_REPLAY_SNAPSHOT_KEY]: initialEdgeRunOverlay(),
+  };
   internal = {
     ...internal,
     replaySourceLabel: sourceLabel,
@@ -403,8 +443,10 @@ export function runSessionBeginReplay(sourceLabel: string): void {
     outputSnapshotsByRunId,
     activeNodeIdByRunId,
     nodeRunOverlayByRunId,
+    edgeRunOverlayByRunId,
     lastExitCode: null,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -419,6 +461,8 @@ export function runSessionClearReplay(): void {
   delete activeNodeIdByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
   const nodeRunOverlayByRunId = { ...internal.nodeRunOverlayByRunId };
   delete nodeRunOverlayByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
+  const edgeRunOverlayByRunId = { ...internal.edgeRunOverlayByRunId };
+  delete edgeRunOverlayByRunId[RUN_SESSION_REPLAY_SNAPSHOT_KEY];
   internal = {
     ...internal,
     replaySourceLabel: null,
@@ -426,7 +470,9 @@ export function runSessionClearReplay(): void {
     outputSnapshotsByRunId,
     activeNodeIdByRunId,
     nodeRunOverlayByRunId,
+    edgeRunOverlayByRunId,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -507,6 +553,8 @@ export function runSessionResetForTest(): void {
     outputSnapshotsByRunId: {},
     nodeRunOverlayByRunId: {},
     nodeRunOverlayRevision: 0,
+    edgeRunOverlayByRunId: {},
+    edgeRunOverlayRevision: 0,
   };
   emit();
 }
@@ -520,18 +568,34 @@ export function runSessionApplyParsedRunEventToOverlay(runKey: string, o: Record
   if (key === "") {
     return;
   }
-  const prev = internal.nodeRunOverlayByRunId[key] ?? {};
-  const next = applyParsedRunEventToOverlayState(prev, o);
-  if (next === prev) {
+  const prevNode = internal.nodeRunOverlayByRunId[key] ?? {};
+  const nextNode = applyParsedRunEventToOverlayState(prevNode, o);
+  const prevEdge = internal.edgeRunOverlayByRunId[key] ?? initialEdgeRunOverlay();
+  const nextEdge = applyParsedRunEventToEdgeRunOverlay(prevEdge, o);
+  if (nextNode === prevNode && nextEdge === prevEdge) {
     return;
   }
-  internal = {
-    ...internal,
-    nodeRunOverlayByRunId: {
-      ...internal.nodeRunOverlayByRunId,
-      [key]: { ...next },
-    },
-    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
-  };
+  let nextInternal: InternalState = internal;
+  if (nextNode !== prevNode) {
+    nextInternal = {
+      ...nextInternal,
+      nodeRunOverlayByRunId: {
+        ...nextInternal.nodeRunOverlayByRunId,
+        [key]: { ...nextNode },
+      },
+      nodeRunOverlayRevision: nextInternal.nodeRunOverlayRevision + 1,
+    };
+  }
+  if (nextEdge !== prevEdge) {
+    nextInternal = {
+      ...nextInternal,
+      edgeRunOverlayByRunId: {
+        ...nextInternal.edgeRunOverlayByRunId,
+        [key]: nextEdge,
+      },
+      edgeRunOverlayRevision: nextInternal.edgeRunOverlayRevision + 1,
+    };
+  }
+  internal = nextInternal;
   emit();
 }
