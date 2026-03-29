@@ -1203,6 +1203,124 @@ body {
   background: color-mix(in srgb, var(--gc-accent) 12%, var(--gc-console-bg));
 }
 
+.gc-console-toolbar-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.gc-console-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.gc-run-timeline-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.28rem 0.35rem;
+  margin: 0 0 0.22rem;
+  border-radius: var(--gc-radius-sm);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.gc-run-timeline-row__status {
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: var(--gc-console-muted);
+}
+
+.gc-run-timeline-row--running .gc-run-timeline-row__status {
+  background: color-mix(in srgb, var(--gc-accent) 78%, var(--gc-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gc-accent) 35%, var(--gc-border));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gc-run-timeline-row--running .gc-run-timeline-row__status {
+    animation: gc-timeline-pulse 1.1s ease-in-out infinite;
+  }
+}
+
+@keyframes gc-timeline-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(0.92);
+  }
+}
+
+.gc-run-timeline-row--success .gc-run-timeline-row__status {
+  background: color-mix(in srgb, #1e8449 82%, var(--gc-border));
+}
+
+.gc-run-timeline-row--failed .gc-run-timeline-row__status {
+  background: color-mix(in srgb, #c0392b 82%, var(--gc-border));
+}
+
+.gc-run-timeline-row--skipped .gc-run-timeline-row__status {
+  background: color-mix(in srgb, var(--gc-console-muted) 90%, var(--gc-border));
+  opacity: 0.85;
+}
+
+.gc-run-timeline-row--cancelled .gc-run-timeline-row__status {
+  background: color-mix(in srgb, #ca6f1e 78%, var(--gc-border));
+}
+
+.gc-run-timeline-row--partial .gc-run-timeline-row__status {
+  background: color-mix(in srgb, #b7950b 80%, var(--gc-border));
+}
+
+.gc-run-timeline-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.gc-run-timeline-row__title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.gc-run-timeline-row__meta {
+  font-size: 0.68rem;
+  opacity: 0.78;
+  word-break: break-word;
+}
+
+.gc-run-timeline-row--nav {
+  cursor: pointer;
+}
+
+.gc-run-timeline-row--nav:hover {
+  background: color-mix(in srgb, var(--gc-accent) 10%, var(--gc-console-bg));
+}
+
+.gc-run-timeline-row--failed {
+  background: color-mix(in srgb, #c0392b 10%, var(--gc-console-bg));
+}
+
+.gc-run-timeline-row--cancelled {
+  background: color-mix(in srgb, #ca6f1e 12%, var(--gc-console-bg));
+}
+
+.gc-run-timeline-row--partial {
+  background: color-mix(in srgb, #b7950b 12%, var(--gc-console-bg));
+}
+
 .gc-run-banner {
   flex-shrink: 0;
   font-size: 0.7rem;

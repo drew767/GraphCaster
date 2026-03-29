@@ -284,7 +284,20 @@
       "searchPlaceholder": "Поиск…",
       "searchAria": "Поиск по выводу консоли",
       "navigateToNode": "Перейти к ноде {{nodeId}} на полотне",
-      "replayBanner": "Повтор (offline): {{label}}"
+      "replayBanner": "Повтор (offline): {{label}}",
+      "tabLog": "Лог",
+      "tabSteps": "Шаги",
+      "tabsAria": "Вид консоли",
+      "timelineEmpty": "Пока нет шагов исполнения в потоке — возможны сообщения хоста или прогон ещё не дал событий нод.",
+      "timelineRowAria": "Нода {{nodeId}}, {{status}}",
+      "timelineStatus": {
+        "running": "Выполняется",
+        "success": "Успешно",
+        "failed": "Ошибка",
+        "skipped": "Пропуск",
+        "cancelled": "Отменено",
+        "partial": "Частично"
+      }
     },
     "runHistory": {
       "title": "История запусков",

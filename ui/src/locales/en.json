@@ -284,7 +284,20 @@
       "searchPlaceholder": "Search…",
       "searchAria": "Search console output",
       "navigateToNode": "Go to node {{nodeId}} on canvas",
-      "replayBanner": "Replay (offline): {{label}}"
+      "replayBanner": "Replay (offline): {{label}}",
+      "tabLog": "Log",
+      "tabSteps": "Steps",
+      "tabsAria": "Console view",
+      "timelineEmpty": "No execution steps parsed yet — raw NDJSON lines may be host messages or a run in progress.",
+      "timelineRowAria": "Node {{nodeId}}, {{status}}",
+      "timelineStatus": {
+        "running": "Running",
+        "success": "Succeeded",
+        "failed": "Failed",
+        "skipped": "Skipped",
+        "cancelled": "Cancelled",
+        "partial": "Partial"
+      }
     },
     "runHistory": {
       "title": "Run history",
