@@ -10,7 +10,7 @@ export type GraphRefLazySnapshot = {
   workflowNodeCount: number;
   /** Single display value: root schemaVersion, else meta.schemaVersion if present. */
   schemaVersion?: number;
-  /** Whether the document lists at least one `start` node (runtime entry hint). */
+  /** True if some node has `type === "start"` (runner validate_graph_structure requires exactly one). */
   hasStart: boolean;
 };
 

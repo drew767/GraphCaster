@@ -100,6 +100,12 @@ function graphRefTargetId(raw: Record<string, unknown>): string {
   return scalarGraphRefId(raw.graphId);
 }
 
+function logGraphRefPreviewUnexpected(err: unknown): void {
+  if (import.meta.env.DEV) {
+    console.error("[InspectorPanel] loadGraphRefSnapshot rejected unexpectedly", err);
+  }
+}
+
 function inputsOutputsFromDoc(doc: GraphDocumentJson): { inputsText: string; outputsText: string } {
   const ins = doc.inputs;
   const outs = doc.outputs;
@@ -211,9 +217,6 @@ export function InspectorPanel({
   useEffect(() => {
     graphRefPreviewGenRef.current += 1;
     const genAtStart = graphRefPreviewGenRef.current;
-    setGraphRefPreviewOpen(false);
-    setGraphRefPreviewLoading(false);
-    setGraphRefPreviewResult(null);
 
     if (
       graphRefInspectorKey === "" ||
@@ -221,12 +224,16 @@ export function InspectorPanel({
       loadGraphRefSnapshot == null ||
       graphRefSelectionTargetId === ""
     ) {
+      setGraphRefPreviewOpen(false);
+      setGraphRefPreviewLoading(false);
+      setGraphRefPreviewResult(null);
       return;
     }
 
     // n8n/Dify-style: load nested workflow metadata when the ref node is selected (no extra click).
     setGraphRefPreviewOpen(true);
     setGraphRefPreviewLoading(true);
+    setGraphRefPreviewResult(null);
     void loadGraphRefSnapshot(graphRefSelectionTargetId)
       .then((r) => {
         if (genAtStart !== graphRefPreviewGenRef.current) {
@@ -235,7 +242,8 @@ export function InspectorPanel({
         setGraphRefPreviewResult(r);
         setGraphRefPreviewLoading(false);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        logGraphRefPreviewUnexpected(err);
         if (genAtStart !== graphRefPreviewGenRef.current) {
           return;
         }
@@ -265,6 +273,11 @@ export function InspectorPanel({
           return;
         }
         setGraphRefPreviewResult(r);
+      } catch (err: unknown) {
+        logGraphRefPreviewUnexpected(err);
+        if (genAtStart === graphRefPreviewGenRef.current) {
+          setGraphRefPreviewResult({ ok: false, errorKind: "read" });
+        }
       } finally {
         if (genAtStart === graphRefPreviewGenRef.current) {
           setGraphRefPreviewLoading(false);
@@ -1499,6 +1512,15 @@ export function InspectorPanel({
                   >
                     {graphRefPreviewLoading ? (
                       <p className="gc-inspector-edge-hint">{t("app.inspector.graphRefPreviewLoading")}</p>
+                    ) : null}
+                    {graphRefWorkspaceHintState.kind === "noop" &&
+                    graphRefSelectionTargetId !== "" &&
+                    getGraphRefWorkspaceHint == null ? (
+                      <p className="gc-inspector-edge-hint">
+                        {t("app.inspector.graphRefPreviewTargetIdFallback", {
+                          id: graphRefSelectionTargetId,
+                        })}
+                      </p>
                     ) : null}
                     {graphRefWorkspaceHintState.kind === "ok" ? (
                       <>
