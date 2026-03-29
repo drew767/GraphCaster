@@ -6,14 +6,9 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
-  type Connection,
-  type OnConnectEnd,
-  type OnConnectStart,
   type Edge,
-  type EdgeChange,
   type EdgeTypes,
   type Node,
-  type NodeChange,
   type NodeTypes,
   useEdgesState,
   useNodesState,
@@ -58,8 +53,6 @@ import {
 } from "../graph/flowHierarchy";
 import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
-import { isGcFlowConnectionAllowed } from "../graph/connectionCompatibility";
-import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
@@ -70,7 +63,6 @@ import {
   isGcNodeDragEvent,
 } from "../graph/nodeDragDrop";
 import { GRAPH_NODE_TYPE_START, isReactFlowFrameNodeType } from "../graph/nodeKinds";
-import { newGraphEdgeId } from "../graph/nodePalette";
 import {
   gcFlowEdgeDocumentPayloadEqual,
   gcFlowEdgesSyncKeepSelection,
@@ -82,6 +74,8 @@ import {
   EMPTY_NODE_VISIBILITY_BY_ID,
   VIEWPORT_OFFSCREEN_PADDING_PX,
 } from "../graph/viewportNodeTier";
+import { useGraphCanvasConnections } from "./canvas/hooks/useGraphCanvasConnections";
+import { useGraphCanvasNodesEdgesChangeGuards } from "./canvas/hooks/useGraphCanvasNodesEdgesChangeGuards";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { GcConnectionDragContext, type GcConnectionDragOrigin } from "./GcConnectionDragContext";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
@@ -635,99 +629,21 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       return overlayStabRef.current.map;
     }, [nodeRunOverlayRevision, nodeRunOverlayById]);
 
-    const onNodesChangeWrapped = useCallback(
-      (changes: NodeChange<Node>[]) => {
-        if (structureLocked && changes.some((c) => c.type === "remove")) {
-          return;
-        }
-        if (!structureLocked && changes.some((c) => c.type === "remove")) {
-          onBeforeStructureRemove?.();
-        }
-        onNodesChange(changes as NodeChange<Node<GcNodeData>>[]);
-        const syncDoc = changes.some((c) => c.type === "remove" || c.type === "dimensions");
-        if (syncDoc) {
-          window.requestAnimationFrame(() => {
-            onFlowStructureChange();
-          });
-        }
-      },
-      [structureLocked, onBeforeStructureRemove, onFlowStructureChange, onNodesChange],
-    );
+    const { onNodesChangeWrapped, onEdgesChangeWrapped } = useGraphCanvasNodesEdgesChangeGuards({
+      structureLocked,
+      onBeforeStructureRemove,
+      onFlowStructureChange,
+      onNodesChange,
+      onEdgesChange,
+    });
 
-    const onEdgesChangeWrapped = useCallback(
-      (changes: EdgeChange[]) => {
-        if (structureLocked && changes.some((c) => c.type === "remove")) {
-          return;
-        }
-        if (!structureLocked && changes.some((c) => c.type === "remove")) {
-          onBeforeStructureRemove?.();
-        }
-        onEdgesChange(changes);
-        const removed = changes.some((c) => c.type === "remove");
-        if (removed) {
-          window.requestAnimationFrame(() => {
-            onFlowStructureChange();
-          });
-        }
-      },
-      [structureLocked, onBeforeStructureRemove, onEdgesChange, onFlowStructureChange],
-    );
-
-    const onConnectStart = useCallback<OnConnectStart>((_ev, { nodeId, handleId, handleType }) => {
-      if (handleType === "source" && nodeId) {
-        setConnectionDrag({
-          nodeId,
-          handleId: flowConnectionHandle(handleId, "out_default"),
-        });
-      } else {
-        setConnectionDrag(null);
-      }
-    }, []);
-
-    const onConnectEnd = useCallback<OnConnectEnd>((_event, _connectionState) => {
-      setConnectionDrag(null);
-    }, []);
-
-    const isValidConnection = useCallback(
-      (c: Connection | Edge) => {
-        if (structureLocked) {
-          return false;
-        }
-        return isGcFlowConnectionAllowed(
-          {
-            source: c.source,
-            target: c.target,
-            sourceHandle: c.sourceHandle ?? null,
-            targetHandle: c.targetHandle ?? null,
-          },
-          nodes,
-          edges,
-        );
-      },
-      [structureLocked, nodes, edges],
-    );
-
-    const onConnect = useCallback(
-      (c: Connection) => {
-        if (structureLocked) {
-          return;
-        }
-        if (!isGcFlowConnectionAllowed(c, nodes, edges)) {
-          return;
-        }
-        const sh = flowConnectionHandle(c.sourceHandle, "out_default");
-        const th = flowConnectionHandle(c.targetHandle, "in_default");
-        onConnectNewEdge({
-          id: newGraphEdgeId(),
-          source: c.source!,
-          target: c.target!,
-          sourceHandle: sh,
-          targetHandle: th,
-          condition: null,
-        });
-      },
-      [structureLocked, nodes, edges, onConnectNewEdge],
-    );
+    const { onConnectStart, onConnectEnd, isValidConnection, onConnect } = useGraphCanvasConnections({
+      structureLocked,
+      nodes,
+      edges,
+      onConnectNewEdge,
+      setConnectionDrag,
+    });
 
     const onBeforeDelete = useCallback(
       async ({ nodes: pending, edges: pendingEdges }: { nodes: Node[]; edges: Edge[] }) => {
