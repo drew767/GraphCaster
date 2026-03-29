@@ -22,6 +22,8 @@
     "canvas": {
       "pinBadge": "Pinned output (gcPin): runner may skip process and use saved processResult.",
       "stepCacheBadge": "Step cache enabled (data.stepCache): this task may reuse disk cache across runs when Run bar step cache is on.",
+      "lodAriaPinned": "Pinned output",
+      "lodAriaStepCache": "Step cache enabled",
       "errorOutHandle": "On error — run follows this path after task, graph_ref, or mcp_tool failure (task retries exhausted).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",

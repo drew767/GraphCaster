@@ -42,6 +42,8 @@ npm run fixture:large-graph 600 > ..\..\temp-large-graph.json
 
 Детали реализации ( **`onlyRenderVisibleElements`**, оверлей, рёбра) — [`doc/IMPLEMENTED_FEATURES.md`](../doc/IMPLEMENTED_FEATURES.md) раздел **«Canvas: большие графы»**.
 
+**Кастомные `nodeTypes` на полотне:** уровень детализации по zoom читается через **`useGcCanvasLod()`** из **`src/components/GcCanvasLodContext.tsx`** (провайдер в **`GraphCanvas`** вокруг **`<ReactFlow>`**). Вне провайдера в dev в консоли будет предупреждение, LOD считается **`full`**. Пороги и гистерезис — **`src/graph/canvasLod.ts`**.
+
 ### Распространение для пользователей без сборки
 
 После **`npm run build:desktop`** отдайте конечным пользователям **`…/bundle/nsis/*-setup.exe`** (мастер установки). Им не нужны Node, Rust и Dev-пакеты Windows; при отсутствии WebView2 установщик может поставить его автоматически. В монорепозитории тот же артефикт можно получить из GitHub Actions: workflow **GraphCaster desktop (Windows installer)** → **Artifacts**.

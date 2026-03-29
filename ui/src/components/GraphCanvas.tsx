@@ -15,6 +15,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useStore,
 } from "@xyflow/react";
 import {
   forwardRef,
@@ -45,7 +46,9 @@ import {
   gcFlowEdgesSyncKeepSelection,
 } from "../graph/gcFlowEdgeSync";
 import { graphDocumentToFlow } from "../graph/toReactFlow";
+import { type GcCanvasLodLevel, lodLevelWithHysteresis } from "../graph/canvasLod";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
+import { GcCanvasLodProvider } from "./GcCanvasLodContext";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
@@ -344,6 +347,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       }),
       [t, i18n.language],
     );
+
+    const zoom = useStore((s) => s.transform[2]);
+    const lodStickyRef = useRef<GcCanvasLodLevel>("full");
+    const canvasLod = (() => {
+      const next = lodLevelWithHysteresis(zoom, lodStickyRef.current);
+      lodStickyRef.current = next;
+      return next;
+    })();
 
     const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
@@ -756,46 +767,48 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
 
     return (
       <div className="gc-flow-wrap">
-        <ReactFlow
-          colorMode="system"
-          ariaLabelConfig={flowAriaLabels}
-          onlyRenderVisibleElements
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChangeWrapped}
-          onEdgesChange={onEdgesChangeWrapped}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.15 }}
-          selectionOnDrag
-          panOnDrag={[1, 2]}
-          multiSelectionKeyCode="Shift"
-          onSelectionChange={onSelectionChange}
-          onPaneClick={onPaneClick}
-          onPaneContextMenu={onPaneContextMenu}
-          onNodeContextMenu={onNodeContextMenu}
-          onNodeDragStart={onNodeDragStartWrapped}
-          onNodeDragStop={onNodeDragStopWrapped}
-          onBeforeDelete={onBeforeDelete}
-          onNodesDelete={onNodesDelete}
-          nodesConnectable={!structureLocked}
-          nodesDraggable={!structureLocked}
-          elementsSelectable={!structureLocked}
-          deleteKeyCode={structureLocked ? null : ["Delete", "Backspace"]}
-        >
-          <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
-          <RefitOnLayoutEpoch epoch={layoutEpoch} />
-          <FlowCanvasHandleBridge
-            ref={ref}
-            baseDocument={graphDocument}
-            onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
-            removeNodesByIdRef={removeNodesByIdRef}
-          />
-          <Background gap={16} size={1} />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
+        <GcCanvasLodProvider value={canvasLod}>
+          <ReactFlow
+            colorMode="system"
+            ariaLabelConfig={flowAriaLabels}
+            onlyRenderVisibleElements
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChangeWrapped}
+            onEdgesChange={onEdgesChangeWrapped}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            selectionOnDrag
+            panOnDrag={[1, 2]}
+            multiSelectionKeyCode="Shift"
+            onSelectionChange={onSelectionChange}
+            onPaneClick={onPaneClick}
+            onPaneContextMenu={onPaneContextMenu}
+            onNodeContextMenu={onNodeContextMenu}
+            onNodeDragStart={onNodeDragStartWrapped}
+            onNodeDragStop={onNodeDragStopWrapped}
+            onBeforeDelete={onBeforeDelete}
+            onNodesDelete={onNodesDelete}
+            nodesConnectable={!structureLocked}
+            nodesDraggable={!structureLocked}
+            elementsSelectable={!structureLocked}
+            deleteKeyCode={structureLocked ? null : ["Delete", "Backspace"]}
+          >
+            <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
+            <RefitOnLayoutEpoch epoch={layoutEpoch} />
+            <FlowCanvasHandleBridge
+              ref={ref}
+              baseDocument={graphDocument}
+              onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
+              removeNodesByIdRef={removeNodesByIdRef}
+            />
+            <Background gap={16} size={1} />
+            <Controls />
+            <MiniMap pannable zoomable />
+          </ReactFlow>
+        </GcCanvasLodProvider>
         <CanvasAddNodeMenu
           open={addMenu != null}
           screenPos={addMenu != null ? { x: addMenu.sx, y: addMenu.sy } : { x: 0, y: 0 }}

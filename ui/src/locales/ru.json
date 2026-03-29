@@ -22,6 +22,8 @@
     "canvas": {
       "pinBadge": "Закреплённый вывод (gcPin): раннер может не запускать процесс и взять сохранённый processResult.",
       "stepCacheBadge": "Включён step cache (data.stepCache): при включённом кэше в панели Run задача может использовать межпрогонный кэш на диске.",
+      "lodAriaPinned": "Закреплённый вывод",
+      "lodAriaStepCache": "Включён step cache",
       "errorOutHandle": "При ошибке — после сбоя task, graph_ref или mcp_tool (для task — после ретраев) выполнение идёт по этой ветке.",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
