@@ -31,6 +31,7 @@ import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
+import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
 import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
@@ -180,6 +181,8 @@ type Props = {
   onExportRemovedDanglingEdges?: (removedEdgeIds: string[]) => void;
   /** Edge ids with branch/handle/structure warnings — yellow stroke on canvas. */
   warningEdgeIds?: ReadonlySet<string>;
+  /** When true, node drag positions snap to the canvas grid (`CANVAS_GRID_STEP`). */
+  snapToGridEnabled?: boolean;
 };
 
 const nodeTypes = {
@@ -316,6 +319,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       nodeRunOverlayRevision,
       onExportRemovedDanglingEdges,
       warningEdgeIds = EMPTY_WARNING_EDGE_IDS,
+      snapToGridEnabled = false,
     },
     ref,
   ) {
@@ -764,6 +768,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           colorMode="system"
           ariaLabelConfig={flowAriaLabels}
           onlyRenderVisibleElements
+          snapToGrid={snapToGridEnabled}
+          snapGrid={[CANVAS_GRID_STEP, CANVAS_GRID_STEP]}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChangeWrapped}
@@ -796,7 +802,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             onExportRemovedDanglingEdges={onExportRemovedDanglingEdges}
             removeNodesByIdRef={removeNodesByIdRef}
           />
-          <Background gap={16} size={1} />
+          <Background gap={CANVAS_GRID_STEP} size={1} />
           <Controls />
           <MiniMap
             pannable

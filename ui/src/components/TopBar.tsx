@@ -2,6 +2,8 @@
 
 import { useTranslation } from "react-i18next";
 
+import type { AlignDistributeOp } from "../graph/canvasAlignSelection";
+
 export type WorkspaceGraphOption = {
   fileName: string;
   label: string;
@@ -20,6 +22,11 @@ type Props = {
   canUngroupSelection?: boolean;
   onGroupSelection?: () => void;
   onUngroupSelection?: () => void;
+  snapToGridEnabled?: boolean;
+  onSnapToGridChange?: (enabled: boolean) => void;
+  canAlignSelection?: boolean;
+  canDistributeSelection?: boolean;
+  onAlignDistribute?: (op: AlignDistributeOp) => void;
   workspaceLinked: boolean;
   onLinkWorkspace: () => void;
   workspaceGraphOptions: WorkspaceGraphOption[];
@@ -63,6 +70,11 @@ export function TopBar({
   canUngroupSelection = false,
   onGroupSelection = () => {},
   onUngroupSelection = () => {},
+  snapToGridEnabled = false,
+  onSnapToGridChange = () => {},
+  canAlignSelection = false,
+  canDistributeSelection = false,
+  onAlignDistribute = () => {},
   workspaceLinked,
   onLinkWorkspace,
   workspaceGraphOptions,
@@ -157,6 +169,56 @@ export function TopBar({
         >
           {t("app.canvas.findNode")}
         </button>
+        <label className="gc-top-run-stepcache" title={t("app.canvas.snapGridHint")}>
+          <input
+            type="checkbox"
+            checked={snapToGridEnabled}
+            disabled={sessionBlocking}
+            aria-label={t("app.canvas.snapGrid")}
+            onChange={(ev) => {
+              onSnapToGridChange(ev.target.checked);
+            }}
+          />
+          <span>{t("app.canvas.snapGrid")}</span>
+        </label>
+        <select
+          className="gc-workspace-select"
+          aria-label={t("app.canvas.alignSelectLabel")}
+          disabled={sessionBlocking || !canAlignSelection}
+          value=""
+          onChange={(ev) => {
+            const v = ev.target.value as AlignDistributeOp | "";
+            if (v !== "") {
+              onAlignDistribute(v);
+            }
+            ev.currentTarget.value = "";
+          }}
+        >
+          <option value="">{t("app.canvas.alignPlaceholder")}</option>
+          <option value="align-left">{t("app.canvas.alignLeft")}</option>
+          <option value="align-right">{t("app.canvas.alignRight")}</option>
+          <option value="align-top">{t("app.canvas.alignTop")}</option>
+          <option value="align-bottom">{t("app.canvas.alignBottom")}</option>
+          <option value="align-h-center">{t("app.canvas.alignHCenter")}</option>
+          <option value="align-v-center">{t("app.canvas.alignVCenter")}</option>
+        </select>
+        <select
+          className="gc-workspace-select"
+          aria-label={t("app.canvas.distributeSelectLabel")}
+          disabled={sessionBlocking || !canDistributeSelection}
+          value=""
+          onChange={(ev) => {
+            const v = ev.target.value as AlignDistributeOp | "";
+            if (v !== "") {
+              onAlignDistribute(v);
+            }
+            ev.currentTarget.value = "";
+          }}
+        >
+          <option value="">{t("app.canvas.distributePlaceholder")}</option>
+          <option value="distribute-h">{t("app.canvas.distributeH")}</option>
+          <option value="distribute-v">{t("app.canvas.distributeV")}</option>
+        </select>
         <button type="button" className="gc-btn" onClick={onLinkWorkspace} disabled={sessionBlocking}>
           {t("app.workspace.link")}
         </button>
