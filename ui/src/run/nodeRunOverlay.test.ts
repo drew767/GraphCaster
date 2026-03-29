@@ -64,6 +64,31 @@ describe("reduceRunEventsToNodeOverlay", () => {
     expect(s.gr?.phase).toBe("running");
     expect(s.gr?.lastType).toBe("nested_graph_enter");
   });
+
+  it("llm_agent: delegate + step events keep node running; node_exit succeeds", () => {
+    const ev = linesToEvents([
+      '{"type":"node_enter","nodeId":"a1","nodeType":"llm_agent","graphId":"g"}',
+      '{"type":"agent_delegate_start","nodeId":"a1","graphId":"g"}',
+      '{"type":"agent_step","nodeId":"a1","graphId":"g","step":1}',
+      '{"type":"agent_tool_call","nodeId":"a1","graphId":"g","toolName":"x"}',
+      '{"type":"node_exit","nodeId":"a1","nodeType":"llm_agent","graphId":"g"}',
+    ]);
+    const s = reduceRunEventsToNodeOverlay(ev);
+    expect(s.a1?.phase).toBe("success");
+    expect(s.a1?.lastType).toBe("node_exit");
+  });
+
+  it("llm_agent: agent_failed marks failed; node_exit does not clear", () => {
+    const ev = linesToEvents([
+      '{"type":"node_enter","nodeId":"a1","nodeType":"llm_agent","graphId":"g"}',
+      '{"type":"agent_delegate_start","nodeId":"a1","graphId":"g"}',
+      '{"type":"agent_failed","nodeId":"a1","graphId":"g","message":"x"}',
+      '{"type":"node_exit","nodeId":"a1","nodeType":"llm_agent","graphId":"g"}',
+    ]);
+    const s = reduceRunEventsToNodeOverlay(ev);
+    expect(s.a1?.phase).toBe("failed");
+    expect(s.a1?.lastType).toBe("agent_failed");
+  });
 });
 
 describe("applyParsedRunEventToOverlayState", () => {

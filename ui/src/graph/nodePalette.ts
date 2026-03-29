@@ -8,6 +8,7 @@ import {
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
 
@@ -81,6 +82,16 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         allowInsecureLocalhost: false,
         bearerEnvKey: "",
         envKeys: [],
+      };
+    case GRAPH_NODE_TYPE_LLM_AGENT:
+      return {
+        title: "LLM agent",
+        command: "",
+        cwd: "",
+        timeoutSec: 600,
+        maxAgentSteps: 0,
+        envKeys: [],
+        inputPayload: {},
       };
     default:
       return {};

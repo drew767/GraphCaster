@@ -1353,7 +1353,9 @@ export function AppShell({ onLangChange }: Props) {
                                       missing: issue.missingDescriptions,
                                       total: issue.outgoingEdges,
                                     })
-                                  : issue.kind === "mcp_tool_empty_tool_name"
+                                  : issue.kind === "llm_agent_empty_command"
+                                    ? t("app.structure.llmAgentEmptyCommand", { id: issue.nodeId })
+                                    : issue.kind === "mcp_tool_empty_tool_name"
                                     ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
                                     : issue.kind === "mcp_tool_stdio_missing_command"
                                       ? t("app.structure.mcpToolStdioMissingCommand", { id: issue.nodeId })

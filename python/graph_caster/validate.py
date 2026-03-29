@@ -90,6 +90,10 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
         return True
     if node.type == "mcp_tool":
         return True
+    if node.type == "llm_agent":
+        from graph_caster.process_exec import _argv_from_data
+
+        return bool(_argv_from_data(node.data or {}))
     return False
 
 
@@ -172,6 +176,18 @@ def find_merge_incoming_warnings(doc: GraphDocument) -> list[dict[str, int | str
         cnt = incoming_non_comment.get(n.id, 0)
         if cnt < 2:
             out.append({"nodeId": n.id, "incomingEdges": cnt})
+    return out
+
+
+def find_llm_agent_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    from graph_caster.process_exec import _argv_from_data
+
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "llm_agent":
+            continue
+        if not _argv_from_data(n.data or {}):
+            out.append({"kind": "llm_agent_empty_command", "nodeId": n.id})
     return out
 
 

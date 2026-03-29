@@ -108,6 +108,22 @@ describe("buildConsoleLineMeta", () => {
     expect(m.nodeId).toBe("x");
   });
 
+  it("marks agent_failed as error-like", () => {
+    const m = buildConsoleLineMeta(
+      `{"type":"agent_failed","nodeId":"la1","graphId":"g1","attempt":0,"message":"boom"}`,
+    );
+    expect(m.isErrorLike).toBe(true);
+    expect(m.nodeId).toBe("la1");
+    expect(passesConsoleFilter(m, "errors")).toBe(true);
+  });
+
+  it("formats agent_step for display", () => {
+    const line = `{"type":"agent_step","nodeId":"la1","graphId":"g1","attempt":0,"phase":"llm","message":"ok"}`;
+    const m = buildConsoleLineMeta(line);
+    expect(m.displayLine).toBe("[la1] agent_step phase=llm message=ok");
+    expect(m.isErrorLike).toBe(false);
+  });
+
   it("treats empty line as non-json meta", () => {
     const m = buildConsoleLineMeta("");
     expect(m.parsedType).toBeNull();

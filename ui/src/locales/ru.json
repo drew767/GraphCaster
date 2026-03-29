@@ -46,7 +46,8 @@
         "fork": "Разветвление",
         "comment": "Комментарий (рамка)",
         "ai_route": "ИИ-маршрут",
-        "mcp_tool": "MCP tool"
+        "mcp_tool": "MCP tool",
+        "llm_agent": "LLM-агент"
       },
       "flowControls": {
         "panel": "Масштаб и вид полотна",
@@ -79,6 +80,7 @@
       "mcpToolStdioMissingCommand": "У ноды mcp_tool {{id}} (stdio): задайте command или argv.",
       "mcpToolHttpEmptyUrl": "У ноды mcp_tool {{id}} (streamable HTTP): пустой serverUrl.",
       "mcpToolUnknownTransport": "У ноды mcp_tool {{id}} неизвестный transport: {{transport}}.",
+      "llmAgentEmptyCommand": "У ноды llm_agent {{id}} нет command/argv (процесс не запустится).",
       "schemaVersionMismatch": "Корневой schemaVersion = {{root}}, а meta.schemaVersion = {{meta}}. Сохраните граф (Save), чтобы выровнять значения.",
       "unknownIssue": "Структура графа: {{kind}}"
     },
@@ -126,6 +128,17 @@
       "mcpBearerEnvKeyHint": "Необязательно. Если пусто и envKeys с одним ключом — он для Bearer (HTTP).",
       "mcpArgumentsJson": "Аргументы (JSON-объект)",
       "applyMcpSettings": "Применить поля MCP",
+      "llmAgentCommand": "Команда (строка shell)",
+      "llmAgentCommandHint": "Как у task (shlex). Или задайте argv в JSON данных.",
+      "llmAgentCwd": "Рабочая директория (необязательно)",
+      "llmAgentTimeoutSec": "Таймаут (сек)",
+      "llmAgentMaxSteps": "Макс. шагов агента",
+      "llmAgentMaxStepsHint": "0 — без лимита. Раннер завершит дочерний процесс после стольких строк agent_step.",
+      "llmAgentEnvKeys": "envKeys (через запятую)",
+      "llmAgentEnvKeysHint": "Секреты workspace из .graphcaster/workspace.secrets.env (F8), как у task.",
+      "llmAgentInputPayload": "inputPayload (JSON-объект)",
+      "applyLlmAgentSettings": "Применить поля LLM-агента",
+      "llmAgentInputPayloadInvalid": "inputPayload должен быть JSON-объектом.",
       "mcpArgumentsInvalid": "Аргументы должны быть JSON-объектом.",
       "openEndpointUrl": "Открыть endpoint (новая вкладка)",
       "openGraphRef": "Открыть вложенный граф",

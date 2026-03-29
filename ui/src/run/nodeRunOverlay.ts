@@ -185,7 +185,11 @@ export function applyParsedRunEventToOverlayState(
     return next;
   }
 
-  if (t === "ai_route_failed" || t === "mcp_tool_failed") {
+  if (
+    t === "ai_route_failed" ||
+    t === "mcp_tool_failed" ||
+    t === "agent_failed"
+  ) {
     const nid = str(o.nodeId);
     if (nid != null) {
       next = markFailed(next, nid, t);
@@ -197,6 +201,18 @@ export function applyParsedRunEventToOverlayState(
     const nid = str(o.nodeId);
     if (nid != null) {
       next = markSuccess(next, nid, t);
+    }
+    return next;
+  }
+
+  if (
+    t === "agent_delegate_start" ||
+    t === "agent_step" ||
+    t === "agent_tool_call"
+  ) {
+    const nid = str(o.nodeId);
+    if (nid != null) {
+      next = markRunning(next, nid, t);
     }
     return next;
   }

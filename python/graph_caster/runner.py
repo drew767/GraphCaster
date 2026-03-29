@@ -54,6 +54,7 @@ from graph_caster.validate import (
     find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
     find_fork_few_outputs_warnings,
+    find_llm_agent_structure_warnings,
     find_mcp_tool_structure_warnings,
     merge_mode,
 )
@@ -115,6 +116,12 @@ def _task_has_process_command(node: Node) -> bool:
         return True
     # Key present (even {} or invalid value): run process_exec so validation / spawn_error surfaces.
     return "gcCursorAgent" in d
+
+
+def _llm_agent_has_executable_command(node: Node) -> bool:
+    from graph_caster.process_exec import _argv_from_data
+
+    return bool(_argv_from_data(node.data or {}))
 
 
 def _node_wants_step_cache(node: Node) -> bool:
@@ -428,8 +435,13 @@ class GraphRunner:
             if len(p.node_ids) != 1:
                 return False
             n = self._node_by_id.get(p.node_ids[0])
-            if n is None or n.type != "task" or not _task_has_process_command(n):
+            if n is None:
                 return False
+            if n.type == "task" and _task_has_process_command(n):
+                continue
+            if n.type == "llm_agent" and _llm_agent_has_executable_command(n):
+                continue
+            return False
         return True
 
     def _emit_fork_parallel_frontier_events(self, fork_id: str, plans: list[ForkBranchPlan]) -> None:
@@ -645,6 +657,64 @@ class GraphRunner:
 
         return "ok", task_exit_used_pin
 
+    def _run_llm_agent_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        from graph_caster.process_exec import run_llm_agent_process
+
+        sess = ctx.get("_gc_run_session")
+
+        def _should_cancel() -> bool:
+            if fork_parallel_worker and ctx.get("_run_cancelled"):
+                return True
+            return sess is not None and sess.cancel_event.is_set()
+
+        up, _inc_reason = self._upstream_outputs_for_step_cache(node.id, ctx)
+        cancel_fn = _should_cancel if (sess is not None or fork_parallel_worker) else None
+        ok = run_llm_agent_process(
+            node_id=node.id,
+            graph_id=self._doc.graph_id,
+            data=dict(node.data),
+            ctx=ctx,
+            upstream_outputs=up,
+            emit=self.emit,
+            should_cancel=cancel_fn,
+            workspace_secrets=self._get_workspace_secrets(),
+        )
+
+        outs_map = ctx.setdefault("node_outputs", {})
+        snap_o = outs_map.get(node.id)
+        if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
+            self.emit(
+                "node_outputs_snapshot",
+                nodeId=node.id,
+                graphId=self._doc.graph_id,
+                snapshot=snapshot_for_pin_event(snap_o),
+            )
+
+        if not ok:
+            if ctx.get("_gc_process_cancelled"):
+                ctx["_run_cancelled"] = True
+            ne_task: dict[str, Any] = {
+                "nodeId": node.id,
+                "nodeType": node.type,
+                "graphId": self._doc.graph_id,
+            }
+            self.emit("node_exit", **ne_task)
+            if ctx.get("_gc_process_cancelled"):
+                return "break", False
+            ctx["last_result"] = False
+            if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+                return "continue", False
+            return "break", False
+
+        return "ok", False
+
     def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
         if ctx.get("_run_cancelled"):
             return
@@ -654,9 +724,16 @@ class GraphRunner:
             return
         try:
             self._fork_worker_begin_task_visit(node, ctx)
-            outcome, used_pin = self._run_subprocess_task_visit(
-                node, ctx, step_q, fork_parallel_worker=True
-            )
+            if node.type == "task" and _task_has_process_command(node):
+                outcome, used_pin = self._run_subprocess_task_visit(
+                    node, ctx, step_q, fork_parallel_worker=True
+                )
+            elif node.type == "llm_agent":
+                outcome, used_pin = self._run_llm_agent_visit(
+                    node, ctx, step_q, fork_parallel_worker=True
+                )
+            else:
+                return
             if ctx.get("_run_cancelled"):
                 return
             if outcome == "ok":
@@ -1363,6 +1440,8 @@ class GraphRunner:
                 self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             for w in find_mcp_tool_structure_warnings(self._doc):
                 self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+            for w in find_llm_agent_structure_warnings(self._doc):
+                self.emit("structure_warning", graphId=self._doc.graph_id, **w)
             ctx["graph_rev"] = graph_document_revision(self._doc)
             step_q = StepQueue(start_node_id)
             visited_guard = 0
@@ -1388,6 +1467,10 @@ class GraphRunner:
                     red_task = redact_task_data_for_node_execute(node.data)
                     exec_data = red_task
                     stored_node_data = dict(node.data) if red_task is node.data else red_task
+                elif node.type == "llm_agent":
+                    red_a = redact_task_data_for_node_execute(node.data)
+                    exec_data = red_a
+                    stored_node_data = dict(node.data) if red_a is node.data else red_a
                 elif node.type == "mcp_tool":
                     red_m = redact_mcp_tool_data_for_execute(node.data)
                     exec_data = red_m
@@ -1439,6 +1522,14 @@ class GraphRunner:
                             ctx["last_result"] = False
                             if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
                                 continue
+                        break
+                elif node.type == "llm_agent":
+                    outcome, _pin_u = self._run_llm_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        continue
+                    if outcome == "break":
                         break
                 elif node.type == "task" and _task_has_process_command(node):
                     outcome, task_exit_used_pin = self._run_subprocess_task_visit(

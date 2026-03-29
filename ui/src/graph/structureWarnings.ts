@@ -29,6 +29,7 @@ export type StructureIssue =
   | { kind: "mcp_tool_stdio_missing_command"; nodeId: string }
   | { kind: "mcp_tool_http_empty_url"; nodeId: string }
   | { kind: "mcp_tool_unknown_transport"; nodeId: string; transport: string }
+  | { kind: "llm_agent_empty_command"; nodeId: string }
   | { kind: "schema_version_mismatch"; root: number; meta: number };
 
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
@@ -85,6 +86,7 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "mcp_tool_stdio_missing_command":
     case "mcp_tool_http_empty_url":
     case "mcp_tool_unknown_transport":
+    case "llm_agent_empty_command":
     case "schema_version_mismatch":
       return false;
   }
@@ -294,6 +296,29 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
       }
     } else {
       issues.push({ kind: "mcp_tool_unknown_transport", nodeId: n.id, transport });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "llm_agent") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const cmd = raw.command;
+    const argv = raw.argv;
+    let has = Array.isArray(argv) && argv.length > 0;
+    if (!has && cmd != null) {
+      if (typeof cmd === "string" && cmd.trim() !== "") {
+        has = true;
+      } else if (Array.isArray(cmd) && cmd.length > 0) {
+        has = true;
+      }
+    }
+    if (!has) {
+      issues.push({ kind: "llm_agent_empty_command", nodeId: n.id });
     }
   }
   return issues;

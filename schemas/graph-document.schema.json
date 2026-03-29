@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.10)",
+  "title": "GraphCaster graph document (v1.11)",
   "type": "object",
   "additionalProperties": true,
   "required": ["schemaVersion", "nodes", "edges"],
@@ -96,7 +96,7 @@
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), ai_route (structured AI branch picker after upstream output), comment, merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI). Other values: unknown executable (task-like handles in validation)."
+          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), llm_agent (delegated subprocess; stdin JSON + stdout NDJSON agent protocol), ai_route (structured AI branch picker after upstream output), comment, merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI). Other values: unknown executable (task-like handles in validation)."
         },
         "position": {
           "type": "object",
@@ -116,6 +116,27 @@
           "type": "string",
           "minLength": 1,
           "description": "Optional id of a comment frame this node belongs to (editor-only grouping)."
+        }
+      }
+    },
+    "llmAgentNodeData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Delegated LLM / agent subprocess (F11): one JSON line on stdin (upstreamOutputs, optional inputPayload); child stdout must be NDJSON with types agent_delegate_start, agent_step, agent_tool_call, agent_finished, agent_failed. Uses same env/envKeys/CWD patterns as task (F8 secrets). No F17 step-cache in v1.",
+      "properties": {
+        "title": { "type": "string" },
+        "command": { "type": ["string", "array"] },
+        "argv": { "type": "array", "items": { "type": "string" } },
+        "cwd": { "type": "string" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "envKeys": { "$ref": "#/$defs/envKeysList" },
+        "timeoutSec": { "type": "number", "minimum": 1, "maximum": 86400, "default": 600 },
+        "retryCount": { "type": "integer", "minimum": 0, "default": 0, "description": "Extra attempts after the first subprocess (same as task); emits process_retry between attempts." },
+        "maxRetries": { "type": "integer", "minimum": 0, "description": "If set, combined with retryCount as max(retryCount, maxRetries) for total retries after first attempt." },
+        "retryBackoffSec": { "type": "number", "minimum": 0, "default": 1, "description": "Delay before each retry (seconds)." },
+        "maxAgentSteps": { "type": "integer", "minimum": 0, "default": 0, "description": "Max agent_step lines before runner kills child; 0 = unlimited." },
+        "inputPayload": {
+          "description": "Optional extra JSON merged into stdin payload as inputPayload (object or string)."
         }
       }
     },

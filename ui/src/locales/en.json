@@ -46,7 +46,8 @@
         "fork": "Fork",
         "comment": "Comment frame",
         "ai_route": "AI route",
-        "mcp_tool": "MCP tool"
+        "mcp_tool": "MCP tool",
+        "llm_agent": "LLM agent"
       },
       "flowControls": {
         "panel": "Canvas zoom and view",
@@ -79,6 +80,7 @@
       "mcpToolStdioMissingCommand": "MCP tool node {{id}} (stdio): set command or argv to spawn the MCP server.",
       "mcpToolHttpEmptyUrl": "MCP tool node {{id}} (streamable HTTP): serverUrl is empty.",
       "mcpToolUnknownTransport": "MCP tool node {{id}} has unknown transport {{transport}}.",
+      "llmAgentEmptyCommand": "LLM agent node {{id}} has no command or argv (subprocess would not start).",
       "schemaVersionMismatch": "Root schemaVersion is {{root}} but meta.schemaVersion is {{meta}}. Use Save to align them (export uses a single version).",
       "unknownIssue": "Graph structure: {{kind}}"
     },
@@ -126,6 +128,17 @@
       "mcpBearerEnvKeyHint": "Optional. If empty and envKeys has one entry, that variable supplies Bearer for HTTP.",
       "mcpArgumentsJson": "Arguments (JSON object)",
       "applyMcpSettings": "Apply MCP fields",
+      "llmAgentCommand": "Command (shell string)",
+      "llmAgentCommandHint": "Same rules as task: split like shlex. Or set argv in JSON data.",
+      "llmAgentCwd": "Working directory (optional)",
+      "llmAgentTimeoutSec": "Timeout (sec)",
+      "llmAgentMaxSteps": "Max agent steps",
+      "llmAgentMaxStepsHint": "0 = unlimited. Runner kills the child after this many agent_step lines.",
+      "llmAgentEnvKeys": "envKeys (comma-separated)",
+      "llmAgentEnvKeysHint": "Workspace secrets from .graphcaster/workspace.secrets.env (F8), same as task.",
+      "llmAgentInputPayload": "inputPayload (JSON object)",
+      "applyLlmAgentSettings": "Apply LLM agent fields",
+      "llmAgentInputPayloadInvalid": "inputPayload must be a JSON object.",
       "mcpArgumentsInvalid": "Arguments must be a JSON object.",
       "openEndpointUrl": "Open endpoint (new tab)",
       "openGraphRef": "Open nested graph",

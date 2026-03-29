@@ -10,6 +10,7 @@ import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_TASK,
 } from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
@@ -143,6 +144,13 @@ export function InspectorPanel({
   const [mcpBearerKey, setMcpBearerKey] = useState("");
   const [mcpArgsJson, setMcpArgsJson] = useState("{}");
 
+  const [llmCommand, setLlmCommand] = useState("");
+  const [llmCwd, setLlmCwd] = useState("");
+  const [llmTimeoutSec, setLlmTimeoutSec] = useState("600");
+  const [llmMaxSteps, setLlmMaxSteps] = useState("0");
+  const [llmEnvKeysCsv, setLlmEnvKeysCsv] = useState("");
+  const [llmInputPayloadJson, setLlmInputPayloadJson] = useState("{}");
+
   const [graphTitle, setGraphTitle] = useState("");
   const [graphAuthor, setGraphAuthor] = useState("");
   const [graphSchemaVersion, setGraphSchemaVersion] = useState("1");
@@ -209,6 +217,39 @@ export function InspectorPanel({
       setMcpArgsJson(
         JSON.stringify(ar != null && typeof ar === "object" && !Array.isArray(ar) ? ar : {}, null, 2),
       );
+    }
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_LLM_AGENT) {
+      const r = selection.raw;
+      setLlmCommand(typeof r.command === "string" ? r.command : "");
+      setLlmCwd(typeof r.cwd === "string" ? r.cwd : "");
+      const lts = r.timeoutSec;
+      setLlmTimeoutSec(
+        typeof lts === "number" && Number.isFinite(lts)
+          ? String(lts)
+          : typeof lts === "string" && lts.trim() !== ""
+            ? lts.trim()
+            : "600",
+      );
+      const ms = r.maxAgentSteps;
+      setLlmMaxSteps(
+        typeof ms === "number" && Number.isFinite(ms)
+          ? String(Math.max(0, Math.floor(ms)))
+          : typeof ms === "string" && ms.trim() !== ""
+            ? ms.trim()
+            : "0",
+      );
+      const ek = r.envKeys;
+      if (Array.isArray(ek)) {
+        setLlmEnvKeysCsv(ek.filter((x) => typeof x === "string").join(", "));
+      } else {
+        setLlmEnvKeysCsv("");
+      }
+      const ip = r.inputPayload;
+      try {
+        setLlmInputPayloadJson(JSON.stringify(ip ?? {}, null, 2));
+      } catch {
+        setLlmInputPayloadJson("{}");
+      }
     }
     if (selection?.kind === "node") {
       setDataText(JSON.stringify(selection.raw, null, 2));
@@ -484,6 +525,61 @@ export function InspectorPanel({
     onApplyNodeData(selection.id, next);
   };
 
+  const applyLlmAgentFields = () => {
+    if (runLocked || selection?.kind !== "node" || selection.graphNodeType !== GRAPH_NODE_TYPE_LLM_AGENT) {
+      return;
+    }
+    let payloadObj: Record<string, unknown>;
+    try {
+      const p = JSON.parse(llmInputPayloadJson);
+      if (!isPlainObject(p)) {
+        throw new Error("not_object");
+      }
+      payloadObj = p;
+    } catch {
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.llmAgentInputPayloadInvalid"),
+        "app.inspector.llmAgentInputPayloadInvalid",
+      );
+      return;
+    }
+    const toN = Number.parseFloat(llmTimeoutSec);
+    const timeoutSec = Number.isFinite(toN) ? Math.min(86400, Math.max(1, toN)) : 600;
+    const msRaw = Number.parseInt(llmMaxSteps.trim(), 10);
+    const maxAgentSteps = Number.isFinite(msRaw) ? Math.max(0, msRaw) : 0;
+    const keys = llmEnvKeysCsv
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s !== "");
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    const next: Record<string, unknown> = {
+      ...base,
+      title:
+        typeof base.title === "string" && base.title.trim() !== "" ? base.title : "LLM agent",
+      timeoutSec,
+      maxAgentSteps,
+      inputPayload: payloadObj,
+    };
+    const cmdTrim = llmCommand.trim();
+    if (cmdTrim !== "") {
+      next.command = llmCommand;
+    } else {
+      delete next.command;
+    }
+    const cwdTrim = llmCwd.trim();
+    if (cwdTrim !== "") {
+      next.cwd = llmCwd;
+    } else {
+      delete next.cwd;
+    }
+    if (keys.length > 0) {
+      next.envKeys = keys;
+    } else {
+      delete next.envKeys;
+    }
+    onApplyNodeData(selection.id, next);
+  };
+
   return (
     <aside className="gc-inspector">
       <h2>{t("app.inspector.heading")}</h2>
@@ -710,6 +806,113 @@ export function InspectorPanel({
                 </div>
                 <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
               </div>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_LLM_AGENT ? (
+            <div className="gc-inspector-mcp">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-cmd">
+                  {t("app.inspector.llmAgentCommand")}
+                </label>
+                <input
+                  id="gc-inspector-llm-cmd"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  spellCheck={false}
+                  value={llmCommand}
+                  onChange={(ev) => {
+                    setLlmCommand(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.llmAgentCommandHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-cwd">
+                  {t("app.inspector.llmAgentCwd")}
+                </label>
+                <input
+                  id="gc-inspector-llm-cwd"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={llmCwd}
+                  onChange={(ev) => {
+                    setLlmCwd(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-timeout">
+                  {t("app.inspector.llmAgentTimeoutSec")}
+                </label>
+                <input
+                  id="gc-inspector-llm-timeout"
+                  type="text"
+                  inputMode="decimal"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={llmTimeoutSec}
+                  onChange={(ev) => {
+                    setLlmTimeoutSec(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-maxsteps">
+                  {t("app.inspector.llmAgentMaxSteps")}
+                </label>
+                <input
+                  id="gc-inspector-llm-maxsteps"
+                  type="text"
+                  inputMode="numeric"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={llmMaxSteps}
+                  onChange={(ev) => {
+                    setLlmMaxSteps(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.llmAgentMaxStepsHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-envkeys">
+                  {t("app.inspector.llmAgentEnvKeys")}
+                </label>
+                <input
+                  id="gc-inspector-llm-envkeys"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  spellCheck={false}
+                  value={llmEnvKeysCsv}
+                  onChange={(ev) => {
+                    setLlmEnvKeysCsv(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.llmAgentEnvKeysHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-llm-payload">
+                  {t("app.inspector.llmAgentInputPayload")}
+                </label>
+                <textarea
+                  id="gc-inspector-llm-payload"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  rows={4}
+                  spellCheck={false}
+                  value={llmInputPayloadJson}
+                  onChange={(ev) => {
+                    setLlmInputPayloadJson(ev.target.value);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked}
+                onClick={applyLlmAgentFields}
+              >
+                {t("app.inspector.applyLlmAgentSettings")}
+              </button>
             </div>
           ) : null}
           {aiRouteEndpointHref != null ? (

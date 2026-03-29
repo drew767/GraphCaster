@@ -620,6 +620,10 @@ body {
   border-color: var(--gc-accent);
 }
 
+.gc-flow-node--llm_agent {
+  border-color: #5ac8fa;
+}
+
 .gc-flow-node--graph_ref {
   border-color: #af52de;
 }

@@ -15,6 +15,7 @@ import {
   GRAPH_NODE_TYPE_FORK,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
@@ -37,11 +38,12 @@ describe("primitivesForAddNodeCategory", () => {
     expect(got.size).toBe(4);
   });
 
-  it("steps is task, ai_route, and mcp_tool", () => {
+  it("steps is task, ai_route, mcp_tool, and llm_agent", () => {
     expect(primitivesForAddNodeCategory("steps")).toEqual([
       GRAPH_NODE_TYPE_TASK,
       GRAPH_NODE_TYPE_AI_ROUTE,
       GRAPH_NODE_TYPE_MCP_TOOL,
+      GRAPH_NODE_TYPE_LLM_AGENT,
     ]);
   });
 

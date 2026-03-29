@@ -9,3 +9,4 @@ export const GRAPH_NODE_TYPE_MERGE = "merge" as const;
 export const GRAPH_NODE_TYPE_FORK = "fork" as const;
 export const GRAPH_NODE_TYPE_AI_ROUTE = "ai_route" as const;
 export const GRAPH_NODE_TYPE_MCP_TOOL = "mcp_tool" as const;
+export const GRAPH_NODE_TYPE_LLM_AGENT = "llm_agent" as const;

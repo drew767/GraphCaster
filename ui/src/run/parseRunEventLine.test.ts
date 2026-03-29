@@ -30,6 +30,20 @@ describe("parseRunEventLine", () => {
   it("returns null on invalid JSON", () => {
     expect(parseRunEventLine("{")).toBeNull();
   });
+
+  it("parses agent_step", () => {
+    const v = parseRunEventLine(
+      '{"type":"agent_step","nodeId":"n1","graphId":"g1","attempt":0,"phase":"llm","message":"x"}',
+    );
+    expect(v).toEqual({
+      type: "agent_step",
+      nodeId: "n1",
+      graphId: "g1",
+      attempt: 0,
+      phase: "llm",
+      message: "x",
+    });
+  });
 });
 
 describe("peekRootGraphIdFromNdjson", () => {

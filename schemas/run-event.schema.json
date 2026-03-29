@@ -40,7 +40,12 @@
         "ai_route_failed",
         "mcp_tool_invoke",
         "mcp_tool_result",
-        "mcp_tool_failed"
+        "mcp_tool_failed",
+        "agent_delegate_start",
+        "agent_step",
+        "agent_tool_call",
+        "agent_finished",
+        "agent_failed"
       ]
     },
     "runId": {
@@ -215,6 +220,14 @@
               "kind": { "const": "mcp_tool_unknown_transport" },
               "nodeId": { "type": "string", "minLength": 1 },
               "transport": { "type": "string" },
+              "graphId": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "required": ["kind", "nodeId", "graphId"],
+            "properties": {
+              "kind": { "const": "llm_agent_empty_command" },
+              "nodeId": { "type": "string", "minLength": 1 },
               "graphId": { "type": "string", "minLength": 1 }
             }
           },
@@ -516,6 +529,84 @@
           "transport": { "type": "string" },
           "errorMessage": { "type": "string" },
           "errorCode": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "agent_delegate_start" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "model": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "agent_step" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "phase": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "agent_tool_call" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "toolName": { "type": "string" },
+          "arguments": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "agent_finished" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "result": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "agent_failed" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 0 },
+          "message": { "type": "string" }
         }
       }
     },

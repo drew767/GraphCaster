@@ -45,6 +45,22 @@
 
 ---
 
+## Делегированный LLM-агент — нода **`llm_agent`** (**F11**, внешний процесс)
+
+Паттерн как у **Langflow** / **Dify** / **n8n Agent**: оркестрация и tool-loop живут **в отдельном процессе**, а раннер GC даёт **один шаг графа**, **stdin JSON** (контекст) и принимает **NDJSON шагов** на stdout. В ядре GC **нет** полноценного ReAct / памяти уровня этих продуктов — сравнение конкурентов и **остаток** **F11** (in-runner агент) — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§23** и таблица **F11** там же (в этом файле — только **факт реализации** **`llm_agent`** / **`ai_route`**).
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Видимость шагов агента в логе прогона | События **`agent_delegate_start`**, **`agent_step`**, **`agent_tool_call`**, **`agent_finished`** / **`agent_failed`** в **`run-event.schema.json`**; оверлей канваса — **`ui/src/run/nodeRunOverlay.ts`** |
+| Один контракт на границе процесса | **`stdin`:** одна строка UTF-8 JSON: **`schemaVersion`**, **`graphId`**, **`nodeId`**, **`runId`**, **`upstreamOutputs`**, опционально **`inputPayload`** (из **`data.inputPayload`**) — **`graph_caster/agent_delegate.build_llm_agent_stdin_text`** (лимит ~256 KiB, усечение **`upstreamOutputs`**). Поля ноды **`data`** (кроме **`inputPayload`**) в stdin **не** дублируются — дочерний процесс уже знает свою команду из **`argv`**. **`maxAgentSteps`** обрабатывает только хост (не в stdin). |
+| Успех визита | Подпроцесс **exit 0** и строка **`agent_finished`**; дочерний процесс должен **завершиться** после финального события (иначе — таймаут **`timeoutSec`**). Иначе сбой / **`out_error`** как у **`task`**. Без **`command`/`argv`** — **`process_failed`** / ошибка, не «тихий» успех. |
+| Секреты и окружение | Как **`task`**: **`command`/`argv`**, **`cwd`**, **`env`**, **`envKeys`**, **`timeoutSec`**, **`retryCount`** / **`maxRetries`**, **`retryBackoffSec`**; редукция в **`node_execute`** |
+| Параллельные ветки после **`fork`** | Поддерживается в том же классе планов, что **`task`** + **`mcp_tool`** (см. **`runner.py`**) |
+
+Код: **`graph_caster/agent_delegate.py`**, **`process_exec.run_llm_agent_process`**, **`runner._run_llm_agent_visit`**, **`validate.find_llm_agent_structure_warnings`**; схемы **`llmAgentNodeData`**; UI: палитра, **`InspectorPanel`**, локали **en/ru**. Тесты: **`python/tests/test_agent_delegate.py`**, **`python/tests/test_llm_agent_node.py`**.
+
+---
+
 ## Workspace-секреты и `envKeys` (**F8** v1, file-first)
 
 | Идея конкурента | Реализация GC |

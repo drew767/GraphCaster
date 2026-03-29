@@ -51,7 +51,7 @@ function isErrorLikeFromParsed(ev: unknown, isStderr: boolean, rawLine: string):
   const t = o.type;
   const typeStr = typeof t === "string" ? t : "";
 
-  if (typeStr === "error" || typeStr === "process_failed") {
+  if (typeStr === "error" || typeStr === "process_failed" || typeStr === "agent_failed") {
     return true;
   }
 
@@ -124,6 +124,28 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
       nodeId: null,
       isErrorLike: false,
       streamBackpressureDropped: count > 0 ? count : undefined,
+    };
+  }
+
+  if (parsedType === "agent_step" && ev && typeof ev === "object" && ev !== null && !Array.isArray(ev)) {
+    const o = ev as Record<string, unknown>;
+    const nid =
+      typeof o.nodeId === "string" && o.nodeId.trim() !== ""
+        ? o.nodeId.trim()
+        : nodeId != null
+          ? nodeId
+          : "?";
+    const phase = typeof o.phase === "string" && o.phase.trim() !== "" ? o.phase.trim() : "";
+    const message = typeof o.message === "string" ? o.message.trim() : "";
+    const detail = [phase && `phase=${phase}`, message && `message=${message}`].filter(Boolean).join(" ");
+    const body = detail ? `[${nid}] agent_step ${detail}` : `[${nid}] agent_step`;
+    return {
+      rawLine,
+      displayLine: body,
+      isStderr: prefixedStderr,
+      parsedType,
+      nodeId: nid,
+      isErrorLike: isErrorLikeFromParsed(ev, prefixedStderr, rawLine),
     };
   }
 
