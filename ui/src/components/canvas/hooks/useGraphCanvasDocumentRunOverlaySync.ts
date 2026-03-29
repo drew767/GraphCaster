@@ -145,15 +145,19 @@ export function useGraphCanvasDocumentRunOverlaySync({
           hl,
           runMotionPulseEnabled,
         );
+        const curData = cur?.data as GcNodeData | undefined;
+        const rawUnchanged =
+          curData?.raw === d.raw ||
+          (curData != null && JSON.stringify(curData.raw) === JSON.stringify(d.raw));
         if (
           cur &&
           cur.position.x === n.position.x &&
           cur.position.y === n.position.y &&
           cur.parentId === n.parentId &&
           cur.type === n.type &&
-          (cur.data as GcNodeData).graphNodeType === d.graphNodeType &&
-          (cur.data as GcNodeData).label === d.label &&
-          (cur.data as GcNodeData).raw === d.raw
+          curData?.graphNodeType === d.graphNodeType &&
+          curData?.label === d.label &&
+          rawUnchanged
         ) {
           const cd = cur.data as GcNodeData;
           if (cur.className === className && cd.runOverlayPhase === effectivePhase) {

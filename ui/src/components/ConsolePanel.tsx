@@ -10,6 +10,8 @@ import {
   passesConsoleFilter,
 } from "../run/consoleLineMeta";
 import { reduceConsoleLinesToRunTimeline, type RunTimelineStatus } from "../run/buildRunTimeline";
+import { gcErrorTranslationKey } from "../lib/errorMessages";
+import { jsonHighlightedConsoleLine } from "../lib/jsonConsoleHighlight";
 import { runSessionClearConsole, useRunSession } from "../run/runSessionStore";
 
 type Props = {
@@ -323,6 +325,10 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
                 ]
                   .filter(Boolean)
                   .join(" ");
+                const gcHint =
+                  m.gcCode != null && m.gcCode !== ""
+                    ? t(gcErrorTranslationKey(m.gcCode), { defaultValue: m.gcCode })
+                    : "";
                 return (
                   <pre
                     key={row.index}
@@ -349,7 +355,12 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
                   >
                     {m.streamBackpressureDropped != null
                       ? t("app.run.console.outputTruncated", { count: m.streamBackpressureDropped })
-                      : m.displayLine}
+                      : gcHint !== ""
+                        ? <>
+                            {jsonHighlightedConsoleLine(m.displayLine)}
+                            <span className="gc-console-gc-hint"> — {gcHint}</span>
+                          </>
+                        : jsonHighlightedConsoleLine(m.displayLine)}
                   </pre>
                 );
               })

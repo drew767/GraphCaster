@@ -105,6 +105,11 @@ class RunBrokerRegistry:
         with self._lock:
             return self._runs.get(run_id)
 
+    def debug_broadcaster_metrics(self) -> list[dict[str, object]]:
+        """Per-run SSE/WS fan-out stats (for ``GET /health?debug=1``)."""
+        with self._lock:
+            return [r.broadcaster.metrics_snapshot() for r in self._runs.values()]
+
     def _running_count(self) -> int:
         return sum(1 for r in self._runs.values() if r.proc is not None)
 

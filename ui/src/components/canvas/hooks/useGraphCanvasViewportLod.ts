@@ -2,7 +2,7 @@
 
 import type { Node } from "@xyflow/react";
 import { useStore } from "@xyflow/react";
-import { useCallback, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 
 import { type GcCanvasLodLevel, lodLevelWithHysteresis } from "../../../graph/canvasLod";
 import type { GcNodeData } from "../../../graph/toReactFlow";
@@ -24,19 +24,12 @@ export function useGraphCanvasViewportLod(
     visibilityById: ReturnType<typeof computeVisibilityByNodeId> | typeof EMPTY_NODE_VISIBILITY_BY_ID;
   };
 } {
+  // Use individual selectors to avoid object creation that triggers unnecessary re-renders
   const zoom = useStore((s) => s.transform[2]);
-  const flowPane = useStore(
-    useCallback(
-      (s) => ({
-        tx: s.transform[0],
-        ty: s.transform[1],
-        z: s.transform[2],
-        width: s.width,
-        height: s.height,
-      }),
-      [],
-    ),
-  );
+  const tx = useStore((s) => s.transform[0]);
+  const ty = useStore((s) => s.transform[1]);
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
   const lodStickyRef = useRef<GcCanvasLodLevel>("full");
   const canvasLod = (() => {
     const next = lodLevelWithHysteresis(zoom, lodStickyRef.current);
@@ -58,19 +51,19 @@ export function useGraphCanvasViewportLod(
     }
     return computeVisibilityByNodeId(
       nodes,
-      [flowPane.tx, flowPane.ty, flowPane.z],
-      flowPane.width,
-      flowPane.height,
+      [tx, ty, zoom],
+      width,
+      height,
       VIEWPORT_OFFSCREEN_PADDING_PX,
     );
   }, [
     ghostOffViewportEnabled,
     nodes,
-    flowPane.tx,
-    flowPane.ty,
-    flowPane.z,
-    flowPane.width,
-    flowPane.height,
+    tx,
+    ty,
+    zoom,
+    width,
+    height,
   ]);
 
   const viewportTierValue = useMemo(

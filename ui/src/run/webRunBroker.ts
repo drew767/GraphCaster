@@ -28,6 +28,14 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
 const brokerStreams = new Map<string, EventSource>();
 const brokerSockets = new Map<string, WebSocket>();
 
+const MAX_SSE_RECONNECT_ATTEMPTS = 12;
+const SSE_BACKOFF_BASE_MS = 400;
+const SSE_BACKOFF_CAP_MS = 25_000;
+
+function sseReconnectDelayMs(attempt: number): number {
+  return Math.min(SSE_BACKOFF_CAP_MS, SSE_BACKOFF_BASE_MS * 2 ** attempt);
+}
+
 function scheduleLaunchAfterRunExit(rid: string, code: number | null): void {
   void import("./runCommands").then(({ launchGcStartJob }) => {
     const next = store.runSessionOnRunProcessExited(rid, code);
@@ -55,6 +63,75 @@ export function runBrokerWebSocketUrl(runId: string, viewerToken: string): strin
   const loc = window.location;
   const scheme = loc.protocol === "https:" ? "wss:" : "ws:";
   return `${scheme}//${loc.host}${path}?${qp.toString()}`;
+}
+
+function attachWebBrokerSseRunStream(
+  rid: string,
+  attempt: number,
+  state: { exitReceived: boolean },
+): void {
+  const es = new EventSource(runBrokerStreamRelativeStreamPath(rid));
+  brokerStreams.set(rid, es);
+
+  es.addEventListener("message", (e: MessageEvent<string>) => {
+    const line = e.data;
+    store.runSessionAppendLineForRun(rid, line);
+    applyRunnerNdjsonSideEffects(line, rid);
+  });
+
+  es.addEventListener("err", (e: MessageEvent<string>) => {
+    let text = e.data;
+    try {
+      const o = JSON.parse(e.data) as { line?: string };
+      if (typeof o.line === "string") {
+        text = o.line;
+      }
+    } catch {
+      /* use raw */
+    }
+    store.runSessionAppendLineForRun(rid, `[stderr] ${text}`);
+  });
+
+  es.addEventListener("exit", (e: MessageEvent<string>) => {
+    state.exitReceived = true;
+    let code: number | null = null;
+    try {
+      const o = JSON.parse(e.data) as { code?: number };
+      if (typeof o.code === "number") {
+        code = o.code;
+      }
+    } catch {
+      /* ignore */
+    }
+    closeWebRunBrokerStreamForRun(rid);
+    scheduleLaunchAfterRunExit(rid, code);
+  });
+
+  es.onerror = () => {
+    if (!brokerStreams.has(rid)) {
+      return;
+    }
+    if (brokerStreams.get(rid) !== es) {
+      return;
+    }
+    es.close();
+    brokerStreams.delete(rid);
+    if (state.exitReceived) {
+      return;
+    }
+    if (attempt >= MAX_SSE_RECONNECT_ATTEMPTS) {
+      state.exitReceived = true;
+      store.runSessionAppendLineForRun(
+        rid,
+        "[host] Run stream: reconnect attempts exhausted (SSE). Treating run as finished.",
+      );
+      scheduleLaunchAfterRunExit(rid, null);
+      return;
+    }
+    window.setTimeout(() => {
+      attachWebBrokerSseRunStream(rid, attempt + 1, state);
+    }, sseReconnectDelayMs(attempt));
+  };
 }
 
 function attachWebBrokerWebSocket(rid: string, viewerToken: string): void {
@@ -181,11 +258,21 @@ export async function startWebBrokerRun(args: {
     stepCache: args.stepCache === true ? true : null,
     stepCacheDirty: dirty,
   };
-  const r = await fetch(`${base}/runs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...brokerHeaders() },
-    body: JSON.stringify(body),
-  });
+  let r: Response;
+  try {
+    r = await fetch(`${base}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...brokerHeaders() },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    const off =
+      typeof navigator !== "undefined" && navigator.onLine === false
+        ? i18n.t("app.errors.network.offlineHint")
+        : i18n.t("app.errors.network.brokerHint");
+    const baseMsg = err instanceof Error ? err.message : String(err);
+    throw new Error(`${baseMsg} — ${off}`);
+  }
   if (!r.ok) {
     const t = await r.text();
     throw new Error(t || `HTTP ${r.status}`);
@@ -219,55 +306,8 @@ export async function startWebBrokerRun(args: {
     return;
   }
 
-  let exitReceived = false;
-  const es = new EventSource(runBrokerStreamRelativeStreamPath(rid));
-  brokerStreams.set(rid, es);
-
-  es.addEventListener("message", (e: MessageEvent<string>) => {
-    const line = e.data;
-    store.runSessionAppendLineForRun(rid, line);
-    applyRunnerNdjsonSideEffects(line, rid);
-  });
-
-  es.addEventListener("err", (e: MessageEvent<string>) => {
-    let text = e.data;
-    try {
-      const o = JSON.parse(e.data) as { line?: string };
-      if (typeof o.line === "string") {
-        text = o.line;
-      }
-    } catch {
-      /* use raw */
-    }
-    store.runSessionAppendLineForRun(rid, `[stderr] ${text}`);
-  });
-
-  es.addEventListener("exit", (e: MessageEvent<string>) => {
-    exitReceived = true;
-    let code: number | null = null;
-    try {
-      const o = JSON.parse(e.data) as { code?: number };
-      if (typeof o.code === "number") {
-        code = o.code;
-      }
-    } catch {
-      /* ignore */
-    }
-    closeWebRunBrokerStreamForRun(rid);
-    scheduleLaunchAfterRunExit(rid, code);
-  });
-
-  es.onerror = () => {
-    if (!brokerStreams.has(rid)) {
-      return;
-    }
-    closeWebRunBrokerStreamForRun(rid);
-    if (exitReceived) {
-      return;
-    }
-    exitReceived = true;
-    scheduleLaunchAfterRunExit(rid, null);
-  };
+  const sseState = { exitReceived: false };
+  attachWebBrokerSseRunStream(rid, 0, sseState);
 }
 
 export async function cancelWebBrokerRun(runId: string): Promise<void> {

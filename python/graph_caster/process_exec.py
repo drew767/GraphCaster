@@ -25,9 +25,42 @@ EmitFn = Callable[..., None]
 _STDOUT_CAP = 256 * 1024
 _CANCEL_POLL_SEC = 0.25
 _CANCEL_JOIN_TIMEOUT_SEC = 120.0
+_CANCEL_GRACEFUL_WAIT_SEC = 2.0
 _STREAM_READER_JOIN_SEC = 5.0
 _MAX_READLINE_CHARS = 32768
 _STREAM_QUEUE_MAX = 8192
+
+
+def _terminate_process_graceful(
+    proc: subprocess.Popen[Any],
+    *,
+    grace_sec: float = _CANCEL_GRACEFUL_WAIT_SEC,
+) -> None:
+    """
+    SIGTERM / ``terminate`` first, then SIGKILL / ``kill`` if the process is still
+    alive after ``grace_sec`` (MVP cancel/stop behavior).
+    """
+    if proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+    except OSError:
+        pass
+    deadline = time.monotonic() + max(0.0, grace_sec)
+    while proc.poll() is None:
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(min(_CANCEL_POLL_SEC, max(0.0, deadline - time.monotonic())))
+    if proc.poll() is not None:
+        return
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=_STREAM_READER_JOIN_SEC)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def _truncate_for_process_result_storage(s: str, max_len: int) -> str:
@@ -249,7 +282,7 @@ def _communicate_with_cancel(
                 out_b, err_b = o or "", e or ""
             except subprocess.TimeoutExpired:
                 timed_out = True
-                proc.kill()
+                _terminate_process_graceful(proc)
                 o, e = proc.communicate()
                 out_b, err_b = o or "", e or ""
         finally:
@@ -266,7 +299,7 @@ def _communicate_with_cancel(
             if state["done"]:
                 return (state["out"], state["err"], state["timed_out"], False)
         if should_cancel():
-            proc.kill()
+            _terminate_process_graceful(proc)
             th.join(timeout=_CANCEL_JOIN_TIMEOUT_SEC)
             if th.is_alive():
                 warnings.warn(
@@ -409,11 +442,11 @@ def _communicate_with_streaming(
             except queue.Empty:
                 if should_cancel is not None and should_cancel():
                     cancelled = True
-                    proc.kill()
+                    _terminate_process_graceful(proc)
                     break
                 if deadline is not None and time.monotonic() >= deadline:
                     timed_out = True
-                    proc.kill()
+                    _terminate_process_graceful(proc)
                     break
                 continue
             _emit_one_process_output(
@@ -432,11 +465,7 @@ def _communicate_with_streaming(
         try:
             proc.wait(timeout=_STREAM_READER_JOIN_SEC)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            try:
-                proc.wait(timeout=_STREAM_READER_JOIN_SEC)
-            except subprocess.TimeoutExpired:
-                pass
+            _terminate_process_graceful(proc)
         t_out.join(timeout=_STREAM_READER_JOIN_SEC)
         t_err.join(timeout=_STREAM_READER_JOIN_SEC)
         _drain_process_output_queue(
@@ -871,10 +900,7 @@ def run_llm_agent_process(
                 message=f"stdin: {e}",
                 attempt=attempt,
             )
-            try:
-                proc.kill()
-            except OSError:
-                pass
+            _terminate_process_graceful(proc)
             ctx["last_result"] = False
             _record_task_process_result(
                 ctx,
@@ -950,11 +976,11 @@ def run_llm_agent_process(
             while proc.poll() is None:
                 if should_cancel is not None and should_cancel():
                     cancelled = True
-                    proc.kill()
+                    _terminate_process_graceful(proc)
                     break
                 if deadline is not None and time.monotonic() >= deadline:
                     timed_out = True
-                    proc.kill()
+                    _terminate_process_graceful(proc)
                     break
                 while True:
                     try:
@@ -982,11 +1008,7 @@ def run_llm_agent_process(
             try:
                 proc.wait(timeout=_STREAM_READER_JOIN_SEC)
             except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    proc.wait(timeout=_STREAM_READER_JOIN_SEC)
-                except subprocess.TimeoutExpired:
-                    pass
+                _terminate_process_graceful(proc)
             t_err.join(timeout=_STREAM_READER_JOIN_SEC)
             t_out.join(timeout=_STREAM_READER_JOIN_SEC)
             while True:

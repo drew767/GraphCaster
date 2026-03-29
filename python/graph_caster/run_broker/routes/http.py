@@ -27,8 +27,11 @@ def make_http_handlers(
     reg: RunBrokerRegistry,
     webhook_idempotency: IdempotencyCache,
 ) -> dict[str, object]:
-    async def health(_: Request) -> Response:
-        return JSONResponse({"ok": True})
+    async def health(request: Request) -> Response:
+        body: dict[str, object] = {"ok": True}
+        if request.query_params.get("debug") == "1":
+            body["broadcasters"] = reg.debug_broadcaster_metrics()
+        return JSONResponse(body)
 
     async def create_run(request: Request) -> Response:
         try:

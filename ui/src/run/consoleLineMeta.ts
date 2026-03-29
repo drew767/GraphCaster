@@ -26,6 +26,8 @@ export type ConsoleLineMeta = {
   parsedType: string | null;
   nodeId: string | null;
   isErrorLike: boolean;
+  /** Structured runner code (``gcCode`` NDJSON field) for localized hints in the console. */
+  gcCode?: string | null;
   /** When set, ConsolePanel shows i18n warning instead of raw `displayLine`. */
   streamBackpressureDropped?: number;
 };
@@ -189,6 +191,14 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
 
   const isStderr = prefixedStderr;
   const isErrorLike = isErrorLikeFromParsed(ev, isStderr, rawLine);
+  let gcCode: string | null = null;
+  if (parsedType === "error" && ev && typeof ev === "object" && ev !== null && !Array.isArray(ev)) {
+    const o = ev as Record<string, unknown>;
+    const c = o.gcCode;
+    if (typeof c === "string" && c.trim() !== "") {
+      gcCode = c.trim();
+    }
+  }
   return {
     rawLine,
     displayLine: rawLine,
@@ -196,6 +206,7 @@ export function buildConsoleLineMeta(rawLine: string): ConsoleLineMeta {
     parsedType,
     nodeId,
     isErrorLike,
+    gcCode,
   };
 }
 

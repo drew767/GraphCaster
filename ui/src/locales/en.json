@@ -139,6 +139,19 @@
       "nodeId": "Id",
       "nodeType": "Type",
       "label": "Title",
+      "nodeTypeDesc": {
+        "start": "Entry point: execution begins here. Exactly one start per graph; no incoming edges.",
+        "exit": "Graceful end node. Reaching exit marks the run as successful for that path.",
+        "task": "Runs a shell command or script. Use for CLI tools, scripts, and the Cursor Agent preset (gcCursorAgent).",
+        "graph_ref": "Runs another graph file from the workspace as a nested workflow. Target is meta.graphId of the child document.",
+        "merge": "Joins branches: passthrough follows the first finished predecessor; barrier waits for all inbound paths (see mode).",
+        "fork": "Fans out to multiple unconditional branches. Use after a single path to run several next steps in sequence.",
+        "comment": "Editor-only note frame — not executed. Drag nodes inside to group visually.",
+        "group": "Editor-only group frame — not executed. Use Edit → Group selection to wrap nodes.",
+        "ai_route": "Branches based on an LLM/router choice. Outgoing edges should have route descriptions for the model.",
+        "mcp_tool": "Calls a Model Context Protocol server tool (stdio or HTTP).",
+        "llm_agent": "Runs a subprocess that emits agent_step lines for multi-step LLM tooling (runner-managed)."
+      },
       "dataJson": "Data",
       "applyData": "Apply data",
       "invalidDataJson": "Data must be a JSON object.",
@@ -370,6 +383,16 @@
       "ru": "Русский"
     },
     "errors": {
+      "gc": {
+        "GC2001": "Task node cannot run: set command, argv, or a gcCursorAgent preset.",
+        "GC2002": "Cursor Agent preset (gcCursorAgent) is invalid — fix fields in the inspector.",
+        "GC2010": "MCP tool node is misconfigured (tool name, transport, command, or URL).",
+        "GC2011": "LLM agent node needs a command or argv."
+      },
+      "network": {
+        "brokerHint": "If using dev:web, start the run broker: cd python && python -m graph_caster serve",
+        "offlineHint": "Network offline — reconnect and retry."
+      },
       "inspectorModal": {
         "title": "Invalid input"
       },
@@ -430,6 +453,47 @@
       "duplicateGraphId": "Another file already uses this graphId: {{file}}",
       "needLinkForGraphRef": "Link the project folder first to open a nested graph from graphs/.",
       "graphNotInIndex": "No graph file with graphId {{id}} was found in graphs/ (rescan after adding files)."
+    },
+    "shortcuts": {
+      "menuItem": "Keyboard shortcuts…",
+      "modalTitle": "Keyboard shortcuts",
+      "modalHint": "When a text field is focused, these chords may not apply. macOS uses ⌘ where Windows/Linux use Ctrl.",
+      "colAction": "Action",
+      "colKeys": "Keys",
+      "close": "Close",
+      "undo": "Undo",
+      "redo": "Redo",
+      "findNode": "Find / go to node",
+      "togglePalette": "Toggle node palette sidebar",
+      "copyNodes": "Copy selected nodes",
+      "pasteNodes": "Paste nodes",
+      "group": "Group selection",
+      "ungroup": "Ungroup selection",
+      "openShortcuts": "Open this help",
+      "keys": {
+        "undo": "Ctrl+Z",
+        "redo": "Ctrl+Shift+Z or Ctrl+Y",
+        "findNode": "Ctrl+F or Ctrl+K",
+        "togglePalette": "Ctrl+Shift+N",
+        "copy": "Ctrl+C",
+        "paste": "Ctrl+V",
+        "group": "Ctrl+G",
+        "ungroup": "Ctrl+Shift+G",
+        "openShortcuts": "F1"
+      }
+    },
+    "onboarding": {
+      "regionAria": "Getting started tips",
+      "title": "Getting started",
+      "tipRmb": "Right-click the canvas (or use the palette) to add nodes.",
+      "tipDragWire": "Drag from an output handle to an input handle on another node to connect.",
+      "dismiss": "Got it"
+    },
+    "toast": {
+      "saved": "Graph saved.",
+      "copiedNodes": "Copied selection to clipboard.",
+      "runStarted": "Run started.",
+      "runQueued": "Run queued — will start when a slot is free."
     }
   }
 }

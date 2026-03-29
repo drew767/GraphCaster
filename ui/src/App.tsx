@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "./layout/AppShell";
+import { ToastProvider } from "./toast/ToastProvider";
 
 export default function App() {
   const { i18n } = useTranslation();
@@ -14,5 +15,9 @@ export default function App() {
     [i18n],
   );
 
-  return <AppShell onLangChange={onLangChange} />;
+  return (
+    <ToastProvider>
+      <AppShell onLangChange={onLangChange} />
+    </ToastProvider>
+  );
 }

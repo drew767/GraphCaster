@@ -723,6 +723,14 @@ export function InspectorPanel({
             <span className="gc-inspector-k">{t("app.inspector.nodeType")}</span>
             <span className="gc-inspector-v">{selection.graphNodeType}</span>
           </div>
+          {(() => {
+            const dk = `app.inspector.nodeTypeDesc.${selection.graphNodeType}` as const;
+            const desc = t(dk, { defaultValue: "" });
+            if (desc === "" || desc === dk) {
+              return null;
+            }
+            return <p className="gc-inspector-type-desc">{desc}</p>;
+          })()}
           <div className="gc-inspector-row">
             <span className="gc-inspector-k">{t("app.inspector.label")}</span>
             <span className="gc-inspector-v">{selection.label}</span>

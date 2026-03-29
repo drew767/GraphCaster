@@ -31,6 +31,8 @@ type Props = {
   getDocument: () => GraphDocumentJson | null;
   onSaveToWorkspace: (fileName: string, doc: GraphDocumentJson) => Promise<GraphSaveToWorkspaceResult>;
   onClose: () => void;
+  /** Called after a successful save (workspace or download) before the modal closes. */
+  onSuccessfulSave?: () => void;
 };
 
 export function GraphSaveModal({
@@ -41,6 +43,7 @@ export function GraphSaveModal({
   getDocument,
   onSaveToWorkspace,
   onClose,
+  onSuccessfulSave,
 }: Props) {
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
@@ -133,6 +136,7 @@ export function GraphSaveModal({
       if (workspaceLinked) {
         const result = await onSaveToWorkspace(trimmed, doc);
         if (result.ok) {
+          onSuccessfulSave?.();
           onClose();
           return;
         }
@@ -152,6 +156,7 @@ export function GraphSaveModal({
       }
       try {
         await saveJsonWithFilePickerOrDownload(trimmed, doc);
+        onSuccessfulSave?.();
         onClose();
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") {
@@ -165,7 +170,7 @@ export function GraphSaveModal({
       isSavingRef.current = false;
       setIsSaving(false);
     }
-  }, [fileName, getDocument, onClose, onSaveToWorkspace, workspaceLinked]);
+  }, [fileName, getDocument, onClose, onSaveToWorkspace, onSuccessfulSave, workspaceLinked]);
 
   if (!open) {
     return null;

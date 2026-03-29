@@ -41,6 +41,7 @@ type Props = {
   workspaceGraphOptions: WorkspaceGraphOption[];
   onOpenWorkspaceGraph: (fileName: string) => void;
   onOpenFindNode?: () => void;
+  onOpenKeyboardShortcuts?: () => void;
   showRunControls?: boolean;
   runGraphsDir?: string;
   runArtifactsBase?: string;
@@ -100,6 +101,7 @@ export function TopBar({
   workspaceGraphOptions,
   onOpenWorkspaceGraph,
   onOpenFindNode = () => {},
+  onOpenKeyboardShortcuts = () => {},
   showRunControls = false,
   runGraphsDir = "",
   runArtifactsBase = "",
@@ -190,6 +192,14 @@ export function TopBar({
           title={t("app.canvas.findNodeShortcut")}
         >
           {t("app.canvas.findNode")}
+        </button>
+        <button
+          type="button"
+          className="gc-btn"
+          onClick={onOpenKeyboardShortcuts}
+          title={t("app.shortcuts.keys.openShortcuts")}
+        >
+          {t("app.shortcuts.menuItem")}
         </button>
         <label className="gc-top-run-stepcache" title={t("app.canvas.snapGridHint")}>
           <input

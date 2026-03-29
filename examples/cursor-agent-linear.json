@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "33333333-3333-4333-8333-333333333333",
+    "title": "Example: Cursor Agent linear",
+    "author": "GraphCaster"
+  },
+  "nodes": [
+    {
+      "id": "start1",
+      "type": "start",
+      "position": { "x": 100, "y": 180 },
+      "data": { "title": "Start" }
+    },
+    {
+      "id": "agent1",
+      "type": "task",
+      "position": { "x": 320, "y": 180 },
+      "data": {
+        "title": "Cursor Agent",
+        "gcCursorAgent": {
+          "presetVersion": 1,
+          "prompt": "Summarize the repository in one paragraph (read-only).",
+          "cwdBase": "workspace_root",
+          "printMode": true,
+          "applyFileChanges": false
+        },
+        "timeoutSec": 600,
+        "successMode": "exit_code"
+      }
+    },
+    {
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 540, "y": 180 },
+      "data": { "title": "Done" }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "agent1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "agent1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

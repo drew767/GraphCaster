@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+import os
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 RunTerminalStatus = Literal["success", "failed", "cancelled", "partial"]
@@ -56,6 +57,36 @@ class RunSessionRegistry:
     def running_sessions(self) -> list[RunSession]:
         with self._lock:
             return [s for s in self._sessions.values() if s.status == "running"]
+
+    def reap_stale_running_sessions(
+        self,
+        *,
+        max_age_sec: float | None = None,
+        terminal_status: RunTerminalStatus = "failed",
+    ) -> list[str]:
+        """
+        Mark very old ``running`` sessions as terminal (host crash / leak safety net).
+        Default max age: ``GC_RUN_SESSION_REAP_SEC`` or 4 hours.
+        """
+        if max_age_sec is None:
+            raw = os.environ.get("GC_RUN_SESSION_REAP_SEC", "14400").strip()
+            try:
+                max_age_sec = float(raw)
+            except ValueError:
+                max_age_sec = 14_400.0
+        max_age_sec = max(60.0, float(max_age_sec))
+        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_sec)
+        reaped: list[str] = []
+        with self._lock:
+            for rid, s in list(self._sessions.items()):
+                if s.status != "running":
+                    continue
+                if s.started_at >= cutoff:
+                    continue
+                s.finished_at = datetime.now(UTC)
+                s.status = terminal_status
+                reaped.append(rid)
+        return reaped
 
 
 _default_registry_lock = threading.Lock()

@@ -87,6 +87,8 @@ class RunBroadcaster:
         )
         self._subs: list[_SubscriberSlot] = []
         self._lock = threading.Lock()
+        self._metrics_lock = threading.Lock()
+        self._droppable_output_drops = 0
 
     def subscribe(self) -> queue.Queue[FanOutMsg]:
         q: queue.Queue[FanOutMsg] = queue.Queue(maxsize=self._config.max_sub_queue_depth)
@@ -132,9 +134,23 @@ class RunBroadcaster:
         try:
             sub.queue.put_nowait(msg)
         except queue.Full:
+            with self._metrics_lock:
+                self._droppable_output_drops += 1
             with sub.bp_lock:
                 sub.dropped_since_emit += 1
             self._maybe_emit_backpressure(sub)
+
+    def metrics_snapshot(self) -> dict[str, object]:
+        """Subscriber count and cumulative droppable stdout line drops (diagnostics)."""
+        with self._lock:
+            n_subs = len(self._subs)
+        with self._metrics_lock:
+            drops = self._droppable_output_drops
+        return {
+            "runId": self._run_id,
+            "subscribers": n_subs,
+            "droppableOutputDrops": drops,
+        }
 
     def broadcast(self, msg: FanOutMsg) -> None:
         droppable = False

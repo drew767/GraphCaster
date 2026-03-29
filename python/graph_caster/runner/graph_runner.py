@@ -1085,6 +1085,7 @@ class GraphRunner:
         nd0 = int(ctx.get("nesting_depth", 0))
         if nd0 > 0:
             ctx["_gc_merge_barrier"] = {}
+        skip_run_execution = False
         if nd0 == 0:
             if self._run_id is None:
                 ctx.setdefault("run_id", str(uuid.uuid4()))
@@ -1123,11 +1124,27 @@ class GraphRunner:
             }
             if self._doc.title:
                 started_payload["graphTitle"] = self._doc.title
+            from graph_caster.runtime_validate import first_runtime_node_blocker
+
+            blocker = first_runtime_node_blocker(self._doc)
+            if blocker is not None:
+                code, nid, detail = blocker
+                err_ev: dict[str, Any] = {"message": detail, "gcCode": code.value}
+                if nid:
+                    err_ev["nodeId"] = nid
+                self.emit("error", **err_ev)
+                ctx["_run_success"] = False
+                skip_run_execution = True
             if self._session_registry is not None:
-                sess = RunSession(run_id=self._run_id, root_graph_id=self._doc.graph_id)
-                self._session_registry.register(sess)
-                ctx["_gc_run_session"] = sess
-            self.emit("run_started", **started_payload)
+                reaped = self._session_registry.reap_stale_running_sessions()
+                if reaped:
+                    _LOG.debug("reaped stale run sessions: %s", ",".join(reaped))
+                if not skip_run_execution:
+                    sess = RunSession(run_id=self._run_id, root_graph_id=self._doc.graph_id)
+                    self._session_registry.register(sess)
+                    ctx["_gc_run_session"] = sess
+            if not skip_run_execution:
+                self.emit("run_started", **started_payload)
         from graph_caster import otel_tracing
         import contextlib
         otel_tracing.configure_otel()
@@ -1146,7 +1163,8 @@ class GraphRunner:
         )
         with _otel_root_cm as _otel_root_span:
             try:
-                self._run_from_execution_phase(start_node_id, ctx, nd0, _otel_tracer)
+                if not skip_run_execution:
+                    self._run_from_execution_phase(start_node_id, ctx, nd0, _otel_tracer)
             finally:
                 self._run_from_root_finally(ctx, nd0, _otel_root_span)
 

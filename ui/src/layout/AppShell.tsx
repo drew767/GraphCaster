@@ -14,6 +14,8 @@ import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
 import { GraphSaveModal, type GraphSaveToWorkspaceResult } from "../components/GraphSaveModal";
 import { RunHistoryModal } from "../components/RunHistoryModal";
 import { InspectorPanel } from "../components/InspectorPanel";
+import { KeyboardShortcutsModal } from "../components/KeyboardShortcutsModal";
+import { OnboardingTips } from "../components/OnboardingTips";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
 import {
@@ -138,6 +140,7 @@ import {
 } from "../run/stepCacheDirtyStore";
 import { isTauriRuntime } from "../run/tauriEnv";
 import { useRunBridge } from "../run/useRunBridge";
+import { useToast } from "../toast/ToastProvider";
 
 const LS_RUN_GRAPHS = "gc.run.graphsDir";
 const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
@@ -175,6 +178,7 @@ type Props = {
 
 export function AppShell({ onLangChange }: Props) {
   const { t } = useTranslation();
+  const { push: pushToast } = useToast();
   useRunBridge();
   const runSession = useRunSession();
   const runSessionBlocking =
@@ -221,6 +225,7 @@ export function AppShell({ onLangChange }: Props) {
   const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
   const [appMessageModal, setAppMessageModal] = useState<AppMessagePresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
+  const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
   const [nodePaletteSidebarOpen, setNodePaletteSidebarOpen] = useState(true);
   const hasStartNode = useMemo(
@@ -424,6 +429,23 @@ export function AppShell({ onLangChange }: Props) {
         e.preventDefault();
         setNodePaletteSidebarOpen((prev) => !prev);
       }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "F1") {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      e.preventDefault();
+      setKeyboardShortcutsOpen(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -834,6 +856,7 @@ export function AppShell({ onLangChange }: Props) {
         runSessionAppendLine(
           t("app.run.queuedHost", { runId, position: pos }),
         );
+        pushToast(t("app.toast.runQueued"), "info");
         return;
       }
       try {
@@ -844,11 +867,20 @@ export function AppShell({ onLangChange }: Props) {
             }
           },
         });
+        pushToast(t("app.toast.runStarted"), "success");
       } catch {
         /* host lines emitted in launchGcStartJob */
       }
     },
-    [pyProbe, runArtifactsBase, runGraphsDir, stepCacheRunEnabled, structureIssues, t],
+    [
+      pyProbe,
+      pushToast,
+      runArtifactsBase,
+      runGraphsDir,
+      stepCacheRunEnabled,
+      structureIssues,
+      t,
+    ],
   );
 
   const onRunGraph = useCallback(() => {
@@ -1462,9 +1494,14 @@ export function AppShell({ onLangChange }: Props) {
           return;
         }
         e.preventDefault();
-        void navigator.clipboard.writeText(JSON.stringify(payload)).catch(() => {
-          window.alert(t("app.inspector.clipboardCopyFailed"));
-        });
+        void navigator.clipboard.writeText(JSON.stringify(payload)).then(
+          () => {
+            pushToast(t("app.toast.copiedNodes"), "success");
+          },
+          () => {
+            window.alert(t("app.inspector.clipboardCopyFailed"));
+          },
+        );
         return;
       }
       if (runSessionBlocking) {
@@ -1532,7 +1569,7 @@ export function AppShell({ onLangChange }: Props) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [commitHistorySnapshot, runSessionBlocking, t]);
+  }, [commitHistorySnapshot, pushToast, runSessionBlocking, t]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1642,6 +1679,9 @@ export function AppShell({ onLangChange }: Props) {
         }}
         onOpenFindNode={() => {
           setNodeSearchOpen(true);
+        }}
+        onOpenKeyboardShortcuts={() => {
+          setKeyboardShortcutsOpen(true);
         }}
         showRunControls
         runGraphsDir={runGraphsDir}
@@ -1909,6 +1949,7 @@ export function AppShell({ onLangChange }: Props) {
               }}
             />
           </div>
+          <OnboardingTips enabled />
         </div>
         <InspectorPanel
           selection={selection}
@@ -1940,8 +1981,17 @@ export function AppShell({ onLangChange }: Props) {
           canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ?? null
         }
         onSaveToWorkspace={(fileName, doc) => saveDocumentToWorkspace(doc, fileName)}
+        onSuccessfulSave={() => {
+          pushToast(t("app.toast.saved"), "success");
+        }}
         onClose={() => {
           setSaveModalOpen(false);
+        }}
+      />
+      <KeyboardShortcutsModal
+        open={keyboardShortcutsOpen}
+        onClose={() => {
+          setKeyboardShortcutsOpen(false);
         }}
       />
       <OpenGraphErrorModal
