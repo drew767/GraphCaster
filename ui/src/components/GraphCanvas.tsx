@@ -7,6 +7,8 @@ import {
   ReactFlow,
   ReactFlowProvider,
   type Connection,
+  type OnConnectEnd,
+  type OnConnectStart,
   type Edge,
   type EdgeChange,
   type EdgeTypes,
@@ -34,15 +36,29 @@ import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
 
 import {
+  effectiveFollowRunCameraPanAnimated,
   effectiveRunEdgeAnimated,
   effectiveRunNodePulse,
   type RunMotionPreference,
 } from "../graph/canvasRunMotion";
+import { usePrefersColorSchemeDark } from "../lib/usePrefersColorSchemeDark";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
+import {
+  connectionLineStyleForTheme,
+  GC_CONNECTION_RADIUS,
+  gcConnectionLineType,
+} from "../graph/canvasConnectionUi";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { flowToDocument } from "../graph/fromReactFlow";
-import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
+import {
+  getCommentNodeSize,
+  getFlowNodeSize,
+  getWorldTopLeft,
+  reparentDraggedNode,
+} from "../graph/flowHierarchy";
+import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
+import { isGcFlowConnectionAllowed } from "../graph/connectionCompatibility";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
 import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
@@ -62,6 +78,7 @@ import {
   VIEWPORT_OFFSCREEN_PADDING_PX,
 } from "../graph/viewportNodeTier";
 import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
+import { GcConnectionDragContext, type GcConnectionDragOrigin } from "./GcConnectionDragContext";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
 import { GcViewportTierProvider } from "./GcViewportTierContext";
 import { NodeContextMenu } from "./NodeContextMenu";
@@ -246,6 +263,10 @@ type Props = {
   runMotionPreference?: RunMotionPreference;
   /** Show branch / `ai_route` captions on edges (hidden when LOD is compact). Default true. */
   edgeLabelsEnabled?: boolean;
+  /** User toggle: pan viewport to the active run node while a live or replay session warrants it. */
+  followRunCameraEnabled?: boolean;
+  /** True while replay is active or the focused run is a live run — pairs with `followRunCameraEnabled`. */
+  followRunCameraActive?: boolean;
 };
 
 const nodeTypes = {
@@ -366,6 +387,86 @@ function RefitOnLayoutEpoch({ epoch }: { epoch: number }) {
   return null;
 }
 
+const FOLLOW_RUN_CAMERA_DEBOUNCE_MS = 85;
+/** After `layoutEpoch` bumps, `RefitOnLayoutEpoch` runs `fitView` with duration 200ms — wait longer before `setCenter` to avoid fighting the refit animation. */
+const FOLLOW_RUN_AFTER_REFIT_MS = 220;
+
+function FollowActiveRunCamera({
+  runHighlightNodeId,
+  followEnabled,
+  followActive,
+  runMotionPreference,
+  layoutEpoch,
+}: {
+  runHighlightNodeId: string | null;
+  followEnabled: boolean;
+  followActive: boolean;
+  runMotionPreference: RunMotionPreference;
+  layoutEpoch: number;
+}) {
+  const { getNodes, getNode, setCenter, getViewport } = useReactFlow();
+  const prefersReduced = usePrefersReducedMotion();
+  const layoutEpochRef = useRef(layoutEpoch);
+
+  useEffect(() => {
+    if (!followEnabled || !followActive) {
+      return;
+    }
+    const id = runHighlightNodeId?.trim() ?? "";
+    if (id === "") {
+      return;
+    }
+
+    const prevEpoch = layoutEpochRef.current;
+    layoutEpochRef.current = layoutEpoch;
+    const epochBumped = prevEpoch !== layoutEpoch && layoutEpoch > 0;
+    const delay = epochBumped
+      ? FOLLOW_RUN_CAMERA_DEBOUNCE_MS + FOLLOW_RUN_AFTER_REFIT_MS
+      : FOLLOW_RUN_CAMERA_DEBOUNCE_MS;
+
+    const handle = window.setTimeout(() => {
+      const n = getNode(id);
+      if (!n) {
+        if (import.meta.env.DEV) {
+          console.debug("[gc-follow-run] node not on canvas", id);
+        }
+        return;
+      }
+      const all = getNodes();
+      const byId = new Map(all.map((x) => [x.id, x]));
+      const topLeft = getWorldTopLeft(n as Node<GcNodeData>, byId);
+      const dims = isReactFlowFrameNodeType(n.type)
+        ? getCommentNodeSize(n as Node<GcNodeData>)
+        : getFlowNodeSize(n);
+      const x = topLeft.x + dims.w / 2;
+      const y = topLeft.y + dims.h / 2;
+      const zoom = getViewport().zoom;
+      const animate = effectiveFollowRunCameraPanAnimated(runMotionPreference, prefersReduced);
+      void setCenter(x, y, {
+        zoom,
+        duration: animate ? 220 : 0,
+      });
+    }, delay);
+
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [
+    runHighlightNodeId,
+    followEnabled,
+    followActive,
+    runMotionPreference,
+    layoutEpoch,
+    getNode,
+    getNodes,
+    setCenter,
+    getViewport,
+    prefersReduced,
+  ]);
+
+  return null;
+}
+
 const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
   function GraphCanvasInner(
     {
@@ -392,6 +493,8 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       edgeRunOverlayRevision = 0,
       runMotionPreference = "full",
       edgeLabelsEnabled = true,
+      followRunCameraEnabled = false,
+      followRunCameraActive = false,
     },
     ref,
   ) {
@@ -405,6 +508,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       fy: number;
     } | null>(null);
     const [nodeCtxMenu, setNodeCtxMenu] = useState<{ sx: number; sy: number; nodeId: string } | null>(null);
+    const [connectionDrag, setConnectionDrag] = useState<GcConnectionDragOrigin>(null);
     const hasStartNode = useMemo(
       () => (graphDocument.nodes ?? []).some((n) => n.type === "start"),
       [graphDocument],
@@ -451,6 +555,15 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
     const minimapNodeColor = useCallback((node: Node<GcNodeData>) => minimapNodeFill(node), []);
     const minimapNodeStrokeColor = useCallback((node: Node<GcNodeData>) => minimapNodeStroke(node), []);
+    const prefersColorSchemeDark = usePrefersColorSchemeDark();
+    const minimapChrome = useMemo(
+      () => minimapChromeForTheme(prefersColorSchemeDark),
+      [prefersColorSchemeDark],
+    );
+    const connectionLineStyle = useMemo(
+      () => connectionLineStyleForTheme(prefersColorSchemeDark),
+      [prefersColorSchemeDark],
+    );
 
     const flowFromDocument = useMemo(() => graphDocumentToFlow(graphDocument), [graphDocument]);
     const [nodes, setNodes, onNodesChange] = useNodesState(flowFromDocument.nodes);
@@ -555,42 +668,60 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [structureLocked, onBeforeStructureRemove, onEdgesChange, onFlowStructureChange],
     );
 
+    const onConnectStart = useCallback<OnConnectStart>((_ev, { nodeId, handleId, handleType }) => {
+      if (handleType === "source" && nodeId) {
+        setConnectionDrag({
+          nodeId,
+          handleId: flowConnectionHandle(handleId, "out_default"),
+        });
+      } else {
+        setConnectionDrag(null);
+      }
+    }, []);
+
+    const onConnectEnd = useCallback<OnConnectEnd>((_event, _connectionState) => {
+      setConnectionDrag(null);
+    }, []);
+
+    const isValidConnection = useCallback(
+      (c: Connection | Edge) => {
+        if (structureLocked) {
+          return false;
+        }
+        return isGcFlowConnectionAllowed(
+          {
+            source: c.source,
+            target: c.target,
+            sourceHandle: c.sourceHandle ?? null,
+            targetHandle: c.targetHandle ?? null,
+          },
+          nodes,
+          edges,
+        );
+      },
+      [structureLocked, nodes, edges],
+    );
+
     const onConnect = useCallback(
       (c: Connection) => {
         if (structureLocked) {
           return;
         }
-        if (!c.source || !c.target || c.source === c.target) {
-          return;
-        }
-        const src = nodes.find((n) => n.id === c.source);
-        const tgt = nodes.find((n) => n.id === c.target);
-        if (isReactFlowFrameNodeType(src?.type) || isReactFlowFrameNodeType(tgt?.type)) {
+        if (!isGcFlowConnectionAllowed(c, nodes, edges)) {
           return;
         }
         const sh = flowConnectionHandle(c.sourceHandle, "out_default");
         const th = flowConnectionHandle(c.targetHandle, "in_default");
-        if (
-          edges.some(
-            (e) =>
-              e.source === c.source &&
-              e.target === c.target &&
-              flowConnectionHandle(e.sourceHandle, "out_default") === sh &&
-              flowConnectionHandle(e.targetHandle, "in_default") === th,
-          )
-        ) {
-          return;
-        }
         onConnectNewEdge({
           id: newGraphEdgeId(),
-          source: c.source,
-          target: c.target,
+          source: c.source!,
+          target: c.target!,
           sourceHandle: sh,
           targetHandle: th,
           condition: null,
         });
       },
-      [structureLocked, edges, nodes, onConnectNewEdge],
+      [structureLocked, nodes, edges, onConnectNewEdge],
     );
 
     const onBeforeDelete = useCallback(
@@ -906,10 +1037,14 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
         <GcBranchEdgeUiContext.Provider value={branchEdgeUiValue}>
         <GcViewportTierProvider value={viewportTierValue}>
           <GcCanvasLodProvider value={canvasLod}>
+          <GcConnectionDragContext.Provider value={connectionDrag}>
           <ReactFlow
             colorMode="system"
             ariaLabelConfig={flowAriaLabels}
             onlyRenderVisibleElements
+            connectionRadius={GC_CONNECTION_RADIUS}
+            connectionLineType={gcConnectionLineType}
+            connectionLineStyle={connectionLineStyle}
             snapToGrid={snapToGridEnabled}
             snapGrid={[CANVAS_GRID_STEP, CANVAS_GRID_STEP]}
             nodes={nodes}
@@ -917,6 +1052,9 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             onNodesChange={onNodesChangeWrapped}
             onEdgesChange={onEdgesChangeWrapped}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
+            isValidConnection={isValidConnection}
             nodeTypes={nodeTypes}
             edgeTypes={gcEdgeTypes}
             fitView
@@ -939,6 +1077,13 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
           >
             <FlowProjectionBridge projectRef={projectScreenToFlowRef} />
             <RefitOnLayoutEpoch epoch={layoutEpoch} />
+            <FollowActiveRunCamera
+              runHighlightNodeId={runHighlightNodeId}
+              followEnabled={followRunCameraEnabled}
+              followActive={followRunCameraActive}
+              runMotionPreference={runMotionPreference}
+              layoutEpoch={layoutEpoch}
+            />
             <FlowCanvasHandleBridge
               ref={ref}
               baseDocument={graphDocument}
@@ -950,10 +1095,15 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             <MiniMap
               pannable
               zoomable
+              bgColor={minimapChrome.bgColor}
+              maskColor={minimapChrome.maskColor}
+              maskStrokeColor={minimapChrome.maskStrokeColor}
+              maskStrokeWidth={minimapChrome.maskStrokeWidth}
               nodeColor={minimapNodeColor}
               nodeStrokeColor={minimapNodeStrokeColor}
             />
           </ReactFlow>
+          </GcConnectionDragContext.Provider>
           </GcCanvasLodProvider>
         </GcViewportTierProvider>
         </GcBranchEdgeUiContext.Provider>

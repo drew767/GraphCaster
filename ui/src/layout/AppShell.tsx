@@ -48,6 +48,7 @@ import {
   type RunMotionPreference,
 } from "../graph/canvasRunMotion";
 import { readEdgeLabelsEnabled, writeEdgeLabelsEnabled } from "../graph/canvasEdgeLabels";
+import { readFollowRunPreference, writeFollowRunPreference } from "../graph/canvasFollowRun";
 import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
 import {
   applyGroupSelection,
@@ -237,6 +238,7 @@ export function AppShell({ onLangChange }: Props) {
   const [runMotionPreference, setRunMotionPreference] = useState<RunMotionPreference>(() =>
     readRunMotionPreference(),
   );
+  const [followRunEnabled, setFollowRunEnabled] = useState(() => readFollowRunPreference());
   const stepCacheDirtyCount = useStepCacheDirtyCount();
   const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
   const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
@@ -1548,6 +1550,11 @@ export function AppShell({ onLangChange }: Props) {
     runSessionBlocking,
   ]);
 
+  const followRunCameraActive =
+    runSession.replaySourceLabel != null ||
+    (runSession.focusedRunId != null &&
+      runSession.liveRunIds.includes(runSession.focusedRunId));
+
   return (
     <div className="app-root" data-gc-history-revision={historyTick}>
       <input
@@ -1584,6 +1591,11 @@ export function AppShell({ onLangChange }: Props) {
         onEdgeLabelsChange={(on) => {
           writeEdgeLabelsEnabled(on);
           setEdgeLabelsEnabled(on);
+        }}
+        followRunEnabled={followRunEnabled}
+        onFollowRunChange={(on) => {
+          writeFollowRunPreference(on);
+          setFollowRunEnabled(on);
         }}
         runMotionPreference={runMotionPreference}
         onRunMotionPreferenceChange={(mode) => {
@@ -1841,6 +1853,8 @@ export function AppShell({ onLangChange }: Props) {
               highlightedRunEdgeId={runSession.highlightedRunEdgeId}
               edgeRunOverlayRevision={runSession.edgeRunOverlayRevision}
               runMotionPreference={runMotionPreference}
+              followRunCameraEnabled={followRunEnabled}
+              followRunCameraActive={followRunCameraActive}
               warningEdgeIds={canvasWarningEdgeIds}
               onNodeDragEnd={() => {
                 setLayoutDirtyEpoch((n) => n + 1);

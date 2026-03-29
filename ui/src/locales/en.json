@@ -26,6 +26,8 @@
       "lodAriaStepCache": "Step cache enabled",
       "lodAriaGhostOffViewport": "Simplified appearance; node is outside the visible canvas.",
       "errorOutHandle": "On error — run follows this path after task, graph_ref, or mcp_tool failure (task retries exhausted).",
+      "connectionDropTargetAllowed": "Valid connection target for the wire you are dragging.",
+      "connectionDropTargetRejected": "Incompatible target for this connection (handle or data kind).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
       "addNodeFilterPh": "Filter by type…",
@@ -47,6 +49,9 @@
       "ghostOffViewportHint": "Simplify node chrome when fully outside the viewport plus a margin (large graphs; optional). Handles stay for edges; selected nodes stay readable.",
       "edgeLabels": "Edge labels",
       "edgeLabelsHint": "Show branch captions on connections (conditions and AI route descriptions), similar to n8n / workflow editors. Hidden automatically at far zoom (compact LOD).",
+      "followRun": "Follow run",
+      "followRunHint": "While a run or replay is active, pan the canvas to keep the current step centered (Comfy executing / n8n-style) without changing zoom. Smooth pan only when run visualization is Full; Edges only and Static move the view instantly. Waits briefly after Open/New so follow does not fight fit view.",
+      "followRunAria": "Pan canvas to follow the active run step",
       "edgeLabelAiRouteFallback": "Branch",
       "runMotionSelectLabel": "Run visualization",
       "runMotionSelectTitle": "Motion during run: pulse on the active node and animated edge for the last traversal (React Flow style). “Edges only” keeps the flowing edge without pulse. “Static” disables animation (respect prefers-reduced-motion in all modes).",
@@ -279,7 +284,20 @@
       "searchPlaceholder": "Search…",
       "searchAria": "Search console output",
       "navigateToNode": "Go to node {{nodeId}} on canvas",
-      "replayBanner": "Replay (offline): {{label}}"
+      "replayBanner": "Replay (offline): {{label}}",
+      "tabLog": "Log",
+      "tabSteps": "Steps",
+      "tabsAria": "Console view",
+      "timelineEmpty": "No execution steps parsed yet — raw NDJSON lines may be host messages or a run in progress.",
+      "timelineRowAria": "Node {{nodeId}}, {{status}}",
+      "timelineStatus": {
+        "running": "Running",
+        "success": "Succeeded",
+        "failed": "Failed",
+        "skipped": "Skipped",
+        "cancelled": "Cancelled",
+        "partial": "Partial"
+      }
     },
     "runHistory": {
       "title": "Run history",

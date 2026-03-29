@@ -666,8 +666,8 @@ pub fn gc_list_run_catalog(req: ListRunCatalogRequest) -> Result<Vec<RunCatalogR
         .map_err(|e| format!("open catalog db: {e}"))?;
 
     let mut lim = req.limit;
-    if lim < 0 {
-        lim = 0;
+    if lim <= 0 {
+        lim = default_catalog_limit();
     }
     if lim > 10_000 {
         lim = 10_000;
@@ -739,6 +739,17 @@ pub fn gc_list_run_catalog(req: ListRunCatalogRequest) -> Result<Vec<RunCatalogR
     Ok(out)
 }
 
+fn truncate_utf8_error_preview(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}… (stderr truncated)", &s[..end])
+}
+
 /// Returns the decimal count printed by `graph_caster catalog-rebuild` (ASCII digits only).
 /// String avoids JSON number precision loss for very large counts in the JS bridge.
 #[tauri::command]
@@ -757,8 +768,10 @@ pub fn gc_rebuild_run_catalog(req: RebuildRunCatalogRequest) -> Result<String, S
     cmd.stderr(Stdio::piped());
     let out = cmd.output().map_err(|e| format!("catalog-rebuild: failed to spawn {python}: {e}"))?;
     if !out.status.success() {
+        const MAX_REBUILD_STDERR: usize = 2048;
         let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(format!("catalog-rebuild failed: {stderr}"));
+        let preview = truncate_utf8_error_preview(stderr.as_ref(), MAX_REBUILD_STDERR);
+        return Err(format!("catalog-rebuild failed: {preview}"));
     }
     let stdout = String::from_utf8_lossy(&out.stdout);
     let line = stdout.trim();

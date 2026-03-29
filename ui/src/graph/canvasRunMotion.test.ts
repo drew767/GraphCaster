@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  effectiveFollowRunCameraPanAnimated,
   effectiveRunEdgeAnimated,
   effectiveRunNodePulse,
   normalizeRunMotionPreference,
@@ -47,5 +48,13 @@ describe("canvasRunMotion", () => {
     expect(effectiveRunNodePulse("full", false)).toBe(true);
     expect(effectiveRunNodePulse("full", true)).toBe(false);
     expect(effectiveRunNodePulse("minimal", false)).toBe(false);
+  });
+
+  it("effectiveFollowRunCameraPanAnimated matches node pulse (full only)", () => {
+    expect(effectiveFollowRunCameraPanAnimated("full", false)).toBe(true);
+    expect(effectiveFollowRunCameraPanAnimated("full", true)).toBe(false);
+    expect(effectiveFollowRunCameraPanAnimated("minimal", false)).toBe(false);
+    expect(effectiveFollowRunCameraPanAnimated("minimal", true)).toBe(false);
+    expect(effectiveFollowRunCameraPanAnimated("off", false)).toBe(false);
   });
 });

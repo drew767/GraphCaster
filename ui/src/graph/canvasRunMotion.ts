@@ -58,3 +58,14 @@ export function effectiveRunNodePulse(
 ): boolean {
   return runMotionAllowsNodePulse(mode) && !prefersReducedMotion;
 }
+
+/**
+ * Smooth viewport pan when «Follow run» centers the active node — same gate as `effectiveRunNodePulse`
+ * (`full` only). `minimal` keeps edge motion only; camera jumps instantly. `off` / reduced motion → no easing.
+ */
+export function effectiveFollowRunCameraPanAnimated(
+  mode: RunMotionPreference,
+  prefersReducedMotion: boolean,
+): boolean {
+  return effectiveRunNodePulse(mode, prefersReducedMotion);
+}

@@ -60,6 +60,32 @@ describe("parseRunCatalogListJson", () => {
     expect(rows[1].runDirName).toBe("dir-b");
     expect(rows[1].startedAt).toBeNull();
   });
+
+  it("accepts snake_case row shape from alternate brokers", () => {
+    const rows = parseRunCatalogListJson({
+      items: [
+        {
+          run_id: "sn1",
+          root_graph_id: "g-sn",
+          run_dir_name: "dir-sn",
+          status: "partial",
+          started_at: "s1",
+          finished_at: "f1",
+          artifact_relpath: "runs/g-sn/dir-sn",
+        },
+      ],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({
+      runId: "sn1",
+      rootGraphId: "g-sn",
+      runDirName: "dir-sn",
+      status: "partial",
+      startedAt: "s1",
+      finishedAt: "f1",
+      artifactRelPath: "runs/g-sn/dir-sn",
+    });
+  });
 });
 
 describe("fetchRunCatalogList / fetchRunCatalogRebuild", () => {

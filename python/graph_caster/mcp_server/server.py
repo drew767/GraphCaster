@@ -32,6 +32,9 @@ def build_fastmcp(host: RunHostContext):
             "Tool outputs are structured JSON objects (not double-encoded strings). "
             "On graphcaster_run_graph timeout: the server requests cooperative cancel on the same runId (between "
             "runner steps); a long-running subprocess inside a task node may keep running until it ends. "
+            "Tool graphcaster_cancel_run(run_id) requests the same cooperative cancel by run UUID for an active "
+            "run in this process. For this tool, ok true only means valid input; check cancelRequested for whether "
+            "cancel was signaled; if cancelRequested is false, reason is unknown_run_id or run_not_active. "
             "Optional env GC_MCP_TOKEN: reserved for future authenticated transports; stdio mode does not validate it."
         ),
     )
@@ -69,8 +72,13 @@ def build_fastmcp(host: RunHostContext):
         return await anyio.to_thread.run_sync(_call)
 
     @mcp.tool(name="graphcaster_cancel_run")
-    async def graphcaster_cancel_run() -> dict[str, Any]:
-        return cancel_run_handler()
+    async def graphcaster_cancel_run(run_id: str) -> dict[str, Any]:
+        import anyio
+
+        def _call() -> dict[str, Any]:
+            return cancel_run_handler(run_id)
+
+        return await anyio.to_thread.run_sync(_call)
 
     return mcp
 

@@ -362,6 +362,31 @@ export type WebRunCatalogRow = {
   artifactRelPath: string;
 };
 
+function catalogStrField(
+  o: Record<string, unknown>,
+  camel: string,
+  snake: string,
+): string {
+  const a = o[camel];
+  if (typeof a === "string" && a.trim() !== "") {
+    return a.trim();
+  }
+  const b = o[snake];
+  if (typeof b === "string" && b.trim() !== "") {
+    return b.trim();
+  }
+  return "";
+}
+
+function catalogOptionalStr(
+  o: Record<string, unknown>,
+  camel: string,
+  snake: string,
+): string | null {
+  const s = catalogStrField(o, camel, snake);
+  return s === "" ? null : s;
+}
+
 /** Normalize broker JSON for run-catalog list (shared with tests). */
 export function parseRunCatalogListJson(data: unknown): WebRunCatalogRow[] {
   if (typeof data !== "object" || data === null) {
@@ -377,21 +402,18 @@ export function parseRunCatalogListJson(data: unknown): WebRunCatalogRow[] {
       continue;
     }
     const o = it as Record<string, unknown>;
-    const runId = typeof o.runId === "string" ? o.runId.trim() : "";
-    const rootGraphId = typeof o.rootGraphId === "string" ? o.rootGraphId.trim() : "";
+    const runId = catalogStrField(o, "runId", "run_id");
+    const rootGraphId = catalogStrField(o, "rootGraphId", "root_graph_id");
     const runDirName =
       typeof o.runDirName === "string"
         ? o.runDirName.trim()
         : typeof o.run_dir_name === "string"
           ? o.run_dir_name.trim()
           : "";
-    const status = typeof o.status === "string" ? o.status.trim() : "";
-    const finishedAt = typeof o.finishedAt === "string" ? o.finishedAt.trim() : "";
-    const artifactRelPath = typeof o.artifactRelPath === "string" ? o.artifactRelPath.trim() : "";
-    let startedAt: string | null = null;
-    if (o.startedAt != null && typeof o.startedAt === "string" && o.startedAt.trim() !== "") {
-      startedAt = o.startedAt.trim();
-    }
+    const status = catalogStrField(o, "status", "status");
+    const finishedAt = catalogStrField(o, "finishedAt", "finished_at");
+    const artifactRelPath = catalogStrField(o, "artifactRelPath", "artifact_relpath");
+    const startedAt = catalogOptionalStr(o, "startedAt", "started_at");
     if (!runId || !rootGraphId || !runDirName || !status || !finishedAt) {
       continue;
     }
