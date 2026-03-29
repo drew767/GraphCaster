@@ -107,6 +107,7 @@ import {
   type WorkspaceGraphEntry,
 } from "../lib/workspaceFs";
 import { useConsoleHeight } from "../hooks/useConsoleHeight";
+import { NodePaletteSidebar } from "../components/NodePaletteSidebar";
 import {
   gcCancelRun,
   getRunEnvironmentInfo,
@@ -221,6 +222,11 @@ export function AppShell({ onLangChange }: Props) {
   const [appMessageModal, setAppMessageModal] = useState<AppMessagePresentation | null>(null);
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
+  const [nodePaletteSidebarOpen, setNodePaletteSidebarOpen] = useState(true);
+  const hasStartNode = useMemo(
+    () => (graphDocument.nodes ?? []).some((n) => n.type === "start"),
+    [graphDocument],
+  );
   const [autosaveFailed, setAutosaveFailed] = useState(false);
   const lastAutosaveFailConsoleMsRef = useRef(0);
   const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
@@ -403,6 +409,27 @@ export function AppShell({ onLangChange }: Props) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [nodeSearchOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod || !e.shiftKey) {
+        return;
+      }
+      const k = e.key.toLowerCase();
+      if (k === "n") {
+        e.preventDefault();
+        setNodePaletteSidebarOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(LS_RUN_GRAPHS, runGraphsDir);
@@ -1828,6 +1855,26 @@ export function AppShell({ onLangChange }: Props) {
         </div>
       ) : null}
       <div className="gc-main-row">
+        <NodePaletteSidebar
+          isOpen={nodePaletteSidebarOpen}
+          onToggle={() => setNodePaletteSidebarOpen((prev) => !prev)}
+          hasStartNode={hasStartNode}
+          onNodeClick={(pick) => {
+            const api = canvasRef.current;
+            if (!api) {
+              return;
+            }
+            const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+            const { nodes } = graphDocumentToFlow(doc);
+            const centerX = nodes.length > 0
+              ? nodes.reduce((sum, n) => sum + n.position.x, 0) / nodes.length + 100
+              : 200;
+            const centerY = nodes.length > 0
+              ? nodes.reduce((sum, n) => sum + n.position.y, 0) / nodes.length
+              : 200;
+            onAddNode(pick, { x: centerX, y: centerY });
+          }}
+        />
         <div className="gc-canvas">
           <div className="gc-canvas-inner">
             <GraphCanvas

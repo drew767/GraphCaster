@@ -30,6 +30,7 @@
       "connectionDropTargetRejected": "Несовместимая цель (ручка или вид данных порта).",
       "placeholder": "Полотно — React Flow и редактирование графа в фазе 4 (см. doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Добавить ноду",
+      "nodePaletteToggle": "Переключить панель нод (Ctrl+Shift+N)",
       "addNodeFilterPh": "Фильтр по типу…",
       "addNodeNoMatch": "Нет подходящего типа.",
       "addNodeCategoryGroup": "Фильтр по категории",

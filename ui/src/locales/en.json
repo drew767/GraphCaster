@@ -30,6 +30,7 @@
       "connectionDropTargetRejected": "Incompatible target for this connection (handle or data kind).",
       "placeholder": "Canvas — React Flow and graph editing come in phase 4 (see doc/DEVELOPMENT_PLAN.md).",
       "addNodeTitle": "Add node",
+      "nodePaletteToggle": "Toggle node palette (Ctrl+Shift+N)",
       "addNodeFilterPh": "Filter by type…",
       "addNodeNoMatch": "No matching node type.",
       "addNodeCategoryGroup": "Filter by category",

@@ -64,6 +64,11 @@ import { sanitizeGraphConnectivity } from "../graph/sanitize";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
 import type { GcNodeData } from "../graph/toReactFlow";
 import type { AddNodeMenuPick, WorkspaceGraphAddMenuRow } from "../graph/addNodeMenu";
+import {
+  GC_DRAG_NODE_MIME_TYPE,
+  decodeNodeDragData,
+  isGcNodeDragEvent,
+} from "../graph/nodeDragDrop";
 import { GRAPH_NODE_TYPE_START, isReactFlowFrameNodeType } from "../graph/nodeKinds";
 import { newGraphEdgeId } from "../graph/nodePalette";
 import {
@@ -1025,6 +1030,79 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [structureLocked],
     );
 
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const dragEnterCounterRef = useRef(0);
+
+    const onDragEnter = useCallback(
+      (e: React.DragEvent<HTMLDivElement>) => {
+        if (structureLocked) {
+          return;
+        }
+        if (isGcNodeDragEvent(e.nativeEvent)) {
+          dragEnterCounterRef.current += 1;
+          if (dragEnterCounterRef.current === 1) {
+            setIsDraggingOver(true);
+          }
+        }
+      },
+      [structureLocked],
+    );
+
+    const onDragLeave = useCallback(
+      (e: React.DragEvent<HTMLDivElement>) => {
+        if (structureLocked) {
+          return;
+        }
+        if (isGcNodeDragEvent(e.nativeEvent)) {
+          dragEnterCounterRef.current -= 1;
+          if (dragEnterCounterRef.current <= 0) {
+            dragEnterCounterRef.current = 0;
+            setIsDraggingOver(false);
+          }
+        }
+      },
+      [structureLocked],
+    );
+
+    const onDragOver = useCallback(
+      (e: React.DragEvent<HTMLDivElement>) => {
+        if (structureLocked) {
+          return;
+        }
+        if (isGcNodeDragEvent(e.nativeEvent)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }
+      },
+      [structureLocked],
+    );
+
+    const onDrop = useCallback(
+      (e: React.DragEvent<HTMLDivElement>) => {
+        dragEnterCounterRef.current = 0;
+        setIsDraggingOver(false);
+        if (structureLocked) {
+          return;
+        }
+        const json = e.dataTransfer.getData(GC_DRAG_NODE_MIME_TYPE);
+        if (!json) {
+          return;
+        }
+        e.preventDefault();
+        const pick = decodeNodeDragData(json);
+        if (!pick) {
+          return;
+        }
+        const project = projectScreenToFlowRef.current;
+        if (!project) {
+          return;
+        }
+        const flowPos = project(e.clientX, e.clientY);
+        onAddNode(pick, flowPos);
+      },
+      [structureLocked, onAddNode],
+    );
+
     const onDeleteNodeFromMenu = useCallback(
       (nodeId: string) => {
         applyRemoveNodeIds([nodeId]);
@@ -1033,7 +1111,13 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
 
     return (
-      <div className="gc-flow-wrap">
+      <div
+        className={`gc-flow-wrap${isDraggingOver ? " gc-flow-wrap--drop-active" : ""}`}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
         <GcBranchEdgeUiContext.Provider value={branchEdgeUiValue}>
         <GcViewportTierProvider value={viewportTierValue}>
           <GcCanvasLodProvider value={canvasLod}>
