@@ -15,6 +15,24 @@ const EMPTY_NODE_RUN_OVERLAY: Record<string, NodeRunOverlayEntry> = Object.freez
   {},
 ) as Record<string, NodeRunOverlayEntry>;
 
+/** Final canvas overlay kept after the worker exits (n8n / Langflow style last-execution summary). */
+export type SettledRunVisual = {
+  nodeRunOverlay: Record<string, NodeRunOverlayEntry>;
+  edgeRunOverlay: EdgeRunOverlayState;
+  sourceRunId: string;
+};
+
+function shallowCloneNodeRunOverlay(
+  m: Record<string, NodeRunOverlayEntry>,
+): Record<string, NodeRunOverlayEntry> {
+  const out: Record<string, NodeRunOverlayEntry> = {};
+  for (const k of Object.keys(m)) {
+    const e = m[k]!;
+    out[k] = { phase: e.phase, lastType: e.lastType };
+  }
+  return out;
+}
+
 export const LS_MAX_CONCURRENT_RUNS = "gc.run.maxConcurrent";
 
 /** Internal bucket for replay NDJSON (offline); not a live `runId`. */
@@ -52,6 +70,8 @@ export type RunSessionSnapshot = {
   highlightedRunEdgeId: string | null;
   /** Bump when the visible run edge highlight changes; mirrors `nodeRunOverlayRevision` pattern. */
   edgeRunOverlayRevision: number;
+  /** True when `settledVisualByRootGraphId` has an entry for the open graph (`currentRootGraphId`). */
+  canClearSettledRunVisual: boolean;
 };
 
 type InternalState = {
@@ -69,7 +89,38 @@ type InternalState = {
   nodeRunOverlayRevision: number;
   edgeRunOverlayByRunId: Record<string, EdgeRunOverlayState>;
   edgeRunOverlayRevision: number;
+  /** Open document `meta.graphId` / root id — selects which settled snapshot is visible. */
+  currentRootGraphId: string | null;
+  /** Each `run_started` / `run_finished` may set `rootGraphId` for NDJSON runs. */
+  rootGraphIdByRunId: Record<string, string>;
+  /** Last traversed edge per run (survives `run_finished`, which clears the live edge highlight). */
+  lastTraversedEdgeByRunId: Record<string, string>;
+  settledVisualByRootGraphId: Record<string, SettledRunVisual>;
 };
+
+/**
+ * When the worker process exits we drop per-run maps; copy overlays into this map keyed by root graph id.
+ */
+function captureSettledVisualForRunId(
+  s: InternalState,
+  rid: string,
+): { rootGraphId: string; payload: SettledRunVisual } | null {
+  const rootGraphId =
+    s.rootGraphIdByRunId[rid]?.trim() || s.currentRootGraphId?.trim() || "";
+  if (!rootGraphId) {
+    return null;
+  }
+  const nodeSrc = s.nodeRunOverlayByRunId[rid] ?? {};
+  const lastEdge = s.lastTraversedEdgeByRunId[rid] ?? null;
+  return {
+    rootGraphId,
+    payload: {
+      nodeRunOverlay: shallowCloneNodeRunOverlay(nodeSrc),
+      edgeRunOverlay: { highlightedEdgeId: lastEdge },
+      sourceRunId: rid,
+    },
+  };
+}
 
 function trimBuffer(lines: string[]): string[] {
   if (lines.length <= MAX_LINES_PER_RUN) {
@@ -85,6 +136,17 @@ function publicNodeRunOverlay(s: InternalState): Record<string, NodeRunOverlayEn
   }
   if (s.focusedRunId != null) {
     return s.nodeRunOverlayByRunId[s.focusedRunId] ?? EMPTY_NODE_RUN_OVERLAY;
+  }
+  // No live focus: after all workers exit, show last settled summary for the open graph (if any).
+  if (
+    s.liveRunOrder.length === 0 &&
+    s.currentRootGraphId != null &&
+    s.currentRootGraphId !== ""
+  ) {
+    const settled = s.settledVisualByRootGraphId[s.currentRootGraphId];
+    if (settled != null) {
+      return settled.nodeRunOverlay;
+    }
   }
   return EMPTY_NODE_RUN_OVERLAY;
 }
@@ -121,6 +183,16 @@ function publicHighlightedRunEdgeId(s: InternalState): string | null {
   if (s.focusedRunId != null) {
     return s.edgeRunOverlayByRunId[s.focusedRunId]?.highlightedEdgeId ?? null;
   }
+  if (
+    s.liveRunOrder.length === 0 &&
+    s.currentRootGraphId != null &&
+    s.currentRootGraphId !== ""
+  ) {
+    const settled = s.settledVisualByRootGraphId[s.currentRootGraphId];
+    if (settled != null) {
+      return settled.edgeRunOverlay.highlightedEdgeId ?? null;
+    }
+  }
   return null;
 }
 
@@ -146,6 +218,10 @@ function buildPublicSnapshot(s: InternalState): RunSessionSnapshot {
     nodeRunOverlayRevision: s.nodeRunOverlayRevision,
     highlightedRunEdgeId: publicHighlightedRunEdgeId(s),
     edgeRunOverlayRevision: s.edgeRunOverlayRevision,
+    canClearSettledRunVisual:
+      s.currentRootGraphId != null &&
+      s.currentRootGraphId !== "" &&
+      s.settledVisualByRootGraphId[s.currentRootGraphId] != null,
   };
 }
 
@@ -164,6 +240,10 @@ let internal: InternalState = {
   nodeRunOverlayRevision: 0,
   edgeRunOverlayByRunId: {},
   edgeRunOverlayRevision: 0,
+  currentRootGraphId: null,
+  rootGraphIdByRunId: {},
+  lastTraversedEdgeByRunId: {},
+  settledVisualByRootGraphId: {},
 };
 
 let publicSnap: RunSessionSnapshot = buildPublicSnapshot(internal);
@@ -240,6 +320,12 @@ export function runSessionRegisterLiveRun(runId: string): void {
     emit();
     return;
   }
+  let settledVisualByRootGraphId = internal.settledVisualByRootGraphId;
+  const cg = internal.currentRootGraphId?.trim();
+  if (cg && internal.settledVisualByRootGraphId[cg] != null) {
+    const { [cg]: _rm, ...restSettled } = internal.settledVisualByRootGraphId;
+    settledVisualByRootGraphId = restSettled;
+  }
   const consoleByRunId = {
     ...internal.consoleByRunId,
     [rid]: internal.consoleByRunId[rid] ?? [],
@@ -249,6 +335,7 @@ export function runSessionRegisterLiveRun(runId: string): void {
     liveRunOrder: [...internal.liveRunOrder, rid],
     focusedRunId: rid,
     consoleByRunId,
+    settledVisualByRootGraphId,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
     edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
@@ -305,6 +392,14 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
   if (rid === "" || !internal.liveRunOrder.includes(rid)) {
     return null;
   }
+  const captured = captureSettledVisualForRunId(internal, rid);
+  let settledVisualByRootGraphId = internal.settledVisualByRootGraphId;
+  if (captured != null) {
+    settledVisualByRootGraphId = {
+      ...internal.settledVisualByRootGraphId,
+      [captured.rootGraphId]: captured.payload,
+    };
+  }
   const prevFocus = internal.focusedRunId;
   const liveRunOrder = internal.liveRunOrder.filter((x) => x !== rid);
   const { [rid]: _c, ...restConsole } = internal.consoleByRunId;
@@ -312,6 +407,8 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
   const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
   const { [rid]: _e, ...restEdgeOverlay } = internal.edgeRunOverlayByRunId;
+  const { [rid]: _rg, ...restRootGid } = internal.rootGraphIdByRunId;
+  const { [rid]: _lt, ...restLastEdge } = internal.lastTraversedEdgeByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   internal = {
@@ -323,6 +420,9 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
     activeNodeIdByRunId: restActive,
     nodeRunOverlayByRunId: restOverlay,
     edgeRunOverlayByRunId: restEdgeOverlay,
+    rootGraphIdByRunId: restRootGid,
+    lastTraversedEdgeByRunId: restLastEdge,
+    settledVisualByRootGraphId,
     pendingStarts: pending,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
     edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
@@ -339,6 +439,14 @@ export function runSessionOnRunProcessExited(
   if (rid === "" || !internal.liveRunOrder.includes(rid)) {
     return null;
   }
+  const captured = captureSettledVisualForRunId(internal, rid);
+  let settledVisualByRootGraphId = internal.settledVisualByRootGraphId;
+  if (captured != null) {
+    settledVisualByRootGraphId = {
+      ...internal.settledVisualByRootGraphId,
+      [captured.rootGraphId]: captured.payload,
+    };
+  }
   const wasFocused = internal.focusedRunId === rid;
   const prevFocus = internal.focusedRunId;
   const liveRunOrder = internal.liveRunOrder.filter((x) => x !== rid);
@@ -347,6 +455,8 @@ export function runSessionOnRunProcessExited(
   const { [rid]: _a, ...restActive } = internal.activeNodeIdByRunId;
   const { [rid]: _o, ...restOverlay } = internal.nodeRunOverlayByRunId;
   const { [rid]: _e, ...restEdgeOverlay } = internal.edgeRunOverlayByRunId;
+  const { [rid]: _rg, ...restRootGid } = internal.rootGraphIdByRunId;
+  const { [rid]: _lt, ...restLastEdge } = internal.lastTraversedEdgeByRunId;
   const newFocus = pickFocusAfterRemove(liveRunOrder, prevFocus);
   const { pending, next } = takeNextPendingIfUnderCap(liveRunOrder.length);
   const setExit = wasFocused || liveRunOrder.length === 0;
@@ -359,6 +469,9 @@ export function runSessionOnRunProcessExited(
     activeNodeIdByRunId: restActive,
     nodeRunOverlayByRunId: restOverlay,
     edgeRunOverlayByRunId: restEdgeOverlay,
+    rootGraphIdByRunId: restRootGid,
+    lastTraversedEdgeByRunId: restLastEdge,
+    settledVisualByRootGraphId,
     pendingStarts: pending,
     lastExitCode: setExit ? code : internal.lastExitCode,
     nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
@@ -555,6 +668,61 @@ export function runSessionResetForTest(): void {
     nodeRunOverlayRevision: 0,
     edgeRunOverlayByRunId: {},
     edgeRunOverlayRevision: 0,
+    currentRootGraphId: null,
+    rootGraphIdByRunId: {},
+    lastTraversedEdgeByRunId: {},
+    settledVisualByRootGraphId: {},
+  };
+  emit();
+}
+
+/** Sync open document root id so settled snapshots apply to the correct graph. */
+export function runSessionSetCurrentRootGraphId(graphId: string | null): void {
+  const raw = graphId?.trim() ?? "";
+  const normalized = raw === "" ? null : raw;
+  if (internal.currentRootGraphId === normalized) {
+    return;
+  }
+  internal = {
+    ...internal,
+    currentRootGraphId: normalized,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
+  };
+  emit();
+}
+
+/**
+ * NDJSON `run_started` / `run_finished` carry `rootGraphId`. Stored per run id for settlement when the worker exits.
+ * Does not emit — not part of the public snapshot.
+ */
+export function runSessionNoteRootGraphForRun(runId: string, rootGraphId: string): void {
+  const rid = runId.trim();
+  const rg = rootGraphId.trim();
+  if (rid === "" || rg === "") {
+    return;
+  }
+  if (internal.rootGraphIdByRunId[rid] === rg) {
+    return;
+  }
+  internal = {
+    ...internal,
+    rootGraphIdByRunId: { ...internal.rootGraphIdByRunId, [rid]: rg },
+  };
+}
+
+/** Drop sticky execution overlay for the currently open graph (Run toolbar). */
+export function runSessionClearSettledVisualForCurrentGraph(): void {
+  const cg = internal.currentRootGraphId?.trim();
+  if (!cg || internal.settledVisualByRootGraphId[cg] == null) {
+    return;
+  }
+  const { [cg]: _rm, ...rest } = internal.settledVisualByRootGraphId;
+  internal = {
+    ...internal,
+    settledVisualByRootGraphId: rest,
+    nodeRunOverlayRevision: internal.nodeRunOverlayRevision + 1,
+    edgeRunOverlayRevision: internal.edgeRunOverlayRevision + 1,
   };
   emit();
 }
@@ -568,14 +736,31 @@ export function runSessionApplyParsedRunEventToOverlay(runKey: string, o: Record
   if (key === "") {
     return;
   }
+  const t = o.type;
+  let lastTraversedEdgeByRunId = internal.lastTraversedEdgeByRunId;
+  if (typeof t === "string" && t === "run_started") {
+    const { [key]: _d, ...restLt } = lastTraversedEdgeByRunId;
+    lastTraversedEdgeByRunId = restLt;
+  }
   const prevNode = internal.nodeRunOverlayByRunId[key] ?? {};
   const nextNode = applyParsedRunEventToOverlayState(prevNode, o);
   const prevEdge = internal.edgeRunOverlayByRunId[key] ?? initialEdgeRunOverlay();
   const nextEdge = applyParsedRunEventToEdgeRunOverlay(prevEdge, o);
-  if (nextNode === prevNode && nextEdge === prevEdge) {
+  if (typeof t === "string" && (t === "edge_traverse" || t === "branch_taken")) {
+    const eid = nextEdge.highlightedEdgeId;
+    if (eid != null) {
+      lastTraversedEdgeByRunId = { ...lastTraversedEdgeByRunId, [key]: eid };
+    }
+  }
+  const ltChanged = lastTraversedEdgeByRunId !== internal.lastTraversedEdgeByRunId;
+  if (nextNode === prevNode && nextEdge === prevEdge && !ltChanged) {
     return;
   }
-  let nextInternal: InternalState = internal;
+  if (nextNode === prevNode && nextEdge === prevEdge && ltChanged) {
+    internal = { ...internal, lastTraversedEdgeByRunId };
+    return;
+  }
+  let nextInternal: InternalState = { ...internal, lastTraversedEdgeByRunId };
   if (nextNode !== prevNode) {
     nextInternal = {
       ...nextInternal,

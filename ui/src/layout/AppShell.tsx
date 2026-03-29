@@ -116,8 +116,10 @@ import {
   runSessionAppendLine,
   runSessionCanStartAnotherLive,
   runSessionClearReplay,
+  runSessionClearSettledVisualForCurrentGraph,
   runSessionEnqueuePending,
   runSessionHasBlockingActivity,
+  runSessionSetCurrentRootGraphId,
   runSessionSetFocusedRunId,
   runSessionSetPythonBanner,
   useRunSession,
@@ -184,6 +186,13 @@ export function AppShell({ onLangChange }: Props) {
   const nodeSearchRows = useMemo(() => buildCanvasNodeSearchRows(graphDocument), [graphDocument]);
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
   const resolvedGraphId = useMemo(() => graphIdFromDocument(graphDocument) ?? "", [graphDocument]);
+
+  useEffect(() => {
+    runSessionSetCurrentRootGraphId(
+      resolvedGraphId.trim() !== "" ? resolvedGraphId.trim() : null,
+    );
+  }, [resolvedGraphId]);
+
   const handleIssues = useMemo(() => findHandleCompatibilityIssues(graphDocument), [graphDocument]);
   const [danglingEdgesExportIds, setDanglingEdgesExportIds] = useState<string[] | null>(null);
 
@@ -1602,6 +1611,10 @@ export function AppShell({ onLangChange }: Props) {
         }}
         onRunHistory={() => {
           setRunHistoryOpen(true);
+        }}
+        canClearSettledRunVisual={runSession.canClearSettledRunVisual}
+        onClearSettledRunVisual={() => {
+          runSessionClearSettledVisualForCurrentGraph();
         }}
         runHistoryDisabled={
           runArtifactsBase.trim() === "" || resolvedGraphId.trim() === "" || resolvedGraphId.trim() === "default"

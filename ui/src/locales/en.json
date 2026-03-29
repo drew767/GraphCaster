@@ -308,6 +308,8 @@
       "stepCacheHint": "Passes --step-cache to Python with the workspace root. Tasks opt in via data.stepCache. Badge shows queued dirty count.",
       "stepCacheNeedArtifactsHint": "Set workspace root (runs/) first — step cache requires --artifacts-base.",
       "history": "History",
+      "clearSettledVisual": "Clear highlights",
+      "clearSettledVisualHint": "Remove last run success/error colors from the canvas (same graph only).",
       "queuedHost": "[host] Run {{runId}} queued — {{position}} in the start queue.",
       "pendingQueueHint": "{{count}} run(s) waiting for a free slot (FIFO).",
       "focusRunLabel": "Focused run (console and live canvas updates)",

@@ -45,6 +45,9 @@ type Props = {
   onRun?: () => void;
   onRunHistory?: () => void;
   runHistoryDisabled?: boolean;
+  /** Sticky post-run canvas overlay (per graph); clear without starting a new run. */
+  canClearSettledRunVisual?: boolean;
+  onClearSettledRunVisual?: () => void;
   onStopRun?: () => void;
   /** True when runs are live or jobs are queued (locks file/edit, run bar inputs). */
   sessionBlocking?: boolean;
@@ -97,6 +100,8 @@ export function TopBar({
   onRun = () => {},
   onRunHistory = () => {},
   runHistoryDisabled = false,
+  canClearSettledRunVisual = false,
+  onClearSettledRunVisual = () => {},
   onStopRun = () => {},
   sessionBlocking = false,
   hasLiveRun = false,
@@ -383,6 +388,16 @@ export function TopBar({
               title={runHistoryDisabled ? t("app.runHistory.needArtifactsAndGraph") : undefined}
             >
               {t("app.run.history")}
+            </button>
+            <button
+              type="button"
+              className="gc-btn"
+              onClick={onClearSettledRunVisual}
+              disabled={!canClearSettledRunVisual || runDesktopOnlyHint}
+              aria-label={t("app.run.clearSettledVisual")}
+              title={t("app.run.clearSettledVisualHint")}
+            >
+              {t("app.run.clearSettledVisual")}
             </button>
             <button type="button" className="gc-btn" onClick={onStopRun} disabled={!hasLiveRun}>
               {t("app.run.stop")}

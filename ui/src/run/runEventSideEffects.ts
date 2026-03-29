@@ -48,6 +48,18 @@ export function applyRunnerNdjsonSideEffects(line: string, sourceRunId?: string)
 
   const runKey = eventRunKey(inReplay, sourceRunId, focused);
 
+  if (
+    !inReplay &&
+    (t === "run_started" || t === "run_finished") &&
+    runKey != null &&
+    runKey !== store.RUN_SESSION_REPLAY_SNAPSHOT_KEY
+  ) {
+    const rg = o.rootGraphId;
+    if (typeof rg === "string" && rg.trim() !== "") {
+      store.runSessionNoteRootGraphForRun(runKey, rg.trim());
+    }
+  }
+
   if (t === "node_outputs_snapshot") {
     const nid = o.nodeId;
     const sn = o.snapshot;
