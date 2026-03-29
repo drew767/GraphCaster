@@ -479,6 +479,36 @@ body {
   gap: 0.35rem;
 }
 
+.gc-inspector-graphref-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--gc-border);
+}
+
+.gc-inspector-graphref-preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.gc-inspector-graphref-preview-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--gc-text-secondary);
+}
+
+.gc-inspector-row--buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
 .gc-inspector-url-row {
   display: flex;
   flex-direction: column;

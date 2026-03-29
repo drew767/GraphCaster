@@ -62,6 +62,10 @@ import {
   mergePastedSubgraph,
   parseClipboardPayload,
 } from "../graph/clipboard";
+import {
+  type GraphRefSnapshotLoadResult,
+  parseGraphRefSnapshotFromJsonText,
+} from "../graph/graphRefLazySnapshot";
 import { graphIdFromDocument, parseGraphDocumentJson, parseGraphDocumentJsonResult } from "../graph/parseDocument";
 import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
 import { nodeTypeTriggersStepCacheDirtyOnDataEdit } from "../graph/stepCacheDirtyGraph";
@@ -210,6 +214,10 @@ export function AppShell({ onLangChange }: Props) {
   const nodeSearchOpenRef = useRef(nodeSearchOpen);
   nodeSearchOpenRef.current = nodeSearchOpen;
   const nestedGraphRefStackRef = useRef<NestedGraphRefFrame[]>([]);
+  const graphRefSnapshotCacheRef = useRef(new Map<string, GraphRefSnapshotLoadResult>());
+  const graphRefSnapshotInflightRef = useRef(
+    new Map<string, Promise<GraphRefSnapshotLoadResult>>(),
+  );
   const stepCacheDirtyBubbleChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const [historyTick, setHistoryTick] = useState(0);
 
@@ -398,11 +406,22 @@ export function AppShell({ onLangChange }: Props) {
   }, []);
 
   const rescanWorkspace = useCallback(async (dir: FileSystemDirectoryHandle) => {
+    graphRefSnapshotCacheRef.current.clear();
+    graphRefSnapshotInflightRef.current.clear();
     try {
       setWorkspaceIndex(await scanWorkspaceGraphs(dir));
     } catch {
       setWorkspaceIndex([]);
     }
+  }, []);
+
+  const invalidateGraphRefSnapshotCacheForGraphId = useCallback((gid: string | null | undefined) => {
+    const t = (gid ?? "").trim();
+    if (t === "") {
+      return;
+    }
+    graphRefSnapshotCacheRef.current.delete(t);
+    graphRefSnapshotInflightRef.current.delete(t);
   }, []);
 
   const onNewGraph = useCallback(() => {
@@ -567,6 +586,80 @@ export function AppShell({ onLangChange }: Props) {
   const workspaceGraphOptions = useMemo(
     () => workspaceGraphRows.map(({ fileName, label }) => ({ fileName, label })),
     [workspaceGraphRows],
+  );
+
+  const loadGraphRefSnapshot = useCallback(
+    async (targetGraphId: string, options?: { force?: boolean }): Promise<GraphRefSnapshotLoadResult> => {
+      const tid = targetGraphId.trim();
+      if (tid === "") {
+        return { ok: false, errorKind: "unknown_graph" };
+      }
+      if (!workspaceGraphsDir) {
+        return { ok: false, errorKind: "no_workspace" };
+      }
+      const entry = workspaceIndex.find((e) => e.graphId === tid);
+      if (!entry) {
+        return { ok: false, errorKind: "unknown_graph" };
+      }
+
+      if (options?.force) {
+        graphRefSnapshotCacheRef.current.delete(tid);
+        graphRefSnapshotInflightRef.current.delete(tid);
+      } else {
+        const cached = graphRefSnapshotCacheRef.current.get(tid);
+        if (cached) {
+          return cached;
+        }
+        const inflight = graphRefSnapshotInflightRef.current.get(tid);
+        if (inflight) {
+          return inflight;
+        }
+      }
+
+      const promise = (async (): Promise<GraphRefSnapshotLoadResult> => {
+        let text: string;
+        try {
+          text = await readWorkspaceGraphFile(workspaceGraphsDir, entry.fileName);
+        } catch {
+          const err: GraphRefSnapshotLoadResult = { ok: false, errorKind: "read" };
+          graphRefSnapshotCacheRef.current.set(tid, err);
+          return err;
+        }
+        const parsed = parseGraphRefSnapshotFromJsonText(text);
+        const result: GraphRefSnapshotLoadResult = parsed.ok
+          ? { ok: true, snapshot: parsed.snapshot }
+          : { ok: false, errorKind: parsed.errorKind };
+        graphRefSnapshotCacheRef.current.set(tid, result);
+        return result;
+      })();
+
+      graphRefSnapshotInflightRef.current.set(tid, promise);
+      try {
+        return await promise;
+      } finally {
+        graphRefSnapshotInflightRef.current.delete(tid);
+      }
+    },
+    [workspaceGraphsDir, workspaceIndex],
+  );
+
+  const getGraphRefWorkspaceHint = useCallback(
+    (targetGraphId: string): { title?: string; fileName: string; duplicateGraphId: boolean } | null => {
+      const tid = targetGraphId.trim();
+      if (tid === "") {
+        return null;
+      }
+      const entry = workspaceIndex.find((e) => e.graphId === tid);
+      if (!entry) {
+        return null;
+      }
+      return {
+        title: entry.title,
+        fileName: entry.fileName,
+        duplicateGraphId: entry.duplicateGraphId,
+      };
+    },
+    [workspaceIndex],
   );
 
   const onConsoleNavigateToNode = useCallback(
@@ -772,6 +865,7 @@ export function AppShell({ onLangChange }: Props) {
         }
         try {
           await writeJsonFileToDir(workspaceGraphsDir, activeWorkspaceFile, doc);
+          invalidateGraphRefSnapshotCacheForGraphId(graphIdFromDocument(doc));
           setGraphDocument(doc);
           setAutosaveFailed(false);
         } catch {
@@ -790,6 +884,7 @@ export function AppShell({ onLangChange }: Props) {
   }, [
     activeWorkspaceFile,
     graphDocument,
+    invalidateGraphRefSnapshotCacheForGraphId,
     layoutDirtyEpoch,
     workspaceGraphsDir,
     workspaceIndex,
@@ -1616,6 +1711,8 @@ export function AppShell({ onLangChange }: Props) {
           onRemoveNodes={onRemoveCanvasNodes}
           workspaceLinked={workspaceGraphsDir != null}
           onOpenNestedGraph={onOpenNestedGraph}
+          loadGraphRefSnapshot={loadGraphRefSnapshot}
+          getGraphRefWorkspaceHint={getGraphRefWorkspaceHint}
           onMarkStepCacheDirtyTransitive={markStepCacheDirtyWithBubble}
           runLocked={runSessionBlocking}
           onRunUntilThisNode={onRunUntilSelectedNode}

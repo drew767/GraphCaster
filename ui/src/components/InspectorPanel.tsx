@@ -1,6 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GraphCanvasSelection } from "./GraphCanvas";
@@ -33,6 +33,7 @@ import {
   parseExtraArgsJson,
   type GcCursorAgentCwdBase,
 } from "../graph/cursorAgentPreset";
+import type { GraphRefSnapshotLoadResult } from "../graph/graphRefLazySnapshot";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -45,6 +46,13 @@ type Props = {
   onRemoveNodes?: (ids: readonly string[]) => void;
   workspaceLinked: boolean;
   onOpenNestedGraph?: (targetGraphId: string, graphRefNodeId?: string) => void;
+  loadGraphRefSnapshot?: (
+    targetGraphId: string,
+    options?: { force?: boolean },
+  ) => Promise<GraphRefSnapshotLoadResult>;
+  getGraphRefWorkspaceHint?: (
+    targetGraphId: string,
+  ) => { title?: string; fileName: string; duplicateGraphId: boolean } | null;
   onMarkStepCacheDirtyTransitive?: (doc: GraphDocumentJson, seeds: readonly string[]) => void;
   runLocked?: boolean;
   onRunUntilThisNode?: () => void;
@@ -114,6 +122,8 @@ export function InspectorPanel({
   onRemoveNodes,
   workspaceLinked,
   onOpenNestedGraph,
+  loadGraphRefSnapshot,
+  getGraphRefWorkspaceHint,
   onMarkStepCacheDirtyTransitive,
   runLocked = false,
   onRunUntilThisNode,
@@ -158,6 +168,87 @@ export function InspectorPanel({
   const [graphSchemaVersion, setGraphSchemaVersion] = useState("1");
   const [graphInputsText, setGraphInputsText] = useState("[]");
   const [graphOutputsText, setGraphOutputsText] = useState("[]");
+
+  const [graphRefPreviewOpen, setGraphRefPreviewOpen] = useState(false);
+  const [graphRefPreviewLoading, setGraphRefPreviewLoading] = useState(false);
+  const [graphRefPreviewResult, setGraphRefPreviewResult] = useState<GraphRefSnapshotLoadResult | null>(
+    null,
+  );
+  const graphRefPreviewGenRef = useRef(0);
+
+  const graphRefInspectorKey = useMemo(() => {
+    if (selection?.kind !== "node" || selection.graphNodeType !== "graph_ref") {
+      return "";
+    }
+    return `${selection.id}\0${graphRefTargetId(selection.raw)}`;
+  }, [selection]);
+
+  const graphRefSelectionTargetId = useMemo(() => {
+    if (selection?.kind !== "node" || selection.graphNodeType !== "graph_ref") {
+      return "";
+    }
+    return graphRefTargetId(selection.raw);
+  }, [selection]);
+
+  type GraphRefWorkspaceHintState =
+    | { kind: "noop" }
+    | { kind: "missing" }
+    | { kind: "ok"; hint: { title?: string; fileName: string; duplicateGraphId: boolean } };
+
+  const graphRefWorkspaceHintState = useMemo((): GraphRefWorkspaceHintState => {
+    if (graphRefSelectionTargetId === "" || !getGraphRefWorkspaceHint) {
+      return { kind: "noop" };
+    }
+    const h = getGraphRefWorkspaceHint(graphRefSelectionTargetId);
+    if (!h) {
+      return { kind: "missing" };
+    }
+    return { kind: "ok", hint: h };
+  }, [getGraphRefWorkspaceHint, graphRefSelectionTargetId]);
+
+  useEffect(() => {
+    graphRefPreviewGenRef.current += 1;
+    setGraphRefPreviewOpen(false);
+    setGraphRefPreviewLoading(false);
+    setGraphRefPreviewResult(null);
+  }, [graphRefInspectorKey]);
+
+  useEffect(() => {
+    if (graphRefWorkspaceHintState.kind !== "missing") {
+      return;
+    }
+    graphRefPreviewGenRef.current += 1;
+    setGraphRefPreviewOpen(false);
+    setGraphRefPreviewLoading(false);
+    setGraphRefPreviewResult(null);
+  }, [graphRefWorkspaceHintState.kind]);
+
+  const graphRefPreviewBlocked = graphRefWorkspaceHintState.kind === "missing";
+
+  const runGraphRefPreviewLoad = useCallback(
+    async (force: boolean) => {
+      if (!loadGraphRefSnapshot || graphRefSelectionTargetId === "" || graphRefPreviewBlocked) {
+        return;
+      }
+      const genAtStart = graphRefPreviewGenRef.current;
+      setGraphRefPreviewLoading(true);
+      try {
+        const r = await loadGraphRefSnapshot(
+          graphRefSelectionTargetId,
+          force ? { force: true } : undefined,
+        );
+        if (genAtStart !== graphRefPreviewGenRef.current) {
+          return;
+        }
+        setGraphRefPreviewResult(r);
+      } finally {
+        if (genAtStart === graphRefPreviewGenRef.current) {
+          setGraphRefPreviewLoading(false);
+        }
+      }
+    },
+    [graphRefPreviewBlocked, graphRefSelectionTargetId, loadGraphRefSnapshot],
+  );
 
   const graphDocSyncKey = useMemo(() => {
     return JSON.stringify({
@@ -1323,6 +1414,137 @@ export function InspectorPanel({
           ) : null}
           {selection.graphNodeType === "graph_ref" ? (
             <div className="gc-inspector-graphref">
+              <div className="gc-inspector-graphref-preview">
+                <div className="gc-inspector-row gc-inspector-row--field">
+                  <span className="gc-inspector-k">{t("app.inspector.graphRefPreviewHeading")}</span>
+                </div>
+                <p className="gc-inspector-edge-hint">{t("app.inspector.graphRefPreviewHint")}</p>
+                {graphRefWorkspaceHintState.kind === "missing" ? (
+                  <p className="gc-inspector-edge-hint" role="alert">
+                    {t("app.inspector.graphRefPreviewErrorUnknown")}
+                  </p>
+                ) : null}
+                <div className="gc-inspector-row gc-inspector-row--field gc-inspector-row--buttons">
+                  <button
+                    type="button"
+                    className="gc-btn gc-inspector-apply"
+                    aria-expanded={graphRefPreviewOpen}
+                    aria-controls={`gc-graphref-preview-${selection.id}`}
+                    disabled={
+                      !workspaceLinked ||
+                      graphRefSelectionTargetId === "" ||
+                      loadGraphRefSnapshot == null ||
+                      graphRefPreviewBlocked
+                    }
+                    onClick={() => {
+                      const next = !graphRefPreviewOpen;
+                      setGraphRefPreviewOpen(next);
+                      if (next) {
+                        void runGraphRefPreviewLoad(false);
+                      }
+                    }}
+                  >
+                    {graphRefPreviewOpen
+                      ? t("app.inspector.graphRefPreviewCollapse")
+                      : t("app.inspector.graphRefPreviewExpand")}
+                  </button>
+                  <button
+                    type="button"
+                    className="gc-btn gc-inspector-apply"
+                    disabled={
+                      !graphRefPreviewOpen ||
+                      graphRefPreviewLoading ||
+                      !workspaceLinked ||
+                      graphRefSelectionTargetId === "" ||
+                      loadGraphRefSnapshot == null ||
+                      graphRefPreviewBlocked
+                    }
+                    onClick={() => {
+                      void runGraphRefPreviewLoad(true);
+                    }}
+                  >
+                    {t("app.inspector.graphRefPreviewRefresh")}
+                  </button>
+                </div>
+                {graphRefPreviewOpen ? (
+                  <div
+                    id={`gc-graphref-preview-${selection.id}`}
+                    className="gc-inspector-graphref-preview-panel"
+                    role="region"
+                    aria-label={t("app.inspector.graphRefPreviewHeading")}
+                  >
+                    {graphRefPreviewLoading ? (
+                      <p className="gc-inspector-edge-hint">{t("app.inspector.graphRefPreviewLoading")}</p>
+                    ) : null}
+                    {graphRefWorkspaceHintState.kind === "ok" ? (
+                      <>
+                        <p className="gc-inspector-edge-hint">
+                          {t("app.inspector.graphRefPreviewIndexFile", {
+                            file: graphRefWorkspaceHintState.hint.fileName,
+                          })}
+                        </p>
+                        {graphRefWorkspaceHintState.hint.title ? (
+                          <p className="gc-inspector-edge-hint">
+                            {t("app.inspector.graphRefPreviewIndexTitle", {
+                              title: graphRefWorkspaceHintState.hint.title,
+                            })}
+                          </p>
+                        ) : null}
+                        {graphRefWorkspaceHintState.hint.duplicateGraphId ? (
+                          <p className="gc-inspector-edge-hint" role="status">
+                            {t("app.inspector.graphRefPreviewDuplicateId")}
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {!graphRefPreviewLoading && graphRefPreviewResult != null && !graphRefPreviewResult.ok ? (
+                      <p className="gc-inspector-edge-hint" role="alert">
+                        {graphRefPreviewResult.errorKind === "json"
+                          ? t("app.inspector.graphRefPreviewErrorJson")
+                          : graphRefPreviewResult.errorKind === "parse_doc"
+                            ? t("app.inspector.graphRefPreviewErrorParseDoc")
+                            : graphRefPreviewResult.errorKind === "read"
+                              ? t("app.inspector.graphRefPreviewErrorRead")
+                              : graphRefPreviewResult.errorKind === "no_workspace"
+                                ? t("app.inspector.graphRefPreviewErrorNoWorkspace")
+                                : t("app.inspector.graphRefPreviewErrorUnknown")}
+                      </p>
+                    ) : null}
+                    {!graphRefPreviewLoading &&
+                    graphRefPreviewResult != null &&
+                    graphRefPreviewResult.ok ? (
+                      <ul className="gc-inspector-graphref-preview-list">
+                        <li>
+                          {t("app.inspector.graphRefPreviewNodes", {
+                            count: graphRefPreviewResult.snapshot.workflowNodeCount,
+                          })}
+                        </li>
+                        {graphRefPreviewResult.snapshot.schemaVersion != null ? (
+                          <li>
+                            {t("app.inspector.graphRefPreviewSchema", {
+                              v: graphRefPreviewResult.snapshot.schemaVersion,
+                            })}
+                          </li>
+                        ) : null}
+                        {graphRefPreviewResult.snapshot.title ? (
+                          <li>
+                            {t("app.inspector.graphRefPreviewDocTitle", {
+                              title: graphRefPreviewResult.snapshot.title,
+                            })}
+                          </li>
+                        ) : null}
+                        {graphRefPreviewResult.snapshot.graphId ? (
+                          <li>
+                            {t("app.inspector.graphRefPreviewFileGraphId", {
+                              id: graphRefPreviewResult.snapshot.graphId,
+                            })}
+                          </li>
+                        ) : null}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 className="gc-btn gc-btn-primary gc-inspector-apply"
