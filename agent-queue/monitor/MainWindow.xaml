@@ -34,7 +34,7 @@
 
                     ToolTip="Создать agent-queue.manual-stall-retry.flag: agent-queue.ps1 прервёт только текущий вызов CLI и перезапустит этот шаг (тот же промпт; без перезапуска pwsh)."/>
 
-            <TextBlock VerticalAlignment="Center" Foreground="Gray" Text="Aura · agent-queue.ps1"/>
+            <TextBlock VerticalAlignment="Center" Foreground="Gray" Text="GraphCaster · agent-queue.ps1"/>
 
         </StackPanel>
 

@@ -20,21 +20,21 @@ git clone https://github.com/drew767/GraphCaster.git
 cd GraphCaster
 ```
 
-**Монорепо Aura / messenger-backend** (субмодуль уже в `.gitmodules`):
+**Встраивание как git submodule** (путь к каталогу задаёте вы, пример ниже):
 
 ```bash
-git submodule update --init --recursive third_party/graph-caster
+git submodule update --init --recursive path/to/graph-caster
 ```
 
 Обновить субмодуль до последнего `main` на GitHub:
 
 ```bash
-cd third_party/graph-caster
+cd path/to/graph-caster
 git fetch origin
 git checkout main
 git pull
 cd ../..
-git add third_party/graph-caster
+git add path/to/graph-caster
 git commit -m "Bump graph-caster submodule"
 ```
 
@@ -106,7 +106,7 @@ pytest -q
 
 Из каталога `ui/`: **`npm install`**. Разработка: **`npm run dev`** — окно Tauri + Vite (нужны [зависимости Tauri под Windows](https://tauri.app/start/prerequisites/): Rust, MSVC и т.д.). Только веб: **`npm run dev:web`**. Сборка SPA: **`npm run build`**. Сборка установщиков Windows: **`npm run build:desktop`** → `ui/src-tauri/target/release/bundle/nsis/` и `.../msi/`. Детали: [`ui/README.md`](ui/README.md).
 
-Автосборка установщика в CI: workflow [`.github/workflows/graph-caster-desktop.yml`](../../.github/workflows/graph-caster-desktop.yml) (ручной запуск **Run workflow**).
+Автосборка установщика в CI: при наличии workflow в вашем **корне** репозитория — **`.github/workflows/graph-caster-desktop.yml`** (часто **workflow_dispatch**). У конкретного форка смотрите вкладку **Actions** на GitHub.
 
 ## Лицензирование
 

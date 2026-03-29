@@ -87,10 +87,10 @@
 - **Гейт:** сценарий: удалить ноду с виспящим ребром → Save → пользователь видит, что граф «подчистился`.
 - **Сделано:** `sanitizeGraphConnectivity` возвращает `{ document, removedEdgeIds }`; `GraphCanvas` → `onExportRemovedDanglingEdges`; полоса предупреждений в `AppShell` + i18n **`app.editor.removedDanglingEdges`**; Vitest **`ui/src/graph/sanitize.test.ts`**. См. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 
-### P2 — CI монорепозитория для GraphCaster
+### P2 — CI для GraphCaster
 
-- **Сделано:** в корне монорепо **Aura** — **`.github/workflows/graph-caster-ci.yml`**: на **push**/**pull_request** в **`main`** при изменениях под **`third_party/graph-caster/**`** (и при правке самого workflow) — **Ubuntu**, Python **3.11**, **`pip install -e ".[dev]"`** + **`pytest -q`** в **`third_party/graph-caster/python`**; **Node 20.19**, **`npm ci`**, **`npm test`**, **`npm run build`** в **`third_party/graph-caster/ui`** (локально — **`engines`** в **`ui/package.json`**, **`>=20.19`**). Отдельно **`graph-caster-desktop.yml`** остаётся для сборки Windows-инсталляторов (**`workflow_dispatch`**). Указатель в **`docs/AUTOTESTS_CATALOG.md`** §**4.3**.
-- **Гейт:** красная сборка при падении любого из шагов job **test**.
+- **Сделано (матрица проверок):** **`python/`** — **Python 3.11**, **`pip install -e ".[dev]"`**, **`pytest -q`**; **`ui/`** — **Node 20.19**+, **`npm ci`**, **`npm test`**, **`npm run build`** (см. **`engines`** в **`ui/package.json`**). Workflow-файлы (напр. **`graph-caster-ci.yml`**, **`graph-caster-desktop.yml`**) живут в том GitHub-репозитории, который вы выбрали для GraphCaster или для хост-приложения; GraphCaster **не** привязан к чужому корневому монорепо.
+- **Гейт:** красная сборка при падении любого из шагов job **test** (в вашем CI).
 
 ### P3 — Расхождение `schemaVersion` в файле (редкий hand-edit)
 
@@ -108,7 +108,7 @@
 
 ### Уже закрыто (контекст для плана)
 
-- Паритет типов полей JSON (ручки, `graphId`, `schemaVersion`, `condition`, `author`/`title`); единый `schemaVersion` на экспорте; общий `flowConnectionHandle`; стартовый пример через `parseGraphDocumentJson`; Vitest на парсер и `flowToDocument` — **в коде**; каталог автотестов в монорепо обновлён под `npm test`.
+- Паритет типов полей JSON (ручки, `graphId`, `schemaVersion`, `condition`, `author`/`title`); единый `schemaVersion` на экспорте; общий `flowConnectionHandle`; стартовый пример через `parseGraphDocumentJson`; Vitest на парсер и `flowToDocument` — **в коде**; **`npm test`** в **`ui/`** зафиксирован в скриптах пакета.
 - Статическое предупреждение **недостижимых из `start` нод** (все рёбра как возможные; рамки **`comment`** / **`group`** исключены): UI + `validate.find_unreachable_non_frame_nodes` (**`find_unreachable_non_comment_nodes`** — алиас) — см. [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md) (раздел F3 / достижимость).
 - Уведомление при **отбрасывании рёбер без конечных нод** при экспорте (**P2** выше) — там же в **IMPLEMENTED_FEATURES**.
 
@@ -141,10 +141,10 @@
 - Сценарий end-to-end: граф из нескольких шагов, условный переход по результату (простое условие), долгий прогон, лог в консоли — на стороне пользователя после установки **Cursor Agent CLI** / **`GC_CURSOR_AGENT`**.
 - Документация: **`python/README.md`** (пресет), корневой **`README.md`**, этот файл и **`doc/IMPLEMENTED_FEATURES.md`** (раздел про фазу 9).
 
-## Фаза 10 — Встраивание в Aura
+## Фаза 10 — Встраивание в хост-приложение
 
-- Плагин / WebView / IPC — по плану продукта Aura; экспорт `dist/` или пакет, стабильный API **открыть документ / подписаться на события**.
-- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** — см. **`doc/IMPLEMENTED_FEATURES.md`**, **`python/README.md`**; нода **`mcp_tool`** (клиент MCP, stdio + streamable HTTP MVP) — там же; полноценный embed в Aura остаётся отдельным шагом.
+- Плагин / WebView / IPC — по плану **продукта-хоста**; экспорт **`dist/`** или NPM-пакет, стабильный API **открыть документ / подписаться на события** — вне обязанностей репозитория GraphCaster.
+- **Сделано (часть поверхности «снаружи»):** MCP **stdio** — **`python -m graph_caster mcp`** (extra **`.[mcp]`**), tools **`graphcaster_*`** — см. **`doc/IMPLEMENTED_FEATURES.md`**, **`python/README.md`**; нода **`mcp_tool`** (клиент MCP, stdio + streamable HTTP MVP) — там же; полноценный встраиваемый UI-embed остаётся отдельным шагом на стороне хоста.
 
 ---
 

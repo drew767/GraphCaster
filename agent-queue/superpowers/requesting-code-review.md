@@ -1,4 +1,4 @@
-<!-- Copyright Aura. All Rights Reserved. Text from Superpowers requesting-code-review skill; used by agent-queue CLI. -->
+<!-- Copyright GraphCaster. All Rights Reserved. Text from Superpowers requesting-code-review skill; used by agent-queue CLI. -->
 ---
 name: requesting-code-review
 description: Use when completing tasks, implementing major features, or before merging to verify work meets requirements
@@ -63,7 +63,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 
 [Dispatch superpowers:code-reviewer subagent]
   WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
-  PLAN_OR_REQUIREMENTS: Task from existing tracker (e.g. `docs/FEATURE_VERIFICATION_TEST_PROJECT.md` AT-xxx row or `docs/CODE_REVIEW_REMEDIATION_TASKS.md`) — match that file’s style when citing
+  PLAN_OR_REQUIREMENTS: Task from existing tracker in your repo — match that tracker’s style when citing
   BASE_SHA: a7981ec
   HEAD_SHA: 3df7661
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types

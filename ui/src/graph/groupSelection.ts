@@ -4,7 +4,7 @@ import type { Node } from "@xyflow/react";
 
 import { getFlowNodeSize, getWorldTopLeft } from "./flowHierarchy";
 import { GRAPH_NODE_TYPE_GROUP, GRAPH_NODE_TYPE_START } from "./nodeKinds";
-import { newGraphNodeId } from "./nodePalette";
+import { newGroupFrameId } from "./nodePalette";
 import type { GcNodeData } from "./toReactFlow";
 
 const DEFAULT_PADDING = 24;
@@ -87,7 +87,7 @@ export function applyGroupSelection(
   }
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const parentId = commonFrameParentId(nodes, eligible);
-  const groupId = options?.groupId ?? `group-${newGraphNodeId().replace(/^n-/, "")}`;
+  const groupId = options?.groupId ?? newGroupFrameId();
 
   let groupPos = { x: bbox.x, y: bbox.y };
   if (parentId) {

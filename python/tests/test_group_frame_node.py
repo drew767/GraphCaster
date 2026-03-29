@@ -63,7 +63,7 @@ def test_find_unreachable_ignores_group_frames() -> None:
 
 
 def test_runner_skips_group_frames_along_chain() -> None:
-    """Same as comment: group nodes may appear in edge chains without blocking run."""
+    """Runner walks start → … → exit; editor-only group vertices in the edge list are skipped like comments."""
     gid = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     nodes: list[Node] = [
         Node(id="start1", type="start", position={"x": 0, "y": 0}, data={}),

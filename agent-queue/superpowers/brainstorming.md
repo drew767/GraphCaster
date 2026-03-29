@@ -1,4 +1,4 @@
-<!-- Copyright Aura. All Rights Reserved. Text from Superpowers brainstorming skill; used by agent-queue CLI. -->
+<!-- Copyright GraphCaster. All Rights Reserved. Text from Superpowers brainstorming skill; used by agent-queue CLI. -->
 ---
 name: brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores requirements and design before implementation."

@@ -1,4 +1,4 @@
-<!-- Copyright Aura. All Rights Reserved. -->
+<!-- Copyright GraphCaster. All Rights Reserved. -->
 
 # `agent-queue` (Cursor Agent CLI)
 
@@ -10,9 +10,9 @@
 
 **Не входят в эту реализацию** (в документации и инструментах на них не ориентироваться): отдельный **`agent-queue-2.ps1`**, NDJSON **CLI deep log** (`agent-queue-cli-deep-*.log`), **`-AgentQueueDebug`**, **`AGENT_QUEUE_DEBUG`**, **`AGENT_QUEUE_CLI_DEEP_*`**, отдельный **`agent-queue-watchdog-*.log`**, параметры **`-StreamFirstLineHeartbeatSeconds`** / **`-MaxMinutesWithoutFirstStdout`** и автоматическое «восстановление» по отсутствию stdout.
 
-**После правок `agent-queue.ps1`:** быстрый smoke без реального **`agent`** — **`agent-queue.ps1 -DryRun`** с однострочным **`-PromptFile`** (в выводе есть **`Would run:`**) и/или **`-AgentQueueSmokeTest -PromptFile .../agent-queue.prompts.example.txt`** (long-prompt path); обязательный ручной прогон с реальным **`agent`** — **`_diag-run-agent-queue-step.ps1`** (нужны CLI и сессия). Это **не** [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md) / **AT-xxx** мессенджера.
+**После правок `agent-queue.ps1`:** быстрый smoke без реального **`agent`** — **`agent-queue.ps1 -DryRun`** с однострочным **`-PromptFile`** (в выводе есть **`Would run:`**) и/или **`-AgentQueueSmokeTest -PromptFile .../agent-queue.prompts.example.txt`** (long-prompt path); обязательный ручной прогон с реальным **`agent`** — **`_diag-run-agent-queue-step.ps1`** (нужны CLI и сессия).
 
-**Корень для Cursor (`-Workspace`, `--workspace`):** по умолчанию это каталог **рядом с `agent-queue/`**, в котором есть **`python/`** и **`ui/`** (корень **graph-caster**), а не «два уровня вверх» от `agent-queue` (иначе из `third_party/graph-caster/agent-queue` получался бы неверный `third_party`). Устаревшая схема **`scripts/agent-queue`**: если родитель папки `agent-queue` называется **`scripts`**, умолчание — **на два уровня вверх** (корень монорепозитория). Монитор выставляет то же правило в поле workspace.
+**Корень для Cursor (`-Workspace`, `--workspace`):** по умолчанию это каталог **рядом с `agent-queue/`**, в котором есть **`python/`** и **`ui/`** (корень **GraphCaster**), а не «два уровня вверх» от `agent-queue`. Устаревшая схема **`scripts/agent-queue`**: если родитель папки `agent-queue` называется **`scripts`**, умолчание — **на два уровня вверх** (корень внешнего дерева, где лежит этот субкаталог). Монитор выставляет то же правило в поле workspace.
 
 **Относительные пути:** **`-PromptFile`**: не найден — пробуются `agent-queue/<path>`, `agent-queue/prompts/<path>`, `<workspace>/<path>`, `<workspace>/agent-queue/prompts/<path>`. **`-Superpower*Path`**: каталог скрипта, затем workspace.
 
@@ -20,32 +20,26 @@
 
 Если **`agent login`** в PowerShell падает с **PSSecurityException / running scripts is disabled**, запустите из `monitor/` **`cursor-agent-login.bat`** (один раз обходит политику для этого процесса, `RemoteSigned` для профиля не обязателен).
 
-Пост-задача и нормы коммита: [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc).
+Пост-задача и нормы коммита — по правилам **вашей** команды (GraphCaster их не навязывает).
 
 ## Папка `prompts/`
 
 Здесь только **действующие** файлы очереди — те, что выбираются как `-PromptFile` / из меню `run-agent-queue.bat` (файлы `*.txt`). Локальный оверрайд без коммита: **`agent-queue/agent-queue.prompts.local.txt`** рядом с `agent-queue.ps1`.
 
-Сценарии совместной работы с Git (fetch/merge/push/проверка) **встроены** в **`prompts/agent-queue.*.pipeline.prompts.txt`** (в т.ч. **general**, **graphcaster**, **aura-sdk**, **autotests**): в шапке файлов обычно только строка copyright (`#`); шаги merge/push/commit — **в теле** соответствующих блоков (разделитель **`---`**). Формат сообщений коммита и роли документов — [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc). Матрица **`AT-xxx`** продукта (мессенджер / стенд) — [FEATURE_VERIFICATION_TEST_PROJECT.md](../../docs/FEATURE_VERIFICATION_TEST_PROJECT.md) §**15**; как запускать реализованные тесты — [AUTOTESTS_CATALOG.md](../../docs/AUTOTESTS_CATALOG.md).
+Сценарии совместной работы с Git (fetch/merge/push/проверка) **встроены** в **`prompts/agent-queue.*.pipeline.prompts.txt`** (минимальный поставляемый вариант — **graphcaster**): в шапке файлов обычно только строка copyright (`#`); шаги merge/push/commit — **в теле** соответствующих блоков (разделитель **`---`**). Дополнительные pipeline-файлы с другими именами команда может держать у себя в этом каталоге.
 
 **`run-agent-queue.bat` без аргументов** показывает нумерованный список всех `*.txt` из `prompts/`, затем запрашивает число циклов и **cycles per chat** (`-CyclesPerChat`), после чего запускает непрерывное выполнение до конца всех циклов.
 
 ### Git: синхронизация с remote перед коммитом
 
-Канонический текст для агента — блок **«Синхронизация с remote перед коммитом»** внутри pipeline-файлов в `prompts/` (перед блоком коммита). Число нумерованных шагов в блоке может отличаться по файлам (сверяйте с **dev-workflow** и [DEV_SETUP — Git](../../docs/DEV_SETUP.md#git-sync-with-origin)); при выравнивании правьте `prompts/` **только** с префиксом из [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc) (**`РЕДАКТИРОВАНИЕ АВТОМТИЧЕСКИХ ЗАПРОСОВ`**). Ниже — полная логика для людей и поиска; при расхождении с `prompts/*.txt` для людей ориентир — **этот подраздел README**.
+Краткий ориентир (детали — внутри ваших pipeline-файлов в `prompts/` или в политике команды):
 
-Синхронизация с remote перед коммитом (совместная работа с другим разработчиком).
-
-Merge/rebase и конфликты реши самостоятельно; находи максимально рациональное и безопасное решение — не опрашивай пользователя. Выбери самый безопасный и соответствующий политике ветки вариант; при неоднозначности предпочитай merge без force на общих ветках.
-
-1) `git status` — в коммит попадает только задуманное; нет лишних файлов.  
+1) `git status` — в коммит только запланированное.  
 2) `git fetch` (обычно `origin`).  
-3) Влей изменения с отслеживаемой веткой: `git merge origin/<текущая-ветка>` или подходящий `rebase` по истории ветки и политике; базу смотри в `git branch -vv`.  
-4) Конфликты: для каждого файла с маркерами смотри механику через `git diff` / рабочее дерево; смысл изменений с каждой стороны — через `git log`, `git show`; объедини смысл своих и чужих правок, не откатывай чужой фикс без причины; в отчёте — кратко, без полного пересказа истории; затем `git add` только по разрешённым файлам (без лишнего scope).  
-5) После успешного слияния и до push — минимальная проверка (релевантный smoke: скрипт, compose validate, или указанный в изменениях шаг), чтобы не переносить дальше сломанное разрешение. Опционально после push — смотреть CI/политику команды; это не замена проверке до push.  
-6) **`git push --force`** на **общих** ветках не использовать. Push на этом шаге не выполняй — только синхронизация и готовность к следующему блоку (коммит). Если безопасно влить нельзя — зафиксируй в отчёте шаги для ручного вмешательства. Если force-push допустим только по политике ветки — зафиксируй причину в сообщении коммита или в принятом у команды трекере; не применяй `--force` без оснований из политики репозитория (см. [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc)).
-
-Сообщение коммита и теги — [.cursor/rules/development-workflow.mdc](../../.cursor/rules/development-workflow.mdc).
+3) `git merge origin/<ветка>` или `rebase` — по политике репозитория.  
+4) Конфликты: разрешить с сохранением смысла обеих сторон; `git add` только по снятым файлам.  
+5) До `push` — минимальный smoke по типу изменений.  
+6) На общих ветках не использовать **`git push --force`** без явной политики.
 
 ## Файлы pipeline (встроенный порядок шагов)
 
@@ -53,24 +47,15 @@ Merge/rebase и конфликты реши самостоятельно; нах
 
 | Файл | Назначение |
 |------|------------|
-| `prompts/agent-queue.general.pipeline.prompts.txt` | Сквозная автоматизация монорепозитория: DX, CI, скрипты, согласованные итерации плана/кода/ревью/коммита (см. заголовок и блоки файла). |
-| `prompts/agent-queue.graphcaster.pipeline.prompts.txt` | Pipeline под работу в дереве **graph-caster** / смежном workspace. |
-| `prompts/agent-queue.aura-sdk.pipeline.prompts.txt` | Pipeline под слой **Aura SDK** (`clients/aura-client-sdk/`). |
-| `prompts/agent-queue.autotests.pipeline.prompts.txt` | Итерации по автотестам: приоритет AT-xxx, ревью тестов, коммит (см. заголовок файла). |
+| `prompts/agent-queue.graphcaster.pipeline.prompts.txt` | Pipeline по умолчанию для работы в дереве **GraphCaster** (см. заголовок и блоки файла). |
 
-Пример (автотесты, `N` циклов):
+Дополнительные `agent-queue.*.pipeline.prompts.txt` команда может добавлять под свои процессы (другой репозиторий, отдельный модуль) — пути в примерах ниже задайте относительно **`-Workspace`**.
 
-```text
-.\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.autotests.pipeline.prompts.txt -Cycles N -Mode agent
-```
-
-Пример (общая автоматизация репозитория, `N` циклов):
+Пример (`N` циклов):
 
 ```text
-.\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.general.pipeline.prompts.txt -Cycles N -Mode agent
+.\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.graphcaster.pipeline.prompts.txt -Cycles N -Mode agent
 ```
-
-(В монорепозитории Aura путь к скрипту может быть `.\third_party\graph-caster\agent-queue\...` — укажите свой префикс относительно **`-Workspace`**.)
 
 Линейный порядок блоков **без** встроенного pipeline-шаблона: **`-Sequential -PromptFile ...`** (см. `-Help`).
 

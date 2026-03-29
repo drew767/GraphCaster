@@ -54,6 +54,7 @@ Thumbs.db
 **/_build_verify_ui/
 
 # agent-queue runtime & local-only
+**/CLI_SETUP.generated.txt
 agent-queue/agent-queue.prompts.local.txt
 agent-queue/agent-queue.monitor-status.json
 **/agent-queue-stall-debug.log

@@ -1,4 +1,4 @@
-<!-- Copyright Aura. All Rights Reserved. Text from Superpowers writing-plans skill; adapted for graph-caster agent-queue. -->
+<!-- Copyright GraphCaster. All Rights Reserved. Text from Superpowers writing-plans skill; adapted for graph-caster agent-queue. -->
 ---
 name: writing-plans
 description: Use when you have a spec or requirements for a multi-step task, before touching code

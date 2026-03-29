@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 # Same rules as AgentQueuePathFinder.GetDefaultCursorWorkspace (agent-queue folder path).
 param(
     [Parameter(Mandatory = $true)]

@@ -1,4 +1,4 @@
-<!-- Copyright Aura. All Rights Reserved. Text from Superpowers executing-plans skill; adapted for graph-caster agent-queue. -->
+<!-- Copyright GraphCaster. All Rights Reserved. Text from Superpowers executing-plans skill; adapted for graph-caster agent-queue. -->
 ---
 name: executing-plans
 description: Use when you have a written implementation plan to execute with review checkpoints

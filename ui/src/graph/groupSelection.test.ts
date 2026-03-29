@@ -72,6 +72,8 @@ describe("groupSelection", () => {
 
   it("applyUngroupSelection removes group and restores root positions", () => {
     const doc = minimalDoc();
+    const origA = { ...doc.nodes!.find((n) => n.id === "a")!.position! };
+    const origB = { ...doc.nodes!.find((n) => n.id === "b")!.position! };
     const { nodes, edges } = graphDocumentToFlow(doc);
     const applied = applyGroupSelection(nodes, new Set(["a", "b"]))!;
     const ungrouped = applyUngroupSelection(applied.nodes, applied.groupId);
@@ -79,6 +81,44 @@ describe("groupSelection", () => {
     const out = flowToDocument(ungrouped!, edges, doc);
     expect(out.nodes?.some((n) => n.type === "group")).toBe(false);
     const ta = out.nodes?.find((n) => n.id === "a");
+    const tb = out.nodes?.find((n) => n.id === "b");
     expect(ta?.parentId).toBeUndefined();
+    expect(tb?.parentId).toBeUndefined();
+    expect(ta?.position).toEqual(origA);
+    expect(tb?.position).toEqual(origB);
+  });
+
+  it("group inside comment keeps parentId and absolute positions after ungroup", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "test-graph", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        {
+          id: "fr",
+          type: "comment",
+          position: { x: 400, y: 300 },
+          data: { title: "Frame", width: 500, height: 400 },
+        },
+        { id: "a", type: "task", position: { x: 450, y: 350 }, parentId: "fr", data: { title: "A" } },
+        { id: "b", type: "task", position: { x: 620, y: 420 }, parentId: "fr", data: { title: "B" } },
+      ],
+      edges: [],
+    };
+    const origA = { ...doc.nodes!.find((n) => n.id === "a")!.position! };
+    const origB = { ...doc.nodes!.find((n) => n.id === "b")!.position! };
+    const { nodes, edges } = graphDocumentToFlow(doc);
+    const applied = applyGroupSelection(nodes, new Set(["a", "b"]));
+    expect(applied).not.toBe(null);
+    expect(applied!.nodes.find((n) => n.id === applied!.groupId)?.parentId).toBe("fr");
+    const ungrouped = applyUngroupSelection(applied!.nodes, applied!.groupId)!;
+    const out = flowToDocument(ungrouped, edges, doc);
+    expect(out.nodes?.some((n) => n.type === "group")).toBe(false);
+    const ta = out.nodes?.find((n) => n.id === "a");
+    const tb = out.nodes?.find((n) => n.id === "b");
+    expect(ta?.parentId).toBe("fr");
+    expect(tb?.parentId).toBe("fr");
+    expect(ta?.position).toEqual(origA);
+    expect(tb?.position).toEqual(origB);
   });
 });

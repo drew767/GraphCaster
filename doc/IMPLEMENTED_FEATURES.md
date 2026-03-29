@@ -98,7 +98,7 @@
 
 Код: **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/graph/gcFlowEdgeSync.ts`**, Vitest **`gcFlowEdgeSync.test.ts`**; **`ui/src/run/runSessionStore.ts`** (**`nodeRunOverlayRevision`**), **`ui/src/run/nodeRunOverlay.ts`**, Vitest **`nodeRunOverlayBatch.test.ts`**. Локальный стресс-фикстур (stdout, не коммитить большие JSON): **`npm run fixture:large-graph`** в **`ui/`** (аргумент — число нод, по умолчанию **500**). **Baseline / Chrome Performance / целевые пороги** (процедура и таблица критериев): **`ui/README.md`** раздел **«Большой граф: фикстура и baseline»**.
 
-**Рамки `group` и группировка выделения** (закрывает **§28.2** п.7 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md), там остаётся только отсылка сюда): в документе первоклассный тип **`group`** (как у **`comment`**, не шаг раннера); **`parentId`** может указывать на **`comment`** или **`group`**. Полотно: **`GcGroupNode`** / **`gcGroup`**, репарент при перетаскивании и команды **Group selection** / **Ungroup** в **Правка** (**Ctrl+G** / **Ctrl+Shift+G**). Код: **`ui/src/graph/groupSelection.ts`**, **`flowHierarchy.ts`**, **`toReactFlow.ts`**, **`fromReactFlow.ts`**, **`AppShell.tsx`**, **`TopBar.tsx`**, **`nodeKinds.ts`**; схема и Python — **`schemas/graph-document.schema.json`**, **`python/graph_caster/validate.py`**, **`runner.py`**, **`handle_contract.py`**; тесты — **`ui/src/graph/groupSelection.test.ts`**, **`python/tests/test_group_frame_node.py`**.
+**Рамки `group` и группировка выделения** (закрывает **§28.2** п.7 в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md), там остаётся только отсылка сюда): в документе первоклассный тип **`group`** (как у **`comment`**, не шаг раннера); **`parentId`** может указывать на **`comment`** или **`group`**. Полотно: **`GcGroupNode`** / **`gcGroup`**, репарент при перетаскивании и команды **Group selection** / **Ungroup** в **Правка** (**Ctrl+G** / **Ctrl+Shift+G**). Новые id групп: **`newGroupFrameId()`** в **`ui/src/graph/nodePalette.ts`** (префикс **`group-`**, не зависит от формата **`newGraphNodeId`**). Код: **`ui/src/graph/groupSelection.ts`**, **`flowHierarchy.ts`**, **`toReactFlow.ts`**, **`fromReactFlow.ts`**, **`AppShell.tsx`**, **`TopBar.tsx`**, **`nodeKinds.ts`**; схема и Python — **`schemas/graph-document.schema.json`**, **`python/graph_caster/validate.py`**, **`runner.py`**, **`handle_contract.py`**; тесты — **`ui/src/graph/groupSelection.test.ts`** (в т.ч. восстановление абсолютных позиций после ungroup; группировка двух **task** внутри **`comment`**), **`python/tests/test_group_frame_node.py`**.
 
 Сравнение с конкурентами и **остаток** F1 (**lazy**-подграфы в **A**, **§28.2** п.4) — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§28**, таблица **F1** (строка GraphCaster).
 
@@ -131,7 +131,7 @@
 
 ## Условные рёбра / F4 (n8n IF/Switch, Dify variable-based branch) — конспект **§32**
 
-Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), продуктовая документация, расширение контекста предикатов, **масштабный** межпрогоновый пул / очереди уровня **§13.3** (**F6** / **Aura**, не dev-брокер); **FIFO** pending при лимите слотов **`serve`** — закрыто (таблица **«Dev WebSocket…»** ниже). **Внутриграфовый** bounded OS-параллель после **`fork`** — в таблице **Merge** ниже. **Структурированное ИИ-ветвление** (**нода `ai_route`**, wire v1) — **закрыто** (подраздел **«ИИ-ветвление / нода `ai_route`»** ниже и п.4 **§32.2** в competitive). Узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
+Статус в competitive: факты реализации **F4** (в т.ч. **`$json`**, **`$node`** (чтение **`node_outputs`**), **`branch_*`**, **`edge_traverse`**) — в **§32.1–§32.2** [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) со ссылкой сюда; ноды **`fork`**, **`merge`** (**passthrough** / **`barrier`**) — отдельный подраздел ниже. В **§32.2** список «**Открыто**» — полный **n8n Expression** runtime (JS sandbox), продуктовая документация, расширение контекста предикатов, **масштабный** межпрогоновый пул / очереди уровня **§13.3** (**F6**, не dev-брокер; масштабируемый пул — вне этого репозитория); **FIFO** pending при лимите слотов **`serve`** — закрыто (таблица **«Dev WebSocket…»** ниже). **Внутриграфовый** bounded OS-параллель после **`fork`** — в таблице **Merge** ниже. **Структурированное ИИ-ветвление** (**нода `ai_route`**, wire v1) — **закрыто** (подраздел **«ИИ-ветвление / нода `ai_route`»** ниже и п.4 **§32.2** в competitive). Узкие конверты **`$json`** / **`$node`** без VM — **закрыты** (таблица ниже). In-graph **`out_error`** (**F19**) закрыт здесь и отражён в **§16** / **§37** competitive без дублирования объёма реализации.
 
 | Идея конкурента | Реализация GC |
 |-----------------|---------------|
@@ -305,7 +305,7 @@
 
 Контракт: `schemas/run-event.schema.json`. Код: `python/graph_caster/runner.py` (`_event_sink.emit`, `run_from`, вложенный `GraphRunner(..., run_id=…)`).
 
-**Не копируем целиком** n8n **`ExecutionPushMessage`**, их redaction / **`flattedRunData`**. **Dev-брокер:** **SSE** и **WebSocket** с **`viewerToken`** (сессия подписки, аналог **`pushRef`**); **relay** кадров между процессами — **§39.2** п.7, слой **Aura** / инфра.
+**Не копируем целиком** n8n **`ExecutionPushMessage`**, их redaction / **`flattedRunData`**. **Dev-брокер:** **SSE** и **WebSocket** с **`viewerToken`** (сессия подписки, аналог **`pushRef`**); **relay** кадров между процессами — **§39.2** п.7, отдельный прод-транспорт / инфраструктура хоста.
 
 ### Dev WebSocket и `run_transport` (§39 / n8n `pushRef`, факты для `COMPETITIVE_ANALYSIS.md`)
 
@@ -328,7 +328,7 @@
 |-----------------|---------------|
 | **Langflow** — `EventManager.send_event` → буфер → выдача в HTTP | **`RunEventSink`** (`python/graph_caster/run_event_sink.py`): **`emit(event: RunEventDict)`**; CLI — **`NdjsonStdoutSink(write, flush)`**; обратная совместимость: **`Callable[[RunEventDict], None]`** → **`CallableRunEventSink`**; **`RunEventDict`** экспортируется из **`graph_caster`** |
 | **Dify** — готовые к выполнению узлы в очереди движка (концепция) | **`StepQueue`** + **`ExecutionFrame(node_id)`** (`step_queue.py`): синхронный FIFO, один поток; следующая нода ставится после **`_follow_edges_from`**; отмена опрашивается в начале каждой итерации |
-| **Comfy** — раздельные очереди исполнения и WebSocket | В GC одна цепочка: очередь визитов → события только через sink (расширение «буфер до медленного клиента» — **§39** / мост Aura) |
+| **Comfy** — раздельные очереди исполнения и WebSocket | В GC одна цепочка: очередь визитов → события только через sink (расширение «буфер до медленного клиента» — **§39** / мост на стороне хоста) |
 
 Тесты: `python/tests/test_run_event_sink.py`, `test_step_queue.py`, `test_runner_event_order_golden.py` (порядок `type` на `graph-document.example.json`).
 
@@ -420,7 +420,7 @@
 
 ### Backpressure SSE и ядро `process_exec` — Evidence
 
-Срез **§13.3** / **§39.2** у конкурентов: **dev `serve` (**SSE** + **WebSocket** + **`viewerToken`**) реализован здесь и в **`doc/RUN_EVENT_TRANSPORT.md`**; **prod**-**relay** между процессами — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§39.2** п.7 (хост **Aura**).
+Срез **§13.3** / **§39.2** у конкурентов: **dev `serve` (**SSE** + **WebSocket** + **`viewerToken`**) реализован здесь и в **`doc/RUN_EVENT_TRANSPORT.md`**; **prod**-**relay** между процессами — [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§39.2** п.7 (хост приложения / оркестратор).
 
 | Тема | Реализация |
 |------|------------|
@@ -611,18 +611,13 @@
 
 ---
 
-## CI в монорепозитории Aura (PR-гейт для субмодуля)
+## CI и проверки
 
-Рабочий код GraphCaster живёт в **`third_party/graph-caster/`** внутри корня **Aura**; автоматический прогон тестов и сборки UI настроен **в родительском репо**, не в изолированном клоне только graph-caster.
+Канонический источник истины по GraphCaster — **этот** репозиторий. Локально: **`python/`** — **`pip install -e ".[dev]"`**, **`pytest -q`**; **`ui/`** — **`npm ci`**, **`npm test`**, **`npm run build`** (см. **`engines`** в **`ui/package.json`**).
 
-| Идея (как у конкурентов) | Реализация |
-|--------------------------|------------|
-| Регрессия контракта и UI при merge в основную ветку | **`.github/workflows/graph-caster-ci.yml`** в корне **Aura**: **push**/**pull_request** на **`main`**, если diff затрагивает **`third_party/graph-caster/**`** или сам workflow |
-| Python | **Ubuntu**, **Python 3.11**, **`pip install -e ".[dev]"`**, **`pytest -q`** (cwd **`third_party/graph-caster/python`**) |
-| UI | **Node 20.19**, **`npm ci`**, **`npm test`**, **`npm run build`** (cwd **`third_party/graph-caster/ui`**) — см. **`engines`** в **`ui/package.json`** |
-| Каталог тестов / как запускать локально | **`docs/AUTOTESTS_CATALOG.md`** §**4.3** в монорепо **Aura** |
+При встраивании GraphCaster как **git submodule** в другой репозиторий команда может дополнительно настроить свой **GitHub Actions** (или иной CI) на каталог субмодуля — это политика **хоста**, не часть контракта GraphCaster.
 
-Детали политики путей и десктопного workflow — **`doc/DEVELOPMENT_PLAN.md`** (блок **P2 — CI**).
+Детали планов по прозрачности CI — **`doc/DEVELOPMENT_PLAN.md`** (блок **P2 — CI**).
 
 ---
 
@@ -633,4 +628,4 @@
 
 ---
 
-*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане). После выполнения плана удалите соответствующий **`.md`** из **`doc/plans/`** (временные файлы вида **`doc/*-plan.md`** в корне **`doc/`** — по тому же правилу). Если удалять нечего — ок. Коммиты по плану не обязательны.*
+*Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** создаётся при первом плане). Удаляйте файл плана **только после того, как описанное в нём поведение реально есть в коде** (и зафиксировано здесь при необходимости); незавершённые планы оставляйте. Временные **`doc/*-plan.md`** в корне **`doc/`** — по тому же правилу. Коммиты по плану не обязательны.*

@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 # Requires: Cursor Agent CLI (`agent`) - https://cursor.com/docs/cli/overview
 # Install (Windows): irm 'https://cursor.com/install?win32=true' | iex
 #
@@ -162,7 +162,7 @@ When the CLI sends a final assistant event after deltas, the full message is not
 By default, incremental assistant deltas are not printed (only the final assistant block, or the
 accumulated text at end of the step if there is no final event). Pass -AssistantStreamDelta to
 show streamed assistant text as it arrives (buffered; see -StreamBufferChars).
-Pipeline mode (default for agent-queue*.pipeline.prompts.txt under prompts/, e.g. general / autotests / graphcaster / aura-sdk): at least 3 blocks
+Pipeline mode (default for agent-queue*.pipeline.prompts.txt under prompts/, e.g. graphcaster or your team's variants): at least 3 blocks
 separated by ---. Block 1 starts a new chat; the last block anchors the next cycle;
 the second-to-last block is the commit step. Step order (1-based block indices): first
 cycle of a session runs 1..N in file order (through commit, then anchor). Later cycles
@@ -234,12 +234,12 @@ Examples:
   .\agent-queue\run-agent-queue.bat
     (no args: interactive prompt file + cycles + cycles-per-chat; with args: forwarded; -Cycles in args skips iteration prompt)
   .\agent-queue\agent-queue.ps1 -Cycles 2
-  .\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.general.pipeline.prompts.txt -Cycles 3 -Mode agent
+  .\agent-queue\agent-queue.ps1 -PromptFile .\agent-queue\prompts\agent-queue.graphcaster.pipeline.prompts.txt -Cycles 3 -Mode agent
   .\agent-queue\agent-queue.ps1 -Sequential -Cycles 3
   .\agent-queue\agent-queue.ps1 -StartFromPrompt 4 -Cycles 1
   .\agent-queue\agent-queue.ps1 -AgentQueueSmokeTest -PromptFile .\agent-queue\prompts\agent-queue.prompts.example.txt
-  (In Aura monorepo: prefix paths with third_party\graph-caster\ or set -Workspace to graph-caster root.)
-  From monorepo root: powershell -NoProfile -File scripts/agent-queue/agent-queue.ps1 -PromptFile path\to\one-line-prompt.txt -Workspace . -Cycles 1 -DryRun
+  (If agent-queue lives in a submodule: prefix paths accordingly or set -Workspace to the graph-caster repo root.)
+  From a parent repo root: powershell -NoProfile -File path\to\agent-queue.ps1 -PromptFile path\to\one-line-prompt.txt -Workspace . -Cycles 1 -DryRun
     (output should contain "Would run:"; exit 0 = OK)
 
 "@

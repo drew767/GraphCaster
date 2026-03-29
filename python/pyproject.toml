@@ -1,4 +1,4 @@
-# Copyright Aura. All Rights Reserved.
+# Copyright GraphCaster. All Rights Reserved.
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -11,7 +11,7 @@ description = "Graph document loader and scenario runner for GraphCaster"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Proprietary" }
-authors = [{ name = "Aura" }]
+authors = [{ name = "GraphCaster" }]
 
 dependencies = ["jsonschema>=4.0", "anyio>=4.0"]
 

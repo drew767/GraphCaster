@@ -13,18 +13,24 @@ import {
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
 
-export function newGraphNodeId(): string {
+function newShortIdSegment(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `n-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   }
-  return `n-${Date.now()}`;
+  return String(Date.now());
+}
+
+export function newGraphNodeId(): string {
+  return `n-${newShortIdSegment()}`;
+}
+
+/** Stable prefix `group-`; does not depend on `newGraphNodeId` string shape. */
+export function newGroupFrameId(): string {
+  return `group-${newShortIdSegment()}`;
 }
 
 export function newGraphEdgeId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `e-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-  }
-  return `e-${Date.now()}`;
+  return `e-${newShortIdSegment()}`;
 }
 
 /** Preset task.data for Cursor Agent CLI (`gcCursorAgent`); see python/graph_caster/cursor_agent_argv.py */

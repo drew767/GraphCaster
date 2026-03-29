@@ -1,4 +1,4 @@
-@REM Copyright Aura. All Rights Reserved.
+@REM Copyright GraphCaster. All Rights Reserved.
 @echo off
 setlocal
 set "AGENT_PS1=%LOCALAPPDATA%\cursor-agent\agent.ps1"
