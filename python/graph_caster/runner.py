@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import threading
 import uuid
@@ -66,6 +67,8 @@ BRANCH_SKIP_REASON_CONDITION_FALSE = "condition_false"
 BRANCH_SKIP_REASON_AI_ROUTE_NOT_SELECTED = "ai_route_not_selected"
 
 EDGE_SOURCE_OUT_ERROR = "out_error"
+
+_LOG = logging.getLogger(__name__)
 
 
 def _fork_unconditional_edges(doc: GraphDocument, fork_id: str, by_id: dict[str, Node]) -> list[Edge]:
@@ -1480,6 +1483,7 @@ class GraphRunner:
                     run_dir0 = create_root_run_artifact_dir(ab0, self._doc.graph_id)
                     path_str0 = str(run_dir0)
                     ctx["root_run_artifact_dir"] = path_str0
+                    ctx.setdefault("_gc_artifacts_base_resolved", str(Path(ab0).resolve()))
                     if self._persist_run_events:
                         log_path = run_dir0 / "events.ndjson"
                         file_sink = NdjsonAppendFileSink(log_path)
@@ -1718,17 +1722,24 @@ class GraphRunner:
                         if rrd:
                             from graph_caster.artifacts import write_run_summary
 
-                            write_run_summary(
-                                Path(str(rrd)),
-                                {
-                                    "schemaVersion": 1,
-                                    "runId": self._run_id,
-                                    "rootGraphId": self._doc.graph_id,
-                                    "status": st,
-                                    "startedAt": ctx.get("_gc_started_at_iso"),
-                                    "finishedAt": finished_at,
-                                },
-                            )
+                            summary_payload: dict[str, Any] = {
+                                "schemaVersion": 1,
+                                "runId": self._run_id,
+                                "rootGraphId": self._doc.graph_id,
+                                "status": st,
+                                "startedAt": ctx.get("_gc_started_at_iso"),
+                                "finishedAt": finished_at,
+                            }
+                            rrd_path = Path(str(rrd))
+                            write_run_summary(rrd_path, summary_payload)
+                            ab_host = self._host.artifacts_base
+                            if ab_host is not None:
+                                try:
+                                    from graph_caster.run_catalog import upsert_run_from_summary
+
+                                    upsert_run_from_summary(Path(ab_host), rrd_path, summary_payload)
+                                except Exception:
+                                    _LOG.debug("run_catalog upsert after summary failed", exc_info=True)
                 finally:
                     if self._persist_file_sink is not None:
                         self._persist_file_sink.close()

@@ -29,6 +29,7 @@ from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.idempotency import IdempotencyCache
 from graph_caster.run_broker.registry import RunBrokerRegistry, SpawnResult
 from graph_caster.run_broker.webhook_signature import verify_webhook_signature
+from graph_caster.run_catalog import list_run_catalog_rows, rebuild_catalog_from_disk
 from graph_caster.run_transport.ws_envelope import broker_ws_payload_from_fanout
 
 _GLOBAL_REGISTRY = RunBrokerRegistry()
@@ -275,6 +276,52 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
             return JSONResponse({"error": str(e)}, status_code=400)
         return JSONResponse({"text": t})
 
+    async def run_catalog_list(request: Request) -> Response:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "body must be object"}, status_code=400)
+        ab = body.get("artifactsBase")
+        if not ab or not str(ab).strip():
+            return JSONResponse({"error": "artifactsBase required"}, status_code=400)
+        raw_gid = body.get("graphId")
+        raw_st = body.get("status")
+        graph_id = str(raw_gid).strip() if raw_gid is not None and str(raw_gid).strip() else None
+        status_f = str(raw_st).strip() if raw_st is not None and str(raw_st).strip() else None
+        raw_lim = body.get("limit", 100)
+        raw_off = body.get("offset", 0)
+        try:
+            limit = int(raw_lim) if raw_lim is not None else 100
+            offset = int(raw_off) if raw_off is not None else 0
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "limit and offset must be integers"}, status_code=400)
+        rows = list_run_catalog_rows(
+            Path(str(ab)),
+            graph_id=graph_id,
+            status=status_f,
+            limit=limit,
+            offset=offset,
+        )
+        return JSONResponse({"items": rows})
+
+    async def run_catalog_rebuild(request: Request) -> Response:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "body must be object"}, status_code=400)
+        ab = body.get("artifactsBase")
+        if not ab or not str(ab).strip():
+            return JSONResponse({"error": "artifactsBase required"}, status_code=400)
+        try:
+            n = rebuild_catalog_from_disk(Path(str(ab)))
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"rebuilt": n})
+
     async def ws_run(websocket: WebSocket) -> None:
         secret = os.environ.get("GC_RUN_BROKER_TOKEN", "").strip()
         if secret and not _broker_ws_token_ok(websocket, secret):
@@ -360,6 +407,8 @@ def create_app(registry: RunBrokerRegistry | None = None) -> Starlette:
         Route("/persisted-runs/list", persisted_list, methods=["POST"]),
         Route("/persisted-runs/events", persisted_events, methods=["POST"]),
         Route("/persisted-runs/summary", persisted_summary, methods=["POST"]),
+        Route("/run-catalog/list", run_catalog_list, methods=["POST"]),
+        Route("/run-catalog/rebuild", run_catalog_rebuild, methods=["POST"]),
     ]
     app = Starlette(routes=routes)
     if os.environ.get("GC_RUN_BROKER_TOKEN", "").strip():

@@ -579,6 +579,25 @@
 
 ---
 
+## Каталог прогонов (SQLite, деривативный индекс) — срез **F13** / наблюдаемость
+
+Опциональный **индекс метаданных** рядом с file-first layout (`runs/<graphId>/<runDir>/`), без переноса источника истины с `events.ndjson` + `run-summary.json`. Сопоставимо с **списком execution** у n8n / Flowise / Dify на уровне **метаданных**; полноценный SaaS-ORM **`Execution`** в core не вводился.
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Список и фильтрация прогонов по workflow и времени без полного скана только «одного graphId» | Таблица **`runs`** в **`<artifacts_base>/.graphcaster/runs_catalog.sqlite3`**; колонки: **`run_id`**, **`root_graph_id`**, **`run_dir_name`**, **`status`**, **`started_at`**, **`finished_at`**, **`artifact_relpath`**; индексы по **`(root_graph_id, finished_at)`** и **`finished_at`** |
+| Запись после завершения корневого прогона | После **`write_run_summary`** — **`upsert_run_from_summary`** в **`runner.py`**; ошибки SQLite **не** меняют статус прогона |
+| Отключение | **`GC_RUN_CATALOG=0`** / **`false`** / **`no`** — upsert не выполняется, БД не создаётся |
+| HTTP (dev-брокер) | **`POST /run-catalog/list`** (тело: **`artifactsBase`**, опц. **`graphId`**, **`status`**, **`limit`**, **`offset`**) → **`{ items: [...] }`** с camelCase полями; **`POST /run-catalog/rebuild`** → **`{ rebuilt: N }`** (игнорирует **`GC_RUN_CATALOG`**) — **`run_broker/app.py`**, те же правила токена, что **`/persisted-runs/*`** |
+| Офлайн-ремонт | **`python -m graph_caster catalog-rebuild --artifacts-base <path>`** — полная пересборка из **`run-summary.json`** на диске |
+| Миграции схемы | **`PRAGMA user_version`**, без **`DROP TABLE`** при bump; опционально **`PRAGMA journal_mode=WAL`** |
+
+Код: **`python/graph_caster/run_catalog.py`**, **`runner.py`**, **`graph_caster/__main__.py`**. Тесты: **`python/tests/test_run_catalog.py`**, **`test_run_persistence.py`**, **`test_run_broker.py`**.
+
+Сводка для [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§17**: конкурентное сравнение и **остаток** F13 (OTel, облачный ORM, prod-транспорт **§39**) — там; факты локального индекса — **только здесь**.
+
+---
+
 ## MiniMap и панель управления полотном (навигация, @xyflow)
 
 Пункт **§28.2** п.4 «мини-карта» в [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md): в таблице **F1** — без дублирования реализации; **факты мини-карты** (в т.ч. **цвет по типу ноды**, **`minimapNodeColors.ts`**, оверлей рана на executable-нодах) — **только здесь**, в таблице ниже. **Производительность очень больших графов** (волна **onlyRenderVisible** + оверлей + рёбра) и **ленивое превью `graph_ref`** — раздел **«Canvas: большие графы»** выше. Статус **F1** «**частично**» в competitive — из‑за **остатка** (**§15**, **§29**); не миникарта и не п.7 **`group`** (опциональный **ghost** off-viewport — в таблице выше).

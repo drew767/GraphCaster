@@ -63,6 +63,30 @@ def test_persist_run_events_writes_ndjson_and_summary(tmp_path: Path) -> None:
     assert summary["status"] == "success"
     assert summary.get("runId")
 
+    from graph_caster.run_catalog import catalog_db_path, list_run_catalog_rows
+
+    dbp = catalog_db_path(tmp_path)
+    assert dbp.is_file()
+    rows = list_run_catalog_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["runId"] == summary["runId"]
+    assert rows[0]["rootGraphId"] == gid
+
+
+def test_persist_run_respects_gc_run_catalog_off(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GC_RUN_CATALOG", "0")
+    gid = "99999999-9999-4999-8999-999999999999"
+    doc = GraphDocument.from_dict(_minimal_doc(gid))
+    GraphRunner(
+        doc,
+        sink=lambda _e: None,
+        host=RunHostContext(artifacts_base=tmp_path),
+        persist_run_events=True,
+    ).run(context={"last_result": True})
+    from graph_caster.run_catalog import catalog_db_path
+
+    assert not catalog_db_path(tmp_path).is_file()
+
 
 def test_read_persisted_events_ndjson_sets_truncated(tmp_path: Path) -> None:
     from graph_caster.artifacts import read_persisted_events_ndjson_capped

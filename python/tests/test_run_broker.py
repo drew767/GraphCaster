@@ -218,6 +218,41 @@ def test_persisted_runs_events_truncated_and_huge_max_bytes_capped(tmp_path) -> 
     assert r2.json()["truncated"] is False
 
 
+def test_run_catalog_list_and_rebuild(tmp_path) -> None:
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    base = tmp_path / "wscat"
+    run_dir = base / "runs" / gid / "20991231T000000_cat"
+    run_dir.mkdir(parents=True)
+    summary = {
+        "schemaVersion": 1,
+        "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "rootGraphId": gid,
+        "status": "success",
+        "startedAt": "2099-01-01T00:00:00+00:00",
+        "finishedAt": "2099-01-01T00:00:01+00:00",
+    }
+    (run_dir / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    r0 = client.post("/run-catalog/list", json={"artifactsBase": str(base)})
+    assert r0.status_code == 200, r0.text
+    assert r0.json()["items"] == []
+    rr = client.post("/run-catalog/rebuild", json={"artifactsBase": str(base)})
+    assert rr.status_code == 200, rr.text
+    assert rr.json()["rebuilt"] == 1
+    r1 = client.post("/run-catalog/list", json={"artifactsBase": str(base)})
+    assert r1.status_code == 200
+    items = r1.json()["items"]
+    assert len(items) == 1
+    assert items[0]["runId"] == summary["runId"]
+    r2 = client.post(
+        "/run-catalog/list",
+        json={"artifactsBase": str(base), "graphId": gid, "status": "success", "limit": 10, "offset": 0},
+    )
+    assert r2.status_code == 200
+    assert len(r2.json()["items"]) == 1
+
+
 def test_run_broker_unknown_stream_404() -> None:
     reg = RunBrokerRegistry()
     client = TestClient(create_app(reg))

@@ -18,7 +18,7 @@ from graph_caster.run_sessions import RunSessionRegistry, get_default_run_regist
 from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_nested_run_result_json
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
-_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "serve", "mcp"})
+_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "catalog-rebuild", "serve", "mcp"})
 
 
 def _spawn_stdin_cancel_loop(registry: RunSessionRegistry) -> None:
@@ -153,6 +153,17 @@ def _build_parser() -> argparse.ArgumentParser:
     g = cl.add_mutually_exclusive_group(required=True)
     g.add_argument("--graph-id", default=None, help="Remove runs/<graphId>/ only")
     g.add_argument("--all", action="store_true", help="Remove entire runs/ directory")
+
+    cr = sub.add_parser(
+        "catalog-rebuild",
+        help="Rebuild SQLite run catalog from run-summary.json files under runs/",
+    )
+    cr.add_argument(
+        "--artifacts-base",
+        type=Path,
+        required=True,
+        help="Workspace root (parent of runs/)",
+    )
 
     srv = sub.add_parser(
         "serve",
@@ -360,6 +371,14 @@ def _cmd_artifacts_clear(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_catalog_rebuild(args: argparse.Namespace) -> int:
+    from graph_caster.run_catalog import rebuild_catalog_from_disk
+
+    n = rebuild_catalog_from_disk(Path(args.artifacts_base))
+    print(n)
+    return 0
+
+
 def _cmd_mcp(args: argparse.Namespace) -> int:
     try:
         import mcp  # noqa: F401
@@ -411,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_artifacts_size(args)
     if args.command == "artifacts-clear":
         return _cmd_artifacts_clear(args)
+    if args.command == "catalog-rebuild":
+        return _cmd_catalog_rebuild(args)
     if args.command == "serve":
         return _cmd_serve(args)
     if args.command == "mcp":
