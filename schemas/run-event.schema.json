@@ -42,6 +42,7 @@
         "mcp_tool_invoke",
         "mcp_tool_result",
         "mcp_tool_failed",
+        "wait_timer",
         "agent_delegate_start",
         "agent_step",
         "agent_tool_call",
@@ -530,6 +531,30 @@
           "transport": { "type": "string" },
           "errorMessage": { "type": "string" },
           "errorCode": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "wait_timer" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["nodeId", "graphId", "phase", "waitKind"],
+        "properties": {
+          "nodeId": { "type": "string", "minLength": 1 },
+          "graphId": { "type": "string", "minLength": 1 },
+          "phase": {
+            "type": "string",
+            "enum": ["start", "complete", "cancelled", "timeout"]
+          },
+          "waitKind": { "type": "string", "minLength": 1 },
+          "durationSec": { "type": "number" },
+          "path": { "type": "string" },
+          "timeoutSec": { "type": "number" },
+          "success": { "type": "boolean" },
+          "error": { "type": "string" },
+          "waitedSec": { "type": "number" }
         }
       }
     },

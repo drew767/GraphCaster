@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import { analyzeTemplateCondition } from "./edgeConditionTemplates";
+import { parseTimerDurationSec, waitForHasExecutableConfig } from "./structureWarnings";
 import {
   EDGE_SOURCE_OUT_ERROR,
   normalizeEdgeHandleValue,
@@ -66,10 +67,50 @@ function nodeCanEmitFailFanout(doc: GraphDocumentJson, nodeId: string): boolean 
   const t = String(n.type ?? "").trim();
   if (t === "task") {
     const d = (n.data ?? {}) as Record<string, unknown>;
+    if (d.gcCursorAgent != null && typeof d.gcCursorAgent === "object") {
+      return true;
+    }
     return d.command != null || d.argv != null;
   }
   if (t === "graph_ref") {
     return true;
+  }
+  if (t === "mcp_tool") {
+    return true;
+  }
+  if (t === "http_request") {
+    const u = (n.data ?? {})["url"];
+    return typeof u === "string" && u.trim() !== "";
+  }
+  if (t === "python_code") {
+    const c = (n.data ?? {})["code"];
+    return typeof c === "string" && c.trim() !== "";
+  }
+  if (t === "rag_query") {
+    const d = n.data ?? {};
+    const u = d["url"];
+    const q = d["query"];
+    return typeof u === "string" && u.trim() !== "" && typeof q === "string" && q.trim() !== "";
+  }
+  if (t === "delay" || t === "debounce") {
+    return parseTimerDurationSec(n.data ?? {}) != null;
+  }
+  if (t === "wait_for") {
+    return waitForHasExecutableConfig(n.data ?? {});
+  }
+  if (t === "llm_agent") {
+    const d = (n.data ?? {}) as Record<string, unknown>;
+    const cmd = d.command;
+    const argv = d.argv;
+    let has = Array.isArray(argv) && argv.length > 0;
+    if (!has && cmd != null) {
+      if (typeof cmd === "string" && cmd.trim() !== "") {
+        has = true;
+      } else if (Array.isArray(cmd) && cmd.length > 0) {
+        has = true;
+      }
+    }
+    return has;
   }
   return false;
 }

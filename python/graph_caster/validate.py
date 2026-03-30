@@ -6,6 +6,7 @@ from typing import Any
 
 from graph_caster.ai_routing import edge_route_description, usable_ai_route_out_edges
 from graph_caster.handle_contract import find_handle_compatibility_violations
+from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
 
 _OUT_ERROR_HANDLE = "out_error"
@@ -85,16 +86,120 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
         return False
     if node.type == "task":
         d = node.data
-        return d.get("command") is not None or d.get("argv") is not None
+        return (
+            d.get("command") is not None
+            or d.get("argv") is not None
+            or "gcCursorAgent" in d
+        )
     if node.type == "graph_ref":
         return True
     if node.type == "mcp_tool":
         return True
+    if node.type == "http_request":
+        u = (node.data or {}).get("url")
+        return isinstance(u, str) and bool(u.strip())
+    if node.type == "python_code":
+        c = (node.data or {}).get("code")
+        return isinstance(c, str) and bool(c.strip())
+    if node.type == "rag_query":
+        d = node.data or {}
+        u = d.get("url")
+        q = d.get("query")
+        return (
+            isinstance(u, str)
+            and bool(u.strip())
+            and isinstance(q, str)
+            and bool(q.strip())
+        )
     if node.type == "llm_agent":
         from graph_caster.process_exec import _argv_from_data
 
         return bool(_argv_from_data(node.data or {}))
+    if node.type in ("delay", "debounce"):
+        return parse_duration_sec(node.data or {}) is not None
+    if node.type == "wait_for":
+        d = node.data or {}
+        mode = str(d.get("waitMode") or "file").strip().lower()
+        if mode != "file":
+            return False
+        p = d.get("path")
+        return isinstance(p, str) and bool(p.strip()) and parse_wait_for_file_params(d) is not None
     return False
+
+
+def find_http_request_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "http_request":
+            continue
+        u = (n.data or {}).get("url")
+        if not isinstance(u, str) or not u.strip():
+            out.append({"kind": "http_request_empty_url", "nodeId": n.id})
+    return out
+
+
+def find_python_code_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "python_code":
+            continue
+        c = (n.data or {}).get("code")
+        if not isinstance(c, str) or not c.strip():
+            out.append({"kind": "python_code_empty_code", "nodeId": n.id})
+    return out
+
+
+def find_delay_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "delay":
+            continue
+        if parse_duration_sec(n.data or {}) is None:
+            out.append({"kind": "delay_invalid_duration", "nodeId": n.id})
+    return out
+
+
+def find_debounce_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "debounce":
+            continue
+        if parse_duration_sec(n.data or {}) is None:
+            out.append({"kind": "debounce_invalid_duration", "nodeId": n.id})
+    return out
+
+
+def find_wait_for_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "wait_for":
+            continue
+        d = n.data or {}
+        mode = str(d.get("waitMode") or "file").strip().lower()
+        if mode != "file":
+            out.append({"kind": "wait_for_unknown_mode", "nodeId": n.id})
+            continue
+        p = d.get("path")
+        if not isinstance(p, str) or not p.strip():
+            out.append({"kind": "wait_for_empty_path", "nodeId": n.id})
+        if parse_wait_for_file_params(d) is None:
+            out.append({"kind": "wait_for_invalid_timeout", "nodeId": n.id})
+    return out
+
+
+def find_rag_query_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "rag_query":
+            continue
+        d = n.data or {}
+        u = d.get("url")
+        if not isinstance(u, str) or not u.strip():
+            out.append({"kind": "rag_query_empty_url", "nodeId": n.id})
+        q = d.get("query")
+        if not isinstance(q, str) or not q.strip():
+            out.append({"kind": "rag_query_empty_query", "nodeId": n.id})
+    return out
 
 
 def find_mcp_tool_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:

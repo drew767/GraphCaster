@@ -40,7 +40,7 @@ export const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, FlowCanvasHa
     { baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef },
     ref,
   ) {
-    const { getNodes, getEdges, getNode, fitView } = useReactFlow();
+    const { getNodes, getEdges, getNode, getEdge, fitView } = useReactFlow();
     useImperativeHandle(
       ref,
       () => ({
@@ -70,11 +70,28 @@ export const FlowCanvasHandleBridge = forwardRef<GraphCanvasHandle, FlowCanvasHa
             maxZoom: 1.85,
           });
         },
+        focusEdge(edgeId: string) {
+          const id = edgeId.trim();
+          if (id === "") {
+            return;
+          }
+          const edge = getEdge(id);
+          if (!edge) {
+            return;
+          }
+          void fitView({
+            nodes: [{ id: edge.source }, { id: edge.target }],
+            padding: 0.32,
+            duration: 220,
+            minZoom: 0.12,
+            maxZoom: 1.85,
+          });
+        },
         removeNodesById(ids: readonly string[]) {
           removeNodesByIdRef.current(ids);
         },
       }),
-      [getNodes, getEdges, getNode, fitView, baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef],
+      [getNodes, getEdges, getNode, getEdge, fitView, baseDocument, onExportRemovedDanglingEdges, removeNodesByIdRef],
     );
     return null;
   },

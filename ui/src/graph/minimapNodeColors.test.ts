@@ -15,6 +15,11 @@ import {
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_HTTP_REQUEST,
+  GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_DELAY,
+  GRAPH_NODE_TYPE_DEBOUNCE,
+  GRAPH_NODE_TYPE_WAIT_FOR,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
@@ -41,6 +46,11 @@ describe("minimapNodeColors", () => {
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_FORK)).toBe("#34c759");
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_AI_ROUTE)).toBe("#f5b041");
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_MCP_TOOL)).toBe("#ff9f0a");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_HTTP_REQUEST)).toBe("#06b6d4");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_RAG_QUERY)).toBe("#8b5cf6");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_DELAY)).toBe("#64748b");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_DEBOUNCE)).toBe("#f59e0b");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_WAIT_FOR)).toBe("#14b8a6");
     expect(minimapBaseFillForGraphNodeType("weird")).toBe("#e2e2e2");
   });
 

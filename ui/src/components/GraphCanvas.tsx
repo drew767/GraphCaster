@@ -12,8 +12,9 @@ import {
   type NodeTypes,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
-import { forwardRef, useCallback, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import "@xyflow/react/dist/style.css";
@@ -28,6 +29,7 @@ import {
 } from "../graph/canvasConnectionUi";
 import { CANVAS_GRID_STEP } from "../graph/canvasSnapGrid";
 import { getWorldTopLeft, reparentDraggedNode } from "../graph/flowHierarchy";
+import type { MinimapChrome } from "../graph/minimapChrome";
 import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
@@ -67,6 +69,7 @@ import { CanvasAddNodeMenu } from "./CanvasAddNodeMenu";
 import { GcConnectionDragContext, type GcConnectionDragOrigin } from "./GcConnectionDragContext";
 import { GcCanvasLodProvider } from "./GcCanvasLodContext";
 import { GcViewportTierProvider } from "./GcViewportTierContext";
+import { isTextEditingTarget } from "../lib/isTextEditingTarget";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { GcBranchEdge } from "./edges/GcBranchEdge";
 import { GcBranchEdgeUiContext } from "./edges/GcBranchEdgeUiContext";
@@ -76,6 +79,73 @@ import { GcFlowNode } from "./nodes/GcFlowNode";
 import { nodeRunOverlayMapsEqual, type NodeRunOverlayEntry } from "../run/nodeRunOverlay";
 
 const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
+
+type GraphCanvasPaneToolsProps = {
+  flowWrapRef: RefObject<HTMLDivElement | null>;
+  structureLocked: boolean;
+  onOpenAddMenuAt: (sx: number, sy: number, fx: number, fy: number) => void;
+  minimapChrome: MinimapChrome;
+  minimapNodeColor: (node: Node<GcNodeData>) => string;
+  minimapNodeStrokeColor: (node: Node<GcNodeData>) => string;
+};
+
+function GraphCanvasPaneTools({
+  flowWrapRef,
+  structureLocked,
+  onOpenAddMenuAt,
+  minimapChrome,
+  minimapNodeColor,
+  minimapNodeStrokeColor,
+}: GraphCanvasPaneToolsProps) {
+  const { screenToFlowPosition, setCenter, getZoom } = useReactFlow();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (structureLocked) {
+        return;
+      }
+      if (isTextEditingTarget(e.target)) {
+        return;
+      }
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+        return;
+      }
+      if (e.key !== "a" && e.key !== "A") {
+        return;
+      }
+      e.preventDefault();
+      const el = flowWrapRef.current;
+      if (!el) {
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const flow = screenToFlowPosition({ x: cx, y: cy });
+      onOpenAddMenuAt(cx, cy, flow.x, flow.y);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [flowWrapRef, onOpenAddMenuAt, screenToFlowPosition, structureLocked]);
+
+  return (
+    <MiniMap
+      pannable
+      zoomable
+      bgColor={minimapChrome.bgColor}
+      maskColor={minimapChrome.maskColor}
+      maskStrokeColor={minimapChrome.maskStrokeColor}
+      maskStrokeWidth={minimapChrome.maskStrokeWidth}
+      nodeColor={minimapNodeColor}
+      nodeStrokeColor={minimapNodeStrokeColor}
+      onClick={(_, pos) => {
+        setCenter(pos.x, pos.y, { zoom: getZoom(), duration: 200 });
+      }}
+    />
+  );
+}
 
 export type { GraphCanvasSelection, GraphNodeSelection };
 
@@ -180,6 +250,7 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     const projectScreenToFlowRef = useRef<
       ((clientX: number, clientY: number) => { x: number; y: number }) | null
     >(null);
+    const flowWrapRef = useRef<HTMLDivElement | null>(null);
     const [addMenu, setAddMenu] = useState<{
       sx: number;
       sy: number;
@@ -549,8 +620,19 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [applyRemoveNodeIds],
     );
 
+    const onOpenAddMenuFromHotkey = useCallback(
+      (sx: number, sy: number, fx: number, fy: number) => {
+        if (structureLocked) {
+          return;
+        }
+        setAddMenu({ sx, sy, fx, fy });
+      },
+      [structureLocked],
+    );
+
     return (
       <div
+        ref={flowWrapRef}
         className={`gc-flow-wrap${isDraggingOver ? " gc-flow-wrap--drop-active" : ""}`}
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
@@ -615,15 +697,13 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
             />
             <Background gap={CANVAS_GRID_STEP} size={1} />
             <Controls />
-            <MiniMap
-              pannable
-              zoomable
-              bgColor={minimapChrome.bgColor}
-              maskColor={minimapChrome.maskColor}
-              maskStrokeColor={minimapChrome.maskStrokeColor}
-              maskStrokeWidth={minimapChrome.maskStrokeWidth}
-              nodeColor={minimapNodeColor}
-              nodeStrokeColor={minimapNodeStrokeColor}
+            <GraphCanvasPaneTools
+              flowWrapRef={flowWrapRef}
+              structureLocked={structureLocked}
+              onOpenAddMenuAt={onOpenAddMenuFromHotkey}
+              minimapChrome={minimapChrome}
+              minimapNodeColor={minimapNodeColor}
+              minimapNodeStrokeColor={minimapNodeStrokeColor}
             />
           </ReactFlow>
           </GcConnectionDragContext.Provider>

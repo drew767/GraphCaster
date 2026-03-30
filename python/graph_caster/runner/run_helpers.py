@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Node
 
 _RUN_MODE_MAX_LEN = 128
@@ -22,6 +23,49 @@ def llm_agent_has_executable_command(node: Node) -> bool:
     from graph_caster.process_exec import _argv_from_data
 
     return bool(_argv_from_data(node.data or {}))
+
+
+def http_request_has_url(node: Node) -> bool:
+    u = (node.data or {}).get("url")
+    return isinstance(u, str) and bool(u.strip())
+
+
+def rag_query_has_url_and_query(node: Node) -> bool:
+    d = node.data or {}
+    u = d.get("url")
+    q = d.get("query")
+    return (
+        isinstance(u, str)
+        and bool(u.strip())
+        and isinstance(q, str)
+        and bool(q.strip())
+    )
+
+
+def python_code_has_code(node: Node) -> bool:
+    c = (node.data or {}).get("code")
+    return isinstance(c, str) and bool(c.strip())
+
+
+def delay_has_duration(node: Node) -> bool:
+    return parse_duration_sec(node.data or {}) is not None
+
+
+def debounce_has_duration(node: Node) -> bool:
+    return delay_has_duration(node)
+
+
+def wait_for_has_executable_config(node: Node) -> bool:
+    d = node.data or {}
+    mode = str(d.get("waitMode") or "file").strip().lower()
+    if mode != "file":
+        return False
+    p = d.get("path")
+    return (
+        isinstance(p, str)
+        and bool(p.strip())
+        and parse_wait_for_file_params(d) is not None
+    )
 
 
 def node_wants_step_cache(node: Node) -> bool:
@@ -71,6 +115,7 @@ def prepare_context(ctx: dict[str, Any] | None) -> dict[str, Any]:
     c.pop("_run_cancelled", None)
     c.setdefault("nesting_depth", 0)
     c.setdefault("node_outputs", {})
+    c.setdefault("run_variables", {})
     c.setdefault("max_nesting_depth", 16)
     c.setdefault("last_result", True)
     c.setdefault("_gc_nested_doc_revisions", {})

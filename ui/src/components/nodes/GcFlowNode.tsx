@@ -17,7 +17,17 @@ function GcFlowNodeInner(props: NodeProps) {
   const showTarget = kind !== "start";
   const showSource = kind !== "exit";
   const showErrorOut =
-    showSource && (kind === "task" || kind === "graph_ref" || kind === "mcp_tool" || kind === "llm_agent");
+    showSource &&
+    (kind === "task" ||
+      kind === "graph_ref" ||
+      kind === "mcp_tool" ||
+      kind === "http_request" ||
+      kind === "rag_query" ||
+      kind === "delay" ||
+      kind === "debounce" ||
+      kind === "wait_for" ||
+      kind === "python_code" ||
+      kind === "llm_agent");
   const compactHandles = tier === "compact" || tier === "ghost";
   const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}${tier === "compact" ? " gc-flow-node--lod-compact" : ""}${tier === "ghost" ? " gc-flow-node--ghost" : ""}`;
   const raw = data?.raw;
@@ -30,7 +40,16 @@ function GcFlowNodeInner(props: NodeProps) {
     (raw as { gcPin?: { enabled?: unknown } }).gcPin !== null &&
     (raw as { gcPin?: { enabled?: unknown } }).gcPin?.enabled === true;
   const stepCacheOn =
-    (kind === "task" || kind === "mcp_tool" || kind === "llm_agent" || kind === "ai_route") &&
+    (kind === "task" ||
+      kind === "mcp_tool" ||
+      kind === "http_request" ||
+      kind === "rag_query" ||
+      kind === "delay" ||
+      kind === "debounce" ||
+      kind === "wait_for" ||
+      kind === "python_code" ||
+      kind === "llm_agent" ||
+      kind === "ai_route") &&
     raw != null &&
     typeof raw === "object" &&
     !Array.isArray(raw) &&

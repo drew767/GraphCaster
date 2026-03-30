@@ -68,6 +68,7 @@ import {
 import {
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_GROUP,
+  GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
   isGraphDocumentFrameType,
 } from "../graph/nodeKinds";
@@ -96,8 +97,17 @@ import {
   structureIssuesBlockRun,
   workspaceGraphRefCycleIssues,
 } from "../graph/structureWarnings";
+import { builtInNodeTemplateById } from "../graph/nodeTemplates";
+import {
+  branchIssueFocusEdgeId,
+  branchIssueFocusNodeId,
+  documentWithEdgeConditionCleared,
+  handleIssuePrimaryNodeId,
+  structureIssueFocusNodeId,
+} from "../graph/warningBannerFocus";
 import { collectCanvasWarningEdgeIds } from "../graph/warningEdges";
 import { flowConnectionHandle } from "../graph/normalizeHandles";
+import { isTextEditingTarget } from "../lib/isTextEditingTarget";
 import { graphDocumentToFlow, nodeLabel, type GcNodeData } from "../graph/toReactFlow";
 import {
   defaultWorkspaceFileName,
@@ -159,20 +169,6 @@ function formatGraphRefCycleForUi(cycle: string[]): string {
     return `${cycle[0]} → ${cycle[0]}`;
   }
   return `${cycle.join(" → ")} → ${cycle[0]}`;
-}
-
-function isTextEditingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
-    return true;
-  }
-  return target.closest("input, textarea, select, [contenteditable='true']") != null;
 }
 
 function mergeNewNodeAndConnectEdge(
@@ -812,6 +808,44 @@ export function AppShell({ onLangChange }: Props) {
     [graphDocument],
   );
 
+  const onWarningFocusEdge = useCallback(
+    (edgeId: string) => {
+      const id = edgeId.trim();
+      if (id === "") {
+        return;
+      }
+      const e = graphDocument.edges?.find((x) => x.id === id);
+      if (!e) {
+        return;
+      }
+      const d = e.data;
+      const rd = typeof d?.routeDescription === "string" ? d.routeDescription : "";
+      setSelection({
+        kind: "edge",
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        condition: e.condition ?? null,
+        routeDescription: rd,
+      });
+      requestAnimationFrame(() => {
+        canvasRef.current?.focusEdge(id);
+      });
+    },
+    [graphDocument],
+  );
+
+  const onQuickClearEdgeCondition = useCallback(
+    (edgeId: string) => {
+      if (runSessionBlocking) {
+        return;
+      }
+      commitHistorySnapshot();
+      setGraphDocument((prev) => documentWithEdgeConditionCleared(prev, edgeId));
+    },
+    [commitHistorySnapshot, runSessionBlocking],
+  );
+
   const saveDocumentToWorkspace = useCallback(
     async (doc: GraphDocumentJson, targetFileName: string): Promise<GraphSaveToWorkspaceResult> => {
       if (!workspaceGraphsDir) {
@@ -1208,6 +1242,24 @@ export function AppShell({ onLangChange }: Props) {
       }
       const doc = api.exportDocument();
       const nodes = doc.nodes ?? [];
+      if (pick.kind === "template") {
+        const tpl = builtInNodeTemplateById(pick.templateId);
+        if (!tpl) {
+          return;
+        }
+        commitHistorySnapshot();
+        const merged = mergePastedSubgraph(doc, tpl.payload, {
+          newNodeId: newGraphNodeId,
+          newEdgeId: newGraphEdgeId,
+          positionOffset: {
+            x: flowPosition.x - tpl.anchor.x,
+            y: flowPosition.y - tpl.anchor.y,
+          },
+        });
+        setGraphDocument(merged);
+        setLayoutDirtyEpoch((n) => n + 1);
+        return;
+      }
       if (pick.kind === "task_cursor_agent") {
         const id = newGraphNodeId();
         const parentId = pickCommentParentId(nodes, flowPosition.x, flowPosition.y);
@@ -1255,8 +1307,25 @@ export function AppShell({ onLangChange }: Props) {
       commitHistorySnapshot();
       setGraphDocument(mergeNewNodeAndConnectEdge(doc, [...nodes, newNode], id, connectFrom));
     },
-    [commitHistorySnapshot, t],
+    [commitHistorySnapshot, setLayoutDirtyEpoch, t],
   );
+
+  const onQuickAddStartFromWarning = useCallback(() => {
+    if (runSessionBlocking || hasStartNode) {
+      return;
+    }
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+    const { nodes } = graphDocumentToFlow(doc);
+    const cx =
+      nodes.length > 0 ? nodes.reduce((sum, n) => sum + n.position.x, 0) / nodes.length : 200;
+    const cy =
+      nodes.length > 0 ? nodes.reduce((sum, n) => sum + n.position.y, 0) / nodes.length : 200;
+    onAddNode({ kind: "primitive", nodeType: GRAPH_NODE_TYPE_START }, { x: cx + 40, y: cy });
+  }, [hasStartNode, onAddNode, runSessionBlocking]);
 
   const canGroupSelection = useMemo(() => {
     if (runSessionBlocking) {
@@ -1786,8 +1855,11 @@ export function AppShell({ onLangChange }: Props) {
               })}
             </div>
           ) : null}
-          {structureIssues.map((issue, idx) => (
+          {structureIssues.map((issue, idx) => {
+            const stFocusNid = structureIssueFocusNodeId(issue);
+            return (
             <div key={`st-${issue.kind}-${idx}`} className="gc-branch-warnings__line">
+              <span>
               <span aria-hidden="true">⚠</span>{" "}
               {issue.kind === "no_start"
                 ? t("app.structure.noStart")
@@ -1833,34 +1905,93 @@ export function AppShell({ onLangChange }: Props) {
                                     })
                                   : issue.kind === "llm_agent_empty_command"
                                     ? t("app.structure.llmAgentEmptyCommand", { id: issue.nodeId })
-                                    : issue.kind === "mcp_tool_empty_tool_name"
-                                    ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
-                                    : issue.kind === "mcp_tool_stdio_missing_command"
-                                      ? t("app.structure.mcpToolStdioMissingCommand", { id: issue.nodeId })
-                                      : issue.kind === "mcp_tool_http_empty_url"
-                                        ? t("app.structure.mcpToolHttpEmptyUrl", { id: issue.nodeId })
-                                        : issue.kind === "mcp_tool_unknown_transport"
-                                          ? t("app.structure.mcpToolUnknownTransport", {
-                                              id: issue.nodeId,
-                                              transport: issue.transport,
-                                            })
-                                          : issue.kind === "schema_version_mismatch"
-                                            ? t("app.structure.schemaVersionMismatch", {
-                                                root: issue.root,
-                                                meta: issue.meta,
-                                              })
-                                            : issue.kind === "start_has_incoming"
-                                              ? t("app.structure.startHasIncoming", { id: issue.startId })
-                                              : t("app.structure.unknownIssue", {
-                                                  kind: String((issue as { kind: string }).kind),
-                                                })}
+                                    : issue.kind === "http_request_empty_url"
+                                      ? t("app.structure.httpRequestEmptyUrl", { id: issue.nodeId })
+                                      : issue.kind === "rag_query_empty_url"
+                                        ? t("app.structure.ragQueryEmptyUrl", { id: issue.nodeId })
+                                        : issue.kind === "rag_query_empty_query"
+                                          ? t("app.structure.ragQueryEmptyQuery", { id: issue.nodeId })
+                                          : issue.kind === "delay_invalid_duration"
+                                            ? t("app.structure.delayInvalidDuration", { id: issue.nodeId })
+                                            : issue.kind === "debounce_invalid_duration"
+                                              ? t("app.structure.debounceInvalidDuration", {
+                                                  id: issue.nodeId,
+                                                })
+                                              : issue.kind === "wait_for_unknown_mode"
+                                                ? t("app.structure.waitForUnknownMode", {
+                                                    id: issue.nodeId,
+                                                  })
+                                                : issue.kind === "wait_for_empty_path"
+                                                  ? t("app.structure.waitForEmptyPath", {
+                                                      id: issue.nodeId,
+                                                    })
+                                                  : issue.kind === "wait_for_invalid_timeout"
+                                                    ? t("app.structure.waitForInvalidTimeout", {
+                                                        id: issue.nodeId,
+                                                      })
+                                                    : issue.kind === "python_code_empty_code"
+                                            ? t("app.structure.pythonCodeEmptyCode", { id: issue.nodeId })
+                                            : issue.kind === "mcp_tool_empty_tool_name"
+                                              ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
+                                              : issue.kind === "mcp_tool_stdio_missing_command"
+                                                ? t("app.structure.mcpToolStdioMissingCommand", {
+                                                    id: issue.nodeId,
+                                                  })
+                                                : issue.kind === "mcp_tool_http_empty_url"
+                                                  ? t("app.structure.mcpToolHttpEmptyUrl", {
+                                                      id: issue.nodeId,
+                                                    })
+                                                  : issue.kind === "mcp_tool_unknown_transport"
+                                                    ? t("app.structure.mcpToolUnknownTransport", {
+                                                        id: issue.nodeId,
+                                                        transport: issue.transport,
+                                                      })
+                                                    : issue.kind === "schema_version_mismatch"
+                                                      ? t("app.structure.schemaVersionMismatch", {
+                                                          root: issue.root,
+                                                          meta: issue.meta,
+                                                        })
+                                                      : issue.kind === "start_has_incoming"
+                                                        ? t("app.structure.startHasIncoming", {
+                                                            id: issue.startId,
+                                                          })
+                                                        : t("app.structure.unknownIssue", {
+                                                            kind: String((issue as { kind: string }).kind),
+                                                          })}
+              </span>
+              {!runSessionBlocking ? (
+                <span className="gc-branch-warnings__actions">
+                  {issue.kind === "no_start" && !hasStartNode ? (
+                    <button
+                      type="button"
+                      className="gc-branch-warnings__btn"
+                      onClick={onQuickAddStartFromWarning}
+                    >
+                      {t("app.warnings.quickFixAddStart")}
+                    </button>
+                  ) : null}
+                  {stFocusNid ? (
+                    <button
+                      type="button"
+                      className="gc-branch-warnings__btn"
+                      onClick={() => {
+                        onConsoleNavigateToNode(stFocusNid);
+                      }}
+                    >
+                      {t("app.warnings.quickFixFocusNode")}
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
             </div>
-          ))}
+            );
+          })}
           {handleIssues.map((issue, idx) => (
             <div
               key={`hdl-${issue.kind}-${issue.edgeId}-${idx}`}
               className="gc-branch-warnings__line"
             >
+              <span>
               <span aria-hidden="true">⚠</span>{" "}
               {issue.kind === "invalid_source_handle"
                 ? t("app.warnings.invalidSourceHandle", {
@@ -1891,6 +2022,29 @@ export function AppShell({ onLangChange }: Props) {
                         sourceKind: issue.sourceKind,
                         targetKind: issue.targetKind,
                       })}
+              </span>
+              {!runSessionBlocking ? (
+                <span className="gc-branch-warnings__actions">
+                  <button
+                    type="button"
+                    className="gc-branch-warnings__btn"
+                    onClick={() => {
+                      onWarningFocusEdge(issue.edgeId);
+                    }}
+                  >
+                    {t("app.warnings.quickFixFocusEdge")}
+                  </button>
+                  <button
+                    type="button"
+                    className="gc-branch-warnings__btn"
+                    onClick={() => {
+                      onConsoleNavigateToNode(handleIssuePrimaryNodeId(issue));
+                    }}
+                  >
+                    {t("app.warnings.quickFixFocusNode")}
+                  </button>
+                </span>
+              ) : null}
             </div>
           ))}
           {branchIssues.map((issue, idx) => (
@@ -1898,6 +2052,7 @@ export function AppShell({ onLangChange }: Props) {
               key={`${issue.edgeId ?? issue.sourceId}-${issue.handleFanout}-${issue.kind}-${idx}`}
               className="gc-branch-warnings__line"
             >
+              <span>
               <span aria-hidden="true">⚠</span>{" "}
               {issue.kind === "out_error_unreachable"
                 ? t("app.warnings.outErrorUnreachable", { sourceId: issue.sourceId })
@@ -1934,6 +2089,42 @@ export function AppShell({ onLangChange }: Props) {
                           sourceId: issue.sourceId,
                           detail: issue.detail ?? "",
                         })}
+              </span>
+              {!runSessionBlocking ? (
+                <span className="gc-branch-warnings__actions">
+                  <button
+                    type="button"
+                    className="gc-branch-warnings__btn"
+                    onClick={() => {
+                      onConsoleNavigateToNode(branchIssueFocusNodeId(issue));
+                    }}
+                  >
+                    {t("app.warnings.quickFixFocusNode")}
+                  </button>
+                  {branchIssueFocusEdgeId(issue) ? (
+                    <button
+                      type="button"
+                      className="gc-branch-warnings__btn"
+                      onClick={() => {
+                        onWarningFocusEdge(branchIssueFocusEdgeId(issue) ?? "");
+                      }}
+                    >
+                      {t("app.warnings.quickFixFocusEdge")}
+                    </button>
+                  ) : null}
+                  {issue.kind === "template_condition_invalid" && issue.edgeId ? (
+                    <button
+                      type="button"
+                      className="gc-branch-warnings__btn"
+                      onClick={() => {
+                        onQuickClearEdgeCondition(issue.edgeId ?? "");
+                      }}
+                    >
+                      {t("app.warnings.quickFixClearCondition")}
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
             </div>
           ))}
         </div>

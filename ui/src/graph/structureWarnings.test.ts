@@ -93,6 +93,15 @@ describe("structureIssuesBlockRun", () => {
       structureIssuesBlockRun([{ kind: "schema_version_mismatch", root: 1, meta: 2 }]),
     ).toBe(false);
   });
+
+  it("is false when only delay/debounce/wait_for warnings", () => {
+    expect(
+      structureIssuesBlockRun([
+        { kind: "delay_invalid_duration", nodeId: "d1" },
+        { kind: "wait_for_empty_path", nodeId: "w1" },
+      ]),
+    ).toBe(false);
+  });
 });
 
 describe("workspaceGraphRefCycleIssues", () => {
@@ -508,5 +517,107 @@ describe("edgeIdsForStructureIssueHighlights", () => {
     const ids = edgeIdsForStructureIssueHighlights(g, issues);
     expect(ids.has("e1")).toBe(true);
     expect(ids.has("e2")).toBe(false);
+  });
+
+  it("adds http_request_empty_url when url missing or blank", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "h1", type: "http_request", position: { x: 0, y: 0 }, data: { title: "x" } },
+        { id: "h2", type: "http_request", position: { x: 0, y: 0 }, data: { url: "   " } },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.filter((i) => i.kind === "http_request_empty_url").map((i) => i.nodeId).sort()).toEqual([
+      "h1",
+      "h2",
+    ]);
+  });
+
+  it("adds rag_query_empty_url and rag_query_empty_query when missing or blank", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "r1", type: "rag_query", position: { x: 0, y: 0 }, data: { title: "x" } },
+        { id: "r2", type: "rag_query", position: { x: 0, y: 0 }, data: { url: "   " } },
+        {
+          id: "r3",
+          type: "rag_query",
+          position: { x: 0, y: 0 },
+          data: { url: "https://x.test", query: "  " },
+        },
+        {
+          id: "r4",
+          type: "rag_query",
+          position: { x: 0, y: 0 },
+          data: { url: "https://x.test", query: "ok" },
+        },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.filter((i) => i.kind === "rag_query_empty_url").map((i) => i.nodeId).sort()).toEqual([
+      "r1",
+      "r2",
+    ]);
+    expect(issues.filter((i) => i.kind === "rag_query_empty_query").map((i) => i.nodeId).sort()).toEqual([
+      "r1",
+      "r2",
+      "r3",
+    ]);
+    expect(issues.some((i) => i.kind === "rag_query_empty_query" && i.nodeId === "r4")).toBe(false);
+  });
+
+  it("adds timer node structure issues for delay, debounce, and wait_for", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "d1", type: "delay", position: { x: 0, y: 0 }, data: {} },
+        { id: "d2", type: "delay", position: { x: 0, y: 0 }, data: { durationSec: 0 } },
+        { id: "b1", type: "debounce", position: { x: 0, y: 0 }, data: { durationSec: -1 } },
+        { id: "w1", type: "wait_for", position: { x: 0, y: 0 }, data: { waitMode: "signal" } },
+        { id: "w2", type: "wait_for", position: { x: 0, y: 0 }, data: { waitMode: "file", path: "" } },
+        { id: "w3", type: "wait_for", position: { x: 0, y: 0 }, data: { path: "p", timeoutSec: 0 } },
+        { id: "okD", type: "delay", position: { x: 0, y: 0 }, data: { durationSec: 1 } },
+        { id: "okW", type: "wait_for", position: { x: 0, y: 0 }, data: { path: "f.txt", timeoutSec: 10 } },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.filter((i) => i.kind === "delay_invalid_duration").map((i) => i.nodeId).sort()).toEqual([
+      "d1",
+      "d2",
+    ]);
+    expect(
+      issues.filter((i) => i.kind === "debounce_invalid_duration").map((i) => i.nodeId).sort(),
+    ).toEqual(["b1"]);
+    expect(
+      issues.filter((i) => i.kind === "wait_for_unknown_mode").map((i) => i.nodeId).sort(),
+    ).toEqual(["w1"]);
+    expect(issues.filter((i) => i.kind === "wait_for_empty_path").map((i) => i.nodeId).sort()).toEqual([
+      "w2",
+    ]);
+    expect(
+      issues.filter((i) => i.kind === "wait_for_invalid_timeout").map((i) => i.nodeId).sort(),
+    ).toEqual(["w3"]);
+    expect(issues.filter((i) => i.nodeId === "okD")).toHaveLength(0);
+    expect(issues.filter((i) => i.nodeId === "okW")).toHaveLength(0);
+  });
+
+  it("adds python_code_empty_code when code missing or blank", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "p1", type: "python_code", position: { x: 0, y: 0 }, data: { title: "x" } },
+        { id: "p2", type: "python_code", position: { x: 0, y: 0 }, data: { code: "   " } },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.filter((i) => i.kind === "python_code_empty_code").map((i) => i.nodeId).sort()).toEqual([
+      "p1",
+      "p2",
+    ]);
   });
 });

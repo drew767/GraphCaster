@@ -85,6 +85,8 @@ class GraphDocument:
     viewport: dict[str, Any] | None = None
     author: str | None = None
     title: str | None = None
+    #: Workspace-level variables merged into ``ctx["run_variables"]`` (also ``meta.variables`` / root ``variables`` in JSON).
+    variables: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> GraphDocument:
@@ -188,6 +190,12 @@ class GraphDocument:
             author = str(author)
         if title is not None:
             title = str(title)
+        variables_raw = meta.get("variables")
+        if variables_raw is None:
+            variables_raw = raw.get("variables")
+        variables_out: dict[str, Any] = {}
+        if isinstance(variables_raw, dict):
+            variables_out = dict(variables_raw)
         viewport_raw = raw.get("viewport")
         if viewport_raw is None:
             viewport_out: dict[str, Any] | None = None
@@ -203,4 +211,5 @@ class GraphDocument:
             viewport=viewport_out,
             author=author,
             title=title,
+            variables=variables_out,
         )

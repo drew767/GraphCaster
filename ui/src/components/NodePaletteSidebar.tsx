@@ -1,6 +1,6 @@
 // Copyright Aura. All Rights Reserved.
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ADD_NODE_CATEGORY_ORDER,
@@ -10,6 +10,7 @@ import {
   type AddNodeMenuPick,
   type WorkspaceGraphAddMenuRow,
 } from "../graph/addNodeMenu";
+import type { NodeTemplateId } from "../graph/nodeTemplates";
 import { DraggableNodeItem } from "./DraggableNodeItem";
 import "./NodePaletteSidebar.css";
 
@@ -39,15 +40,23 @@ export function NodePaletteSidebar({
     [t],
   );
 
-  const { primitiveOptions, graphOptions } = useMemo(() => {
+  const labelForTemplate = useCallback(
+    (id: NodeTemplateId) => {
+      return t(`app.canvas.nodeTemplates.${id}`);
+    },
+    [t],
+  );
+
+  const { primitiveOptions, graphOptions, templateOptions } = useMemo(() => {
     return computeAddNodeMenuLists({
       category,
       filterText,
       hasStartNode,
       workspaceGraphs,
       labelForPrimitive,
+      labelForTemplate,
     });
-  }, [category, filterText, hasStartNode, workspaceGraphs, labelForPrimitive]);
+  }, [category, filterText, hasStartNode, labelForTemplate, workspaceGraphs, labelForPrimitive]);
 
   const handleFilterChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setFilterText(e.target.value);
@@ -118,6 +127,15 @@ export function NodePaletteSidebar({
                 onClick={() => handleNodeClick(nodeType)}
               />
             ))}
+            {templateOptions.map((tid) => (
+              <DraggableNodeItem
+                key={`tpl-${tid}`}
+                nodeType="template"
+                label={labelForTemplate(tid)}
+                payload={{ kind: "template", templateId: tid }}
+                onClick={() => onNodeClick?.({ kind: "template", templateId: tid })}
+              />
+            ))}
             {graphOptions.map((graph) => (
               <DraggableNodeItem
                 key={`graph-${graph.graphId}`}
@@ -127,7 +145,9 @@ export function NodePaletteSidebar({
                 onClick={() => onNodeClick?.({ kind: "graph_ref", targetGraphId: graph.graphId })}
               />
             ))}
-            {primitiveOptions.length === 0 && graphOptions.length === 0 && (
+            {primitiveOptions.length === 0 &&
+              graphOptions.length === 0 &&
+              templateOptions.length === 0 && (
               <li className="gc-node-palette-sidebar__empty">
                 {category === "nested" && workspaceGraphs.length === 0
                   ? t("app.canvas.addNodeNoGraphs")

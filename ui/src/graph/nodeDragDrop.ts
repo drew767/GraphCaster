@@ -44,6 +44,9 @@ export function decodeNodeDragData(data: string): NodeDragPayload | null {
     if (kind === "task_cursor_agent") {
       return { kind: "task_cursor_agent" };
     }
+    if (kind === "template" && typeof parsed.templateId === "string") {
+      return { kind: "template", templateId: parsed.templateId };
+    }
     return null;
   } catch {
     return null;

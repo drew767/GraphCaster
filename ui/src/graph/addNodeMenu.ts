@@ -11,10 +11,17 @@ import {
   GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_HTTP_REQUEST,
+  GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_DELAY,
+  GRAPH_NODE_TYPE_DEBOUNCE,
+  GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
+import { type NodeTemplateId, filterNodeTemplateIds } from "./nodeTemplates";
 
 export const ADD_MENU_PRIMITIVE_ORDER = [
   GRAPH_NODE_TYPE_START,
@@ -22,6 +29,12 @@ export const ADD_MENU_PRIMITIVE_ORDER = [
   GRAPH_NODE_TYPE_TASK,
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_HTTP_REQUEST,
+  GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_DELAY,
+  GRAPH_NODE_TYPE_DEBOUNCE,
+  GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_FORK,
@@ -34,7 +47,8 @@ export type AddMenuPrimitiveType = (typeof ADD_MENU_PRIMITIVE_ORDER)[number];
 export type AddNodeMenuPick =
   | { kind: "primitive"; nodeType: AddMenuPrimitiveType }
   | { kind: "graph_ref"; targetGraphId: string }
-  | { kind: "task_cursor_agent" };
+  | { kind: "task_cursor_agent" }
+  | { kind: "template"; templateId: string };
 
 export type WorkspaceGraphAddMenuRow = {
   fileName: string;
@@ -42,7 +56,7 @@ export type WorkspaceGraphAddMenuRow = {
   label: string;
 };
 
-export const ADD_NODE_CATEGORY_ORDER = ["all", "flow", "steps", "nested", "notes"] as const;
+export const ADD_NODE_CATEGORY_ORDER = ["all", "flow", "steps", "nested", "templates", "notes"] as const;
 
 export type AddNodeCategoryId = (typeof ADD_NODE_CATEGORY_ORDER)[number];
 
@@ -91,6 +105,12 @@ const STEP_PRIMITIVE_TYPES: ReadonlySet<AddMenuPrimitiveType> = new Set([
   GRAPH_NODE_TYPE_TASK,
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_HTTP_REQUEST,
+  GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_DELAY,
+  GRAPH_NODE_TYPE_DEBOUNCE,
+  GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
 ]);
 
@@ -108,6 +128,8 @@ export function primitivesForAddNodeCategory(category: AddNodeCategoryId): reado
       });
     case "nested":
       return [];
+    case "templates":
+      return [];
     case "notes":
       return ADD_MENU_PRIMITIVE_ORDER.filter((ty) => {
         return ty === GRAPH_NODE_TYPE_COMMENT || ty === GRAPH_NODE_TYPE_GROUP;
@@ -124,8 +146,13 @@ export function computeAddNodeMenuLists(input: {
   hasStartNode: boolean;
   workspaceGraphs: ReadonlyArray<WorkspaceGraphAddMenuRow>;
   labelForPrimitive: (ty: AddMenuPrimitiveType) => string;
+  labelForTemplate?: (id: NodeTemplateId) => string;
   connectFilter?: AddNodeConnectMenuFilter | null;
-}): { primitiveOptions: AddMenuPrimitiveType[]; graphOptions: WorkspaceGraphAddMenuRow[] } {
+}): {
+  primitiveOptions: AddMenuPrimitiveType[];
+  graphOptions: WorkspaceGraphAddMenuRow[];
+  templateOptions: NodeTemplateId[];
+} {
   const q = input.filterText.trim().toLowerCase();
   let basePrimitives = [...primitivesForAddNodeCategory(input.category)];
   if (input.hasStartNode) {
@@ -161,5 +188,13 @@ export function computeAddNodeMenuLists(input: {
           );
         });
 
-  return { primitiveOptions, graphOptions };
+  const labelForTemplate = input.labelForTemplate ?? ((id: NodeTemplateId) => id);
+  const templateOptions = filterNodeTemplateIds({
+    category: input.category,
+    filterText: input.filterText,
+    connectFilter: input.connectFilter ?? null,
+    labelForTemplate,
+  });
+
+  return { primitiveOptions, graphOptions, templateOptions };
 }

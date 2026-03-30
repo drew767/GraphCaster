@@ -20,6 +20,7 @@ def build_run_broker_routes(
     ws_run = make_ws_run_handler(reg)
     return [
         Route("/health", h["health"], methods=["GET"]),
+        Route("/metrics", h["prometheus_metrics"], methods=["GET"]),
         Route("/webhooks/run", h["webhook_run"], methods=["POST"]),
         Route("/runs", h["create_run"], methods=["POST"]),
         Route("/runs/{run_id}/stream", stream_run, methods=["GET"]),

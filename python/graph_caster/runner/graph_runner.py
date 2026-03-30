@@ -38,6 +38,10 @@ from graph_caster.gc_pin import (
     apply_gc_pins_to_document_context,
     find_gc_pin_empty_payload_warnings,
 )
+from graph_caster.http_request_exec import redact_http_request_data_for_execute
+from graph_caster.python_code_exec import redact_python_code_data_for_execute
+from graph_caster.rag_query_exec import redact_rag_query_data_for_execute
+from graph_caster.delay_wait_exec import redact_timer_node_data_for_execute
 from graph_caster.mcp_client import redact_mcp_tool_data_for_execute
 from graph_caster.process_exec import redact_task_data_for_node_execute, task_declares_env_keys
 from graph_caster.port_data_kinds import find_port_data_kind_warnings
@@ -45,15 +49,37 @@ from graph_caster.validate import (
     find_ai_route_structure_warnings,
     find_barrier_merge_out_error_incoming,
     find_fork_few_outputs_warnings,
+    find_http_request_structure_warnings,
+    find_rag_query_structure_warnings,
+    find_delay_structure_warnings,
+    find_debounce_structure_warnings,
+    find_wait_for_structure_warnings,
+    find_python_code_structure_warnings,
     find_llm_agent_structure_warnings,
     find_mcp_tool_structure_warnings,
     merge_mode,
 )
 from graph_caster.runner.edge_routing import edges_from_source, evaluate_next_edge, fork_unconditional_edges
-from graph_caster.runner.node_visits import execute_mcp_tool_node, run_llm_agent_visit, run_subprocess_task_visit
+from graph_caster.runner.node_visits import (
+    execute_mcp_tool_node,
+    run_http_request_visit,
+    run_rag_query_visit,
+    run_delay_visit,
+    run_debounce_visit,
+    run_wait_for_visit,
+    run_python_code_visit,
+    run_llm_agent_visit,
+    run_subprocess_task_visit,
+)
 from graph_caster.runner.step_cache_lookup import plan_step_cache_key
 from graph_caster.runner.run_helpers import (
     cache_key_prefix,
+    http_request_has_url,
+    rag_query_has_url_and_query,
+    delay_has_duration,
+    debounce_has_duration,
+    wait_for_has_executable_config,
+    python_code_has_code,
     llm_agent_has_executable_command,
     normalize_run_id_candidate,
     node_wants_step_cache,
@@ -331,6 +357,18 @@ class GraphRunner:
                 continue
             if n.type == "llm_agent" and llm_agent_has_executable_command(n):
                 continue
+            if n.type == "http_request" and http_request_has_url(n):
+                continue
+            if n.type == "rag_query" and rag_query_has_url_and_query(n):
+                continue
+            if n.type == "python_code" and python_code_has_code(n):
+                continue
+            if n.type == "delay" and delay_has_duration(n):
+                continue
+            if n.type == "debounce" and debounce_has_duration(n):
+                continue
+            if n.type == "wait_for" and wait_for_has_executable_config(n):
+                continue
             return False
         return True
 
@@ -396,6 +434,72 @@ class GraphRunner:
             self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
 
+    def _run_http_request_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_http_request_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
+    def _run_rag_query_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_rag_query_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
+    def _run_python_code_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_python_code_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
+    def _run_delay_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_delay_visit(self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker)
+
+    def _run_debounce_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_debounce_visit(self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker)
+
+    def _run_wait_for_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_wait_for_visit(self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker)
+
     def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
         if ctx.get("_run_cancelled"):
             return
@@ -421,6 +525,30 @@ class GraphRunner:
                     )
                 elif node.type == "llm_agent":
                     outcome, used_pin = self._run_llm_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "http_request":
+                    outcome, used_pin = self._run_http_request_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "rag_query":
+                    outcome, used_pin = self._run_rag_query_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "python_code":
+                    outcome, used_pin = self._run_python_code_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "delay":
+                    outcome, used_pin = self._run_delay_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "debounce":
+                    outcome, used_pin = self._run_debounce_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "wait_for":
+                    outcome, used_pin = self._run_wait_for_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
                 else:
@@ -847,6 +975,18 @@ class GraphRunner:
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_mcp_tool_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_http_request_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_rag_query_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_python_code_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_delay_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_debounce_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_wait_for_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_llm_agent_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
@@ -892,6 +1032,22 @@ class GraphRunner:
                     red_m = redact_mcp_tool_data_for_execute(node.data)
                     exec_data = red_m
                     stored_node_data = dict(node.data) if red_m is node.data else red_m
+                elif node.type == "http_request":
+                    red_h = redact_http_request_data_for_execute(dict(node.data))
+                    exec_data = red_h
+                    stored_node_data = dict(node.data) if red_h is node.data else red_h
+                elif node.type == "rag_query":
+                    red_r = redact_rag_query_data_for_execute(dict(node.data))
+                    exec_data = red_r
+                    stored_node_data = dict(node.data) if red_r is node.data else red_r
+                elif node.type == "python_code":
+                    red_p = redact_python_code_data_for_execute(dict(node.data))
+                    exec_data = red_p
+                    stored_node_data = dict(node.data) if red_p is node.data else red_p
+                elif node.type in ("delay", "debounce", "wait_for"):
+                    red_t = redact_timer_node_data_for_execute(dict(node.data))
+                    exec_data = red_t
+                    stored_node_data = dict(node.data) if red_t is node.data else red_t
                 else:
                     exec_data = node.data
                     stored_node_data = dict(node.data)
@@ -942,6 +1098,66 @@ class GraphRunner:
                             if self._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
                                 continue
                         break
+                elif node.type == "http_request":
+                    outcome, _pin_http = self._run_http_request_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("http_request_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("http_request_break_non_ok")
+                        break
+                elif node.type == "rag_query":
+                    outcome, _pin_rag = self._run_rag_query_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("rag_query_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("rag_query_break_non_ok")
+                        break
+                elif node.type == "python_code":
+                    outcome, _pin_py = self._run_python_code_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("python_code_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("python_code_break_non_ok")
+                        break
+                elif node.type == "delay":
+                    outcome, _pin_d = self._run_delay_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("delay_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("delay_break_non_ok")
+                        break
+                elif node.type == "debounce":
+                    outcome, _pin_db = self._run_debounce_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("debounce_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("debounce_break_non_ok")
+                        break
+                elif node.type == "wait_for":
+                    outcome, _pin_w = self._run_wait_for_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("wait_for_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("wait_for_break_non_ok")
+                        break
                 elif node.type == "llm_agent":
                     outcome, _pin_u = self._run_llm_agent_visit(
                         node, ctx, step_q, fork_parallel_worker=False
@@ -962,6 +1178,8 @@ class GraphRunner:
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("task_break_non_ok")
                         break
+
+                self._merge_run_variables_from_node_output(ctx, node.id)
 
                 ne: dict[str, Any] = {
                     "nodeId": node.id,
@@ -1030,6 +1248,36 @@ class GraphRunner:
                 status=st,
                 finishedAt=finished_at,
             )
+            _notify_payload: dict[str, Any] = {
+                "schemaVersion": 1,
+                "type": "run_finished",
+                "runId": self._run_id,
+                "rootGraphId": self._doc.graph_id,
+                "status": st,
+                "finishedAt": finished_at,
+            }
+            try:
+                from graph_caster.run_notifications import deliver_run_finished_webhook_maybe
+
+                deliver_run_finished_webhook_maybe(_notify_payload)
+            except Exception:
+                _LOG.debug("run_finished notify webhook failed", exc_info=True)
+            try:
+                from graph_caster.run_audit import append_run_finished_audit_maybe
+
+                wr = self._host.resolved_workspace_root()
+                append_run_finished_audit_maybe(
+                    _notify_payload,
+                    workspace_root=wr,
+                )
+            except Exception:
+                _LOG.debug("run_finished audit append failed", exc_info=True)
+            try:
+                from graph_caster.run_plugin_hook import invoke_run_finished_module_maybe
+
+                invoke_run_finished_module_maybe(_notify_payload)
+            except Exception:
+                _LOG.debug("run_finished plugin hook failed", exc_info=True)
             try:
                 if self._persist_run_events:
                     rrd = ctx.get("root_run_artifact_dir")
@@ -1054,6 +1302,16 @@ class GraphRunner:
                                 upsert_run_from_summary(Path(ab_host), rrd_path, summary_payload)
                             except Exception:
                                 _LOG.debug("run_catalog upsert after summary failed", exc_info=True)
+                            try:
+                                from graph_caster.artifacts_s3 import schedule_run_dir_upload_maybe
+
+                                schedule_run_dir_upload_maybe(
+                                    rrd_path,
+                                    graph_id=self._doc.graph_id,
+                                    run_id=self._run_id,
+                                )
+                            except Exception:
+                                _LOG.debug("S3 schedule after summary failed", exc_info=True)
             finally:
                 if self._persist_file_sink is not None:
                     self._persist_file_sink.close()
@@ -1080,6 +1338,15 @@ class GraphRunner:
         if gr is not None:
             ctx["_gc_graphs_root"] = str(gr.resolve())
         apply_gc_pins_to_document_context(self._doc, ctx)
+        pool = ctx.setdefault("run_variables", {})
+        if not isinstance(pool, dict):
+            pool = {}
+            ctx["run_variables"] = pool
+        if self._doc.variables:
+            merged = dict(self._doc.variables)
+            merged.update(pool)
+            pool.clear()
+            pool.update(merged)
         ctx["_run_success"] = False
         ctx.pop("_run_partial_stop", None)
         nd0 = int(ctx.get("nesting_depth", 0))
@@ -1167,6 +1434,24 @@ class GraphRunner:
                     self._run_from_execution_phase(start_node_id, ctx, nd0, _otel_tracer)
             finally:
                 self._run_from_root_finally(ctx, nd0, _otel_root_span)
+
+    def _merge_run_variables_from_node_output(self, ctx: dict[str, Any], node_id: str) -> None:
+        outs = ctx.get("node_outputs")
+        if not isinstance(outs, dict):
+            return
+        raw = outs.get(node_id)
+        if not isinstance(raw, dict):
+            return
+        rv = raw.get("runVariables")
+        if rv is None:
+            rv = raw.get("run_variables")
+        if not isinstance(rv, dict) or not rv:
+            return
+        pool = ctx.setdefault("run_variables", {})
+        if not isinstance(pool, dict):
+            pool = {}
+            ctx["run_variables"] = pool
+        pool.update(rv)
 
     def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure

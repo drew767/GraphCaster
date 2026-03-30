@@ -111,6 +111,27 @@ def _coerce_step_cache_entry(raw: dict[str, Any]) -> dict[str, Any] | None:
         if not isinstance(ar, dict) or ar.get("success") is not True:
             return None
         return raw
+    if nt == "http_request":
+        pr = raw.get("processResult")
+        if not isinstance(pr, dict) or "success" not in pr:
+            return None
+        if pr.get("success") is not True:
+            return None
+        return raw
+    if nt == "rag_query":
+        pr = raw.get("processResult")
+        if not isinstance(pr, dict) or "success" not in pr:
+            return None
+        if pr.get("success") is not True:
+            return None
+        return raw
+    if nt == "python_code":
+        pr = raw.get("processResult")
+        if not isinstance(pr, dict) or "success" not in pr:
+            return None
+        if pr.get("success") is not True:
+            return None
+        return raw
     return None
 
 

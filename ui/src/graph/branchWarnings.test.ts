@@ -40,6 +40,44 @@ describe("findBranchAmbiguities", () => {
     expect([...edgeIdsForBranchAmbiguities(doc, issues)].sort()).toEqual(["e1", "e2"]);
   });
 
+  it("does not flag out_error from mcp_tool", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        {
+          id: "m1",
+          type: "mcp_tool",
+          position: { x: 0, y: 0 },
+          data: { toolName: "echo", transport: "stdio", command: "x" },
+        },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "m1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "eerr",
+          source: "m1",
+          sourceHandle: "out_error",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+
   it("does not flag out_error from graph_ref", () => {
     const doc: GraphDocumentJson = {
       schemaVersion: 1,
@@ -63,6 +101,216 @@ describe("findBranchAmbiguities", () => {
           source: "g1",
           sourceHandle: "out_error",
           target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flags out_error from http_request without url", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "h1", type: "http_request", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "eerr",
+          source: "h1",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues.map((x) => x.sourceId)).toEqual(["h1"]);
+  });
+
+  it("does not flag out_error from http_request with url", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        {
+          id: "h1",
+          type: "http_request",
+          position: { x: 0, y: 0 },
+          data: { url: "https://example.com" },
+        },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "h1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "eerr",
+          source: "h1",
+          sourceHandle: "out_error",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flags out_error from rag_query without url or query", () => {
+    const docMissingUrl: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "rq1", type: "rag_query", position: { x: 0, y: 0 }, data: { query: "q" } },
+      ],
+      edges: [
+        {
+          id: "eerr",
+          source: "rq1",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    expect(
+      findBranchAmbiguities(docMissingUrl).filter((x) => x.kind === "out_error_unreachable").map((x) => x.sourceId),
+    ).toEqual(["rq1"]);
+
+    const docMissingQuery: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "rq2", type: "rag_query", position: { x: 0, y: 0 }, data: { url: "https://example.com" } },
+      ],
+      edges: [
+        {
+          id: "eerr",
+          source: "rq2",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    expect(
+      findBranchAmbiguities(docMissingQuery).filter((x) => x.kind === "out_error_unreachable").map((x) => x.sourceId),
+    ).toEqual(["rq2"]);
+  });
+
+  it("does not flag out_error from rag_query with url and query", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        {
+          id: "rq1",
+          type: "rag_query",
+          position: { x: 0, y: 0 },
+          data: { url: "https://example.com", query: "hello" },
+        },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "rq1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "eerr",
+          source: "rq1",
+          sourceHandle: "out_error",
+          target: "t1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flags out_error from python_code without code", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "py1", type: "python_code", position: { x: 0, y: 0 }, data: {} },
+      ],
+      edges: [
+        {
+          id: "eerr",
+          source: "py1",
+          sourceHandle: "out_error",
+          target: "s1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+      ],
+    };
+    const issues = findBranchAmbiguities(doc).filter((x) => x.kind === "out_error_unreachable");
+    expect(issues.map((x) => x.sourceId)).toEqual(["py1"]);
+  });
+
+  it("does not flag out_error from python_code with code", () => {
+    const doc: GraphDocumentJson = {
+      schemaVersion: 1,
+      meta: { schemaVersion: 1, graphId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "t" },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        {
+          id: "py1",
+          type: "python_code",
+          position: { x: 0, y: 0 },
+          data: { code: "result = 1" },
+        },
+        { id: "t1", type: "task", position: { x: 0, y: 0 }, data: { command: "y" } },
+      ],
+      edges: [
+        {
+          id: "e0",
+          source: "s1",
+          sourceHandle: "out_default",
+          target: "py1",
+          targetHandle: "in_default",
+          condition: null,
+        },
+        {
+          id: "eerr",
+          source: "py1",
+          sourceHandle: "out_error",
+          target: "t1",
           targetHandle: "in_default",
           condition: null,
         },

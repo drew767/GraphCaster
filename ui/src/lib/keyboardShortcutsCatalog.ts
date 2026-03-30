@@ -16,6 +16,7 @@ export const KEYBOARD_SHORTCUTS_CATALOG: readonly ShortcutCatalogEntry[] = [
   { actionKey: "app.shortcuts.redo", keysKey: "app.shortcuts.keys.redo" },
   { actionKey: "app.shortcuts.findNode", keysKey: "app.shortcuts.keys.findNode" },
   { actionKey: "app.shortcuts.togglePalette", keysKey: "app.shortcuts.keys.togglePalette" },
+  { actionKey: "app.shortcuts.openAddNodeMenu", keysKey: "app.shortcuts.keys.openAddNodeMenu" },
   { actionKey: "app.shortcuts.copyNodes", keysKey: "app.shortcuts.keys.copy" },
   { actionKey: "app.shortcuts.pasteNodes", keysKey: "app.shortcuts.keys.paste" },
   { actionKey: "app.shortcuts.group", keysKey: "app.shortcuts.keys.group" },

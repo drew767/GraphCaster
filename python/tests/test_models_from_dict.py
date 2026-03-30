@@ -7,6 +7,48 @@ import pytest
 from graph_caster.models import GraphDocument
 
 
+def test_meta_variables_and_root_variables() -> None:
+    doc = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {
+                "schemaVersion": 1,
+                "graphId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                "variables": {"fromMeta": 1},
+            },
+            "nodes": [{"id": "n1", "position": {"x": 0, "y": 0}, "data": {}}],
+            "edges": [],
+        }
+    )
+    assert doc.variables == {"fromMeta": 1}
+
+    doc2 = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {"schemaVersion": 1, "graphId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"},
+            "variables": {"rootOnly": 2},
+            "nodes": [{"id": "n1", "position": {"x": 0, "y": 0}, "data": {}}],
+            "edges": [],
+        }
+    )
+    assert doc2.variables == {"rootOnly": 2}
+
+    doc3 = GraphDocument.from_dict(
+        {
+            "schemaVersion": 1,
+            "meta": {
+                "schemaVersion": 1,
+                "graphId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "variables": {"a": 0},
+            },
+            "variables": {"a": 1, "b": 2},
+            "nodes": [{"id": "n1", "position": {"x": 0, "y": 0}, "data": {}}],
+            "edges": [],
+        }
+    )
+    assert doc3.variables == {"a": 0}
+
+
 def test_node_without_type_is_unknown() -> None:
     doc = GraphDocument.from_dict(
         {

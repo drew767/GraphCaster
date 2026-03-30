@@ -33,6 +33,12 @@ def make_http_handlers(
             body["broadcasters"] = reg.debug_broadcaster_metrics()
         return JSONResponse(body)
 
+    async def prometheus_metrics(request: Request) -> Response:
+        return Response(
+            reg.prometheus_metrics_text(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
     async def create_run(request: Request) -> Response:
         try:
             body = await request.json()
@@ -237,6 +243,7 @@ def make_http_handlers(
 
     return {
         "health": health,
+        "prometheus_metrics": prometheus_metrics,
         "create_run": create_run,
         "webhook_run": webhook_run,
         "cancel_run": cancel_run,

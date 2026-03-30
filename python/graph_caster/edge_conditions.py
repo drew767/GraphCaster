@@ -390,6 +390,18 @@ def _eval_template_condition(s: str, context: dict[str, Any]) -> bool:
     return False
 
 
+def _is_json_logic_object_rule(s: str) -> bool:
+    """Return True if *s* looks like a json-logic dict rule handled by this module."""
+    try:
+        parsed = json.loads(s)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(parsed, dict) or len(parsed) != 1:
+        return False
+    op_key = next(iter(parsed))
+    return op_key in _SUPPORTED_OPS
+
+
 def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
     s = condition.strip()
     if len(s) > MAX_EDGE_CONDITION_CHARS:
@@ -402,6 +414,17 @@ def eval_edge_condition(condition: str, context: dict[str, Any]) -> bool:
 
     if s.startswith("{{"):
         return _eval_template_condition(s, context)
+
+    if "$" in s and not (s.startswith("{") and _is_json_logic_object_rule(s)):
+        from graph_caster.runner.expression_conditions import (
+            evaluate_edge_condition_inline,
+            runner_predicate_to_expression_context,
+        )
+
+        return evaluate_edge_condition_inline(
+            s,
+            runner_predicate_to_expression_context(context),
+        )
 
     if s.startswith("{"):
         try:

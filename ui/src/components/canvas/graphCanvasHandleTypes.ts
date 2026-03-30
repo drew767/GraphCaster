@@ -10,5 +10,6 @@ export type ExportDocumentOptions = {
 export type GraphCanvasHandle = {
   exportDocument: (options?: ExportDocumentOptions) => GraphDocumentJson;
   focusNode: (nodeId: string) => void;
+  focusEdge: (edgeId: string) => void;
   removeNodesById: (ids: readonly string[]) => void;
 };

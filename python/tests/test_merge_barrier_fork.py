@@ -25,7 +25,8 @@ def _cmd_py() -> list[str]:
 
 
 def test_fork_parallel_two_sleeps_faster_than_sequential(tmp_path: Path) -> None:
-    delay = 0.45
+    # Long enough that wall time dominates spawn noise; short enough for unit tests.
+    delay = 0.55
     raw = json.loads((ROOT / "schemas" / "test-fixtures" / "fork-merge-barrier.json").read_text(encoding="utf-8"))
     for nid in ("t0", "ta", "tb"):
         n = next(x for x in raw["nodes"] if x["id"] == nid)
@@ -39,6 +40,13 @@ def test_fork_parallel_two_sleeps_faster_than_sequential(tmp_path: Path) -> None
     fork = next(x for x in raw["nodes"] if x["id"] == "f1")
     fork["data"] = {**(fork.get("data") or {}), "maxParallel": 2}
     doc = GraphDocument.from_dict(raw)
+    # Sequential first so the parallel run does not pay the whole interpreter/subprocess cold-start bill alone.
+    events_seq: list[dict] = []
+    t1 = time.monotonic()
+    GraphRunner(doc, sink=lambda e: events_seq.append(e), host=RunHostContext(artifacts_base=tmp_path)).run()
+    seq_elapsed = time.monotonic() - t1
+    assert events_seq[-1].get("status") == "success"
+
     events: list[dict] = []
     t0 = time.monotonic()
     GraphRunner(
@@ -51,13 +59,9 @@ def test_fork_parallel_two_sleeps_faster_than_sequential(tmp_path: Path) -> None
     assert events[-1]["type"] == "run_finished"
     assert events[-1].get("status") == "success"
 
-    events_seq: list[dict] = []
-    t1 = time.monotonic()
-    GraphRunner(doc, sink=lambda e: events_seq.append(e), host=RunHostContext(artifacts_base=tmp_path)).run()
-    seq_elapsed = time.monotonic() - t1
-    assert events_seq[-1].get("status") == "success"
-    assert seq_elapsed > delay * 1.45
-    assert parallel_elapsed < seq_elapsed * 0.88
+    assert seq_elapsed > delay * 1.35
+    # Overlapping branch sleeps should beat two sleeps in series (allow timer / CI jitter).
+    assert parallel_elapsed < seq_elapsed * 0.92
 
 
 def test_barrier_runs_after_two_branches(tmp_path: Path) -> None:

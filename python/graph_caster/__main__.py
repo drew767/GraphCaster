@@ -18,7 +18,9 @@ from graph_caster.run_sessions import RunSessionRegistry, get_default_run_regist
 from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_nested_run_result_json
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
-_SUBCOMMANDS = frozenset({"run", "artifacts-size", "artifacts-clear", "catalog-rebuild", "serve", "mcp"})
+_SUBCOMMANDS = frozenset(
+    {"run", "artifacts-size", "artifacts-clear", "catalog-rebuild", "serve", "mcp", "mcp-oauth"}
+)
 
 
 def _spawn_stdin_cancel_loop(registry: RunSessionRegistry) -> None:
@@ -194,6 +196,26 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Optional workspace root for runs/<graphId>/… (persist run-summary when set)",
+    )
+
+    mo = sub.add_parser(
+        "mcp-oauth",
+        help="OAuth token helpers for streamable HTTP MCP (e.g. GitHub device flow)",
+    )
+    mo_sub = mo.add_subparsers(dest="oauth_cmd", required=True)
+    mo_gh = mo_sub.add_parser(
+        "github-device",
+        help="Run GitHub OAuth device flow; prints access token (for bearerEnvKey / workspace secrets)",
+    )
+    mo_gh.add_argument(
+        "--scope",
+        default="",
+        help="OAuth scopes (space-separated), e.g. read:user repo",
+    )
+    mo_gh.add_argument(
+        "--client-id",
+        default=None,
+        help="OAuth App client id (default: env GITHUB_OAUTH_CLIENT_ID)",
     )
 
     return parser
@@ -379,6 +401,28 @@ def _cmd_catalog_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mcp_oauth(args: argparse.Namespace) -> int:
+    if args.oauth_cmd != "github-device":
+        print("graph-caster mcp-oauth: unknown subcommand", file=sys.stderr)
+        return 2
+    cid = (args.client_id or os.environ.get("GITHUB_OAUTH_CLIENT_ID", "")).strip()
+    if not cid:
+        print(
+            "graph-caster mcp-oauth github-device: set --client-id or GITHUB_OAUTH_CLIENT_ID",
+            file=sys.stderr,
+        )
+        return 2
+    from graph_caster.mcp_oauth import GithubDeviceFlowError, run_github_device_flow
+
+    try:
+        token = run_github_device_flow(client_id=cid, scope=str(args.scope or ""))
+    except GithubDeviceFlowError as e:
+        print(f"graph-caster: {e}", file=sys.stderr)
+        return 2
+    print(token, flush=True)
+    return 0
+
+
 def _cmd_mcp(args: argparse.Namespace) -> int:
     try:
         import mcp  # noqa: F401
@@ -436,6 +480,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_serve(args)
     if args.command == "mcp":
         return _cmd_mcp(args)
+    if args.command == "mcp-oauth":
+        return _cmd_mcp_oauth(args)
     return 2
 
 

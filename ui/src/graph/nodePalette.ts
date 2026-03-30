@@ -9,6 +9,12 @@ import {
   GRAPH_NODE_TYPE_GRAPH_REF,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_MCP_TOOL,
+  GRAPH_NODE_TYPE_HTTP_REQUEST,
+  GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_DELAY,
+  GRAPH_NODE_TYPE_DEBOUNCE,
+  GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
@@ -91,6 +97,46 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         allowInsecureLocalhost: false,
         bearerEnvKey: "",
         envKeys: [],
+      };
+    case GRAPH_NODE_TYPE_HTTP_REQUEST:
+      return {
+        title: "HTTP request",
+        url: "",
+        method: "GET",
+        headers: {},
+        timeoutSec: 30,
+        verifyTls: true,
+        parseResponseBody: "auto",
+      };
+    case GRAPH_NODE_TYPE_RAG_QUERY:
+      return {
+        title: "RAG query",
+        url: "",
+        query: "",
+        method: "POST",
+        topK: 5,
+        headers: {},
+        timeoutSec: 60,
+        verifyTls: true,
+        parseResponseBody: "auto",
+      };
+    case GRAPH_NODE_TYPE_DELAY:
+      return { title: "Delay", durationSec: 1 };
+    case GRAPH_NODE_TYPE_DEBOUNCE:
+      return { title: "Debounce", durationSec: 1 };
+    case GRAPH_NODE_TYPE_WAIT_FOR:
+      return {
+        title: "Wait for",
+        waitMode: "file",
+        path: "",
+        timeoutSec: 300,
+        pollIntervalSec: 0.25,
+      };
+    case GRAPH_NODE_TYPE_PYTHON_CODE:
+      return {
+        title: "Python code",
+        code: 'result = {"ok": True}',
+        timeoutSec: 30,
       };
     case GRAPH_NODE_TYPE_LLM_AGENT:
       return {

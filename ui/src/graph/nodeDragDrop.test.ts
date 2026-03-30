@@ -32,6 +32,13 @@ describe("nodeDragDrop", () => {
       expect(decoded).toEqual(payload);
     });
 
+    it("encodes and decodes template pick", () => {
+      const payload: NodeDragPayload = { kind: "template", templateId: "tpl_http_task" };
+      const encoded = encodeNodeDragData(payload);
+      const decoded = decodeNodeDragData(encoded);
+      expect(decoded).toEqual(payload);
+    });
+
     it("returns null for invalid JSON", () => {
       expect(decodeNodeDragData("not json")).toBeNull();
     });

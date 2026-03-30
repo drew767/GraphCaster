@@ -30,8 +30,85 @@ export type StructureIssue =
   | { kind: "mcp_tool_stdio_missing_command"; nodeId: string }
   | { kind: "mcp_tool_http_empty_url"; nodeId: string }
   | { kind: "mcp_tool_unknown_transport"; nodeId: string; transport: string }
+  | { kind: "http_request_empty_url"; nodeId: string }
+  | { kind: "rag_query_empty_url"; nodeId: string }
+  | { kind: "rag_query_empty_query"; nodeId: string }
+  | { kind: "delay_invalid_duration"; nodeId: string }
+  | { kind: "debounce_invalid_duration"; nodeId: string }
+  | { kind: "wait_for_unknown_mode"; nodeId: string }
+  | { kind: "wait_for_empty_path"; nodeId: string }
+  | { kind: "wait_for_invalid_timeout"; nodeId: string }
+  | { kind: "python_code_empty_code"; nodeId: string }
   | { kind: "llm_agent_empty_command"; nodeId: string }
   | { kind: "schema_version_mismatch"; root: number; meta: number };
+
+const MAX_TIMER_DURATION_SEC = 86400;
+const MIN_POLL_SEC = 0.05;
+const MAX_POLL_SEC = 10;
+
+/** Parse `durationSec` for delay/debounce; mirrors `delay_wait_exec.parse_duration_sec`. */
+export function parseTimerDurationSec(data: unknown): number | null {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
+  const raw = (data as Record<string, unknown>).durationSec;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  const sec = typeof raw === "number" ? raw : Number.parseFloat(String(raw));
+  if (!Number.isFinite(sec) || sec <= 0) {
+    return null;
+  }
+  return Math.min(MAX_TIMER_DURATION_SEC, sec);
+}
+
+/** Return `{ timeoutSec, pollSec }` or null; mirrors `delay_wait_exec.parse_wait_for_file_params`. */
+export function parseWaitForFileParamsFromData(data: unknown): { timeoutSec: number; pollSec: number } | null {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
+  const d = data as Record<string, unknown>;
+  const rawT = d.timeoutSec;
+  let timeout: number;
+  if (rawT === undefined || rawT === null) {
+    timeout = 300;
+  } else {
+    timeout = typeof rawT === "number" ? rawT : Number.parseFloat(String(rawT));
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      return null;
+    }
+  }
+  timeout = Math.min(MAX_TIMER_DURATION_SEC, timeout);
+  const rawP = d.pollIntervalSec;
+  let poll: number;
+  if (rawP === undefined || rawP === null) {
+    poll = 0.25;
+  } else {
+    poll = typeof rawP === "number" ? rawP : Number.parseFloat(String(rawP));
+    if (!Number.isFinite(poll)) {
+      return null;
+    }
+  }
+  poll = Math.min(MAX_POLL_SEC, Math.max(MIN_POLL_SEC, poll));
+  return { timeoutSec: timeout, pollSec: poll };
+}
+
+export function waitForHasExecutableConfig(data: unknown): boolean {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    return false;
+  }
+  const d = data as Record<string, unknown>;
+  const mode = String(d.waitMode ?? "file").trim().toLowerCase();
+  if (mode !== "file") {
+    return false;
+  }
+  const p = d.path;
+  return (
+    typeof p === "string" &&
+    p.trim() !== "" &&
+    parseWaitForFileParamsFromData(d) !== null
+  );
+}
 
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
   if (data == null || typeof data !== "object" || Array.isArray(data)) {
@@ -87,6 +164,15 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "mcp_tool_stdio_missing_command":
     case "mcp_tool_http_empty_url":
     case "mcp_tool_unknown_transport":
+    case "http_request_empty_url":
+    case "rag_query_empty_url":
+    case "rag_query_empty_query":
+    case "delay_invalid_duration":
+    case "debounce_invalid_duration":
+    case "wait_for_unknown_mode":
+    case "wait_for_empty_path":
+    case "wait_for_invalid_timeout":
+    case "python_code_empty_code":
     case "llm_agent_empty_command":
     case "schema_version_mismatch":
       return false;
@@ -297,6 +383,100 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
       }
     } else {
       issues.push({ kind: "mcp_tool_unknown_transport", nodeId: n.id, transport });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "http_request") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const url = typeof raw.url === "string" ? raw.url.trim() : "";
+    if (url === "") {
+      issues.push({ kind: "http_request_empty_url", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "python_code") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const code = typeof raw.code === "string" ? raw.code.trim() : "";
+    if (code === "") {
+      issues.push({ kind: "python_code_empty_code", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "delay") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    if (parseTimerDurationSec(raw) === null) {
+      issues.push({ kind: "delay_invalid_duration", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "debounce") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    if (parseTimerDurationSec(raw) === null) {
+      issues.push({ kind: "debounce_invalid_duration", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "wait_for") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const mode = String(raw.waitMode ?? "file").trim().toLowerCase();
+    if (mode !== "file") {
+      issues.push({ kind: "wait_for_unknown_mode", nodeId: n.id });
+      continue;
+    }
+    const wp = raw.path;
+    if (typeof wp !== "string" || wp.trim() === "") {
+      issues.push({ kind: "wait_for_empty_path", nodeId: n.id });
+    }
+    if (parseWaitForFileParamsFromData(raw) === null) {
+      issues.push({ kind: "wait_for_invalid_timeout", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "rag_query") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const rurl = typeof raw.url === "string" ? raw.url.trim() : "";
+    if (rurl === "") {
+      issues.push({ kind: "rag_query_empty_url", nodeId: n.id });
+    }
+    const rq = typeof raw.query === "string" ? raw.query.trim() : "";
+    if (rq === "") {
+      issues.push({ kind: "rag_query_empty_query", nodeId: n.id });
     }
   }
   for (const n of nodes) {

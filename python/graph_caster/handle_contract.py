@@ -13,6 +13,12 @@ _EXIT = "exit"
 _TASK = "task"
 _GRAPH_REF = "graph_ref"
 _MCP_TOOL = "mcp_tool"
+_HTTP_REQUEST = "http_request"
+_RAG_QUERY = "rag_query"
+_DELAY = "delay"
+_DEBOUNCE = "debounce"
+_WAIT_FOR = "wait_for"
+_PYTHON_CODE = "python_code"
 _LLM_AGENT = "llm_agent"
 _COMMENT = "comment"
 _GROUP = "group"
@@ -28,7 +34,18 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         return frozenset()
     if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_OUT_DEFAULT})
-    if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL, _LLM_AGENT):
+    if node_type in (
+        _TASK,
+        _GRAPH_REF,
+        _MCP_TOOL,
+        _HTTP_REQUEST,
+        _RAG_QUERY,
+        _DELAY,
+        _DEBOUNCE,
+        _WAIT_FOR,
+        _PYTHON_CODE,
+        _LLM_AGENT,
+    ):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
     if node_type in (_COMMENT, _GROUP):
         return frozenset()
@@ -42,7 +59,18 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_MERGE, _FORK, _AI_ROUTE):
         return frozenset({HANDLE_IN_DEFAULT})
-    if node_type in (_TASK, _GRAPH_REF, _MCP_TOOL, _LLM_AGENT):
+    if node_type in (
+        _TASK,
+        _GRAPH_REF,
+        _MCP_TOOL,
+        _HTTP_REQUEST,
+        _RAG_QUERY,
+        _DELAY,
+        _DEBOUNCE,
+        _WAIT_FOR,
+        _PYTHON_CODE,
+        _LLM_AGENT,
+    ):
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_COMMENT, _GROUP):
         return frozenset()

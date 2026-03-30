@@ -19,6 +19,7 @@ from typing import Literal
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
 from graph_caster.run_broker.errors import PendingQueueFullError
+from graph_caster.run_broker.redis_coord import release_global_run_slot, try_acquire_global_run_slot
 from graph_caster.run_broker.worker_lost import (
     build_coordinator_worker_lost_run_finished_line,
     new_run_stdout_tracker,
@@ -110,6 +111,54 @@ class RunBrokerRegistry:
         with self._lock:
             return [r.broadcaster.metrics_snapshot() for r in self._runs.values()]
 
+    def prometheus_metrics_text(self) -> str:
+        """Minimal Prometheus **text** exposition (no extra dependencies)."""
+        with self._lock:
+            n_reg = len(self._runs)
+            n_run = self._running_count()
+            n_pend = len(self._pending_fifo)
+            n_cap = _max_concurrent_runs()
+            pend_cap = _pending_max()
+        lines = [
+            "# HELP gc_run_broker_workers_active Child runner processes currently held by the broker.",
+            "# TYPE gc_run_broker_workers_active gauge",
+            f"gc_run_broker_workers_active {n_run}",
+            "# HELP gc_run_broker_registered_runs Runs still tracked (running or draining).",
+            "# TYPE gc_run_broker_registered_runs gauge",
+            f"gc_run_broker_registered_runs {n_reg}",
+            "# HELP gc_run_broker_pending_queue_depth FIFO depth for queued starts.",
+            "# TYPE gc_run_broker_pending_queue_depth gauge",
+            f"gc_run_broker_pending_queue_depth {n_pend}",
+            "# HELP gc_run_broker_max_concurrent_config Effective max concurrent workers from env.",
+            "# TYPE gc_run_broker_max_concurrent_config gauge",
+            f"gc_run_broker_max_concurrent_config {n_cap}",
+            "# HELP gc_run_broker_pending_max_config Pending FIFO capacity from env.",
+            "# TYPE gc_run_broker_pending_max_config gauge",
+            f"gc_run_broker_pending_max_config {pend_cap}",
+        ]
+        from graph_caster.run_broker.redis_coord import global_active_workers_gauge, redis_coord_config
+
+        rcfg = redis_coord_config()
+        if rcfg is not None:
+            lines.extend(
+                [
+                    "# HELP gc_run_broker_redis_global_limit Configured cluster-wide worker cap (Redis).",
+                    "# TYPE gc_run_broker_redis_global_limit gauge",
+                    f"gc_run_broker_redis_global_limit {rcfg.global_limit}",
+                ]
+            )
+            g = global_active_workers_gauge()
+            if g is not None:
+                lines.extend(
+                    [
+                        "# HELP gc_run_broker_redis_global_active Workers counted in Redis across brokers.",
+                        "# TYPE gc_run_broker_redis_global_active gauge",
+                        f"gc_run_broker_redis_global_active {g}",
+                    ]
+                )
+        lines.append("")
+        return "\n".join(lines)
+
     def _running_count(self) -> int:
         return sum(1 for r in self._runs.values() if r.proc is not None)
 
@@ -194,6 +243,7 @@ class RunBrokerRegistry:
                 broadcaster.broadcast(FanOutMsg("exit", exit_c))
                 with self._lock:
                     self._runs.pop(run_id, None)
+                release_global_run_slot()
                 self._cleanup_temp(temp_paths)
                 self._promote_fill()
 
@@ -256,6 +306,15 @@ class RunBrokerRegistry:
                         self._pending_fifo.appendleft(promote_id)
                     continue
                 if self._running_count() >= _max_concurrent_runs():
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=5.0)
+                    self._pending_fifo.appendleft(promote_id)
+                    continue
+                if not try_acquire_global_run_slot():
                     proc.terminate()
                     try:
                         proc.wait(timeout=5.0)
@@ -369,6 +428,22 @@ class RunBrokerRegistry:
                 self._cleanup_temp(temp_paths)
                 raise ValueError("runId already active")
             if self._running_count() >= _max_concurrent_runs():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                if len(self._pending_fifo) >= _pending_max():
+                    self._cleanup_temp(temp_paths)
+                    raise PendingQueueFullError()
+                rr = RegisteredRun(run_id, None, broadcaster, temp_paths, viewer_token, argv)
+                self._runs[run_id] = rr
+                self._pending_fifo.append(run_id)
+                pos = len(self._pending_fifo)
+                broadcaster.broadcast(FanOutMsg("out", self._build_queued_notice_line(run_id, pos)))
+                return SpawnResult(run_id, viewer_token, "queued", pos)
+            if not try_acquire_global_run_slot():
                 proc.terminate()
                 try:
                     proc.wait(timeout=5.0)

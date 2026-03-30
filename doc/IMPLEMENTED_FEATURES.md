@@ -706,4 +706,19 @@
 
 ---
 
+## Закрытая дорожная карта (март 2026): expression, resilience, parallel, loops, history, canvas perf
+
+Файл **`doc/superpowers/plans/2026-03-30-graphcaster-development-roadmap.md`** удалён после выполнения всех фаз; факты по темам — в таблице ниже и в **`python/README.md`**. Пакет раннера: **`python/graph_caster/`**. Новые планы при необходимости снова кладите в **`doc/superpowers/plans/`** и удаляйте после мержа поведения в код (см. сноску в конце этого файла).
+
+| Тема | Факты в репозитории |
+|------|---------------------|
+| **Expression engine v2** | `python/graph_caster/expression/`; маршрутизация строковых условий рёбер — `edge_conditions.py`, `runner/expression_conditions.py`; тесты `python/tests/expression/`, `python/tests/test_expression_edge_conditions_integration.py`. |
+| **Runtime resilience** | `python/graph_caster/resilience/`; тесты `python/tests/resilience/` (интеграция: **`test_resilience_integration.py`**). |
+| **Parallel execution** | `python/graph_caster/parallel/`; тесты `python/tests/parallel/` (интеграция: **`test_parallel_integration.py`** — уникальное имя модуля, без коллизии с resilience). |
+| **Loop nodes** | `python/graph_caster/nodes/loops/`; тесты `python/tests/nodes/loops/`. |
+| **Run history / replay** | Python: `python/graph_caster/history/` (`catalog`, `events`, `replay`, **`artifacts`** / `list_run_artifact_tree`), тесты `python/tests/history/`; **`python/graph_caster/history/README.md`**. UI: **`zustand`** **`ui/src/stores/historyStore.ts`**, **`RunHistoryModal`**, **`RunArtifactPanel`** ( **`run-summary.json`** ), **`RunEventDiffPanel`** (соседние события NDJSON), загрузка лога на вкладках Events и Diff. |
+| **Large graph performance** | Базовый canvas **F1** — **`GraphCanvas`**, **`canvasLod.ts`**, **`viewportNodeTier.ts`**. Дополнительно: **`useViewportCulling.ts`**, **`useLODLevel.ts`**, **`LODNodeRenderer.tsx`**, **`MemoizedNode.tsx`**, **`useAsyncLayout.ts`** (в браузере — **`ui/src/workers/layoutWorker.ts`**, в Vitest / при `VITE_GC_LAYOUT_WORKER=0` — синхронно **`layeredLayout.ts`**), **`ui/src/graph/layeredLayout.ts`**, **`ui/src/utils/performanceMonitor.ts`**, Vitest **`ui/src/tests/performance/`**. Кратко: **`ui/src/components/canvas/README.md`**. |
+
+---
+
 *Обновляйте этот файл при закрытии новых пунктов из `COMPETITIVE_ANALYSIS.md`, чтобы не дублировать «сделано» в тексте про конкурентов. Черновики планов — `doc/plans/YYYY-MM-DD-<feature>.md` (каталог **`doc/plans/`** в **`.gitignore`**, локально у разработчика). Удаляйте файл плана **после того, как поведение есть в коде** (и зафиксировано здесь при необходимости); незавершённые планы оставляйте. Временные **`doc/*-plan.md`** в корне **`doc/`** — по тому же правилу. Коммиты по плану не обязательны.*
