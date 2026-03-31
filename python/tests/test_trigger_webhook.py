@@ -9,7 +9,11 @@ import time
 import pytest
 
 from graph_caster.triggers.base import TriggerContext, TriggerType
-from graph_caster.nodes.trigger_webhook import TriggerWebhookNode, WebhookNodeConfig
+from graph_caster.nodes.trigger_webhook import (
+    TriggerWebhookNode,
+    WebhookNodeConfig,
+    webhook_node_config_from_data,
+)
 
 
 class TestTriggerType:
@@ -103,6 +107,14 @@ class TestWebhookNodeConfig:
         assert config.auth == "bearer"
         assert config.secret == "my-secret-token"
         assert config.response_mode == "wait"
+
+    def test_webhook_node_config_maps_lastnode_to_wait(self) -> None:
+        kw = webhook_node_config_from_data({"path": "/x", "responseMode": "lastNode"})
+        assert kw["response_mode"] == "wait"
+
+    def test_webhook_node_config_invalid_response_mode_defaults(self) -> None:
+        kw = webhook_node_config_from_data({"path": "/x", "responseMode": "nope"})
+        assert kw["response_mode"] == "immediate"
 
 
 class TestTriggerWebhookNode:

@@ -56,6 +56,31 @@ class NdjsonStdoutSink:
             self._flush()
 
 
+class NodeExecutePublicStreamSink:
+    """Strip ``data`` from ``node_execute`` events before forwarding (untrusted SSE/WebSocket viewers).
+
+    Does not mutate the incoming ``event`` dict. Full events are still emitted on other sinks (e.g. run
+    artifact ``events.ndjson`` via :class:`TeeRunEventSink`) when the runner passes the same object to
+    both legs — only the stream leg should be wrapped with this class."""
+
+    __slots__ = ("_inner", "_omit")
+
+    def __init__(self, inner: RunEventSink, *, omit_node_execute_payload: bool) -> None:
+        self._inner = inner
+        self._omit = bool(omit_node_execute_payload)
+
+    def emit(self, event: RunEventDict) -> None:
+        if (
+            self._omit
+            and event.get("type") == "node_execute"
+            and "data" in event
+        ):
+            public_ev = {k: v for k, v in event.items() if k != "data"}
+            self._inner.emit(public_ev)
+            return
+        self._inner.emit(event)
+
+
 class TeeRunEventSink:
     """Fan-out: ``a`` is primary (e.g. stdout). ``b`` is best-effort: ``OSError`` from ``b`` is swallowed so a disk
     failure cannot abort the run after ``a`` already received the event.

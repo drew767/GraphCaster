@@ -13,7 +13,12 @@ from graph_caster.run_broker.routes.common import broker_token_ok
 
 class BrokerTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path == "/webhooks/run":
+        p = request.url.path
+        if (
+            p == "/webhooks/run"
+            or p.startswith("/webhooks/trigger/")
+            or p == "/api/v1/openapi.json"
+        ):
             return await call_next(request)
         token = os.environ.get("GC_RUN_BROKER_TOKEN", "").strip()
         if token and not broker_token_ok(request, token):

@@ -105,7 +105,9 @@
         "set_variable": "Set variable",
         "python_code": "Python code",
         "llm_agent": "LLM agent",
-        "agent": "Agent (in-process)"
+        "agent": "Agent (in-process)",
+        "trigger_webhook": "Webhook trigger",
+        "trigger_schedule": "Schedule trigger"
       },
       "flowControls": {
         "panel": "Canvas zoom and view",
@@ -126,6 +128,7 @@
       "noStart": "No start node (runner expects a single start).",
       "multipleStarts": "More than one start node: {{ids}}.",
       "startHasIncoming": "Start node {{id}} has incoming edges (should have none).",
+      "triggerHasIncoming": "Trigger node {{id}} ({{type}}) has incoming edges (entry triggers must have none).",
       "unreachableNodes": "Nodes not reachable from start (static; all edges treated as possible): {{ids}}.",
       "mergeFewInputs": "Merge node {{id}} has {{count}} incoming branch edge(s) from non-frame nodes (usually 2+ after a split).",
       "forkFewOutputs": "Fork node {{id}} has {{count}} unconditional outgoing branch(es) (use 2+ for fan-out).",
@@ -166,6 +169,8 @@
       "clipboardInvalid": "Clipboard does not contain GraphCaster graph nodes (expected our JSON format).",
       "commentFrameHint": "Sticky note frame (editor-only). Drag nodes into the frame (or create them inside) so they move with the frame. Resize with the handles. Use JSON data \"title\", \"width\", \"height\".",
       "groupFrameHint": "Group frame (editor-only, not a workflow step). Same nesting as sticky: drag nodes inside or use Edit → Group selection. Resize with handles. JSON: \"title\", \"width\", \"height\".",
+      "triggerWebhookHint": "With the dev broker (GC_RUN_BROKER_GRAPHS_DIR): requests go to /webhooks/trigger/{{graphId}}/{{suffix}} where {{suffix}} is this node's path without its leading slash (e.g. path `/hook` → …/hook). HTTP method must match; optional auth none | bearer | api_key | basic vs node secret.",
+      "triggerScheduleHint": "Cron expression in data.cron; timezone optional. No incoming edges (like start). A host cron or external scheduler should call the broker to start the graph at this node; the editor does not schedule runs.",
       "nodeId": "Id",
       "nodeType": "Type",
       "label": "Title",
@@ -189,7 +194,9 @@
         "set_variable": "Updates the run variable pool ($vars): set, increment, append, or delete. Field `name` must look like a Python identifier.",
         "python_code": "Runs Python in an isolated child process with limited builtins. Set `result` or `__result__`; optional `__run_variables__` dict merges into run_variables. Templates in `code`.",
         "llm_agent": "Runs a subprocess that emits agent_step lines for multi-step LLM tooling (runner-managed).",
-        "agent": "Runs an in-process LLM tool loop in the runner (no subprocess). Set inputText and optional systemPrompt."
+        "agent": "Runs an in-process LLM tool loop in the runner (no subprocess). Set inputText and optional systemPrompt.",
+        "trigger_webhook": "HTTP-in entry: no incoming edges. path (absolute app path, e.g. /hook), method GET|POST|PUT|PATCH|DELETE, optional auth + secret. Dev broker exposes POST /webhooks/trigger/:graphId/:pathSuffix.",
+        "trigger_schedule": "Cron entry: no incoming edges. data.cron required; optional timeZone. Requires external scheduler or broker extension to fire."
       },
       "dataJson": "Data",
       "applyData": "Apply data",
@@ -201,6 +208,7 @@
       "edgeCondition": "Condition",
       "edgeConditionPlaceholder": "leave empty if unconditional",
       "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner). In templates and JSON Logic, $json is the predecessor (last_result). $node addresses node outputs like n8n: bracketed node id or shortId, then optional dot-separated fields — details in python/README.md.",
+      "expressionAutocompleteHint": "Autocomplete: type $ for $json / $node / $env, start $node[\" for node ids from this graph, or type a builtin name (trim, upper, …). Ctrl+Space opens the full list.",
       "mergeMode": "Merge mode",
       "mergeModePassthrough": "Passthrough (single path)",
       "mergeModeBarrier": "Barrier (wait for all inbound branches)",
@@ -578,7 +586,9 @@
       "emptyName": "Enter a file name.",
       "writeFailed": "Could not save the file.",
       "workspaceUnavailable": "The project folder link was lost. Link graphs/ again, or save without a linked folder.",
-      "documentUnavailable": "The graph could not be read from the editor. Try again or reload the page."
+      "documentUnavailable": "The graph could not be read from the editor. Try again or reload the page.",
+      "diskConflict": "This file was changed on disk outside GraphCaster. Reload to discard your edits here, or overwrite the file on disk with Save.",
+      "overwriteDisk": "Overwrite file on disk"
     },
     "workspace": {
       "link": "Link project folder…",
@@ -590,7 +600,13 @@
       "writeFailed": "Could not write the graph file.",
       "duplicateGraphId": "Another file already uses this graphId: {{file}}",
       "needLinkForGraphRef": "Link the project folder first to open a nested graph from graphs/.",
-      "graphNotInIndex": "No graph file with graphId {{id}} was found in graphs/ (rescan after adding files)."
+      "graphNotInIndex": "No graph file with graphId {{id}} was found in graphs/ (rescan after adding files).",
+      "diskConflictTitle": "File changed on disk",
+      "diskConflictBody": "{{fileName}} was modified outside this session (another app or branch). Reload to load the version on disk, overwrite to replace it with your open graph, or pause autosave and keep editing.",
+      "diskConflictReload": "Reload from disk",
+      "diskConflictOverwrite": "Overwrite disk",
+      "diskConflictPause": "Pause autosave",
+      "diskConflictPausedToast": "Autosave paused. Use Save when ready, or reload the file from the workspace list."
     },
     "shortcuts": {
       "menuItem": "Keyboard shortcuts…",

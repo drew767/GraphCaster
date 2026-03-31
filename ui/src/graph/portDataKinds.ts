@@ -27,6 +27,8 @@ import {
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
 } from "./nodeKinds";
 import {
   HANDLE_IN_DEFAULT,
@@ -64,6 +66,8 @@ export function portDataKindForSource(nodeType: string, handle: string): PortDat
   }
   switch (nodeType) {
     case GRAPH_NODE_TYPE_START:
+    case GRAPH_NODE_TYPE_TRIGGER_WEBHOOK:
+    case GRAPH_NODE_TYPE_TRIGGER_SCHEDULE:
     case GRAPH_NODE_TYPE_TASK:
     case GRAPH_NODE_TYPE_GRAPH_REF:
     case GRAPH_NODE_TYPE_MCP_TOOL:

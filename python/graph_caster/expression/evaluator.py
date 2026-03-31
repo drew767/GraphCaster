@@ -93,6 +93,80 @@ UNARY_OPS: dict[type, Callable[[Any], Any]] = {
     ast.UAdd: operator.pos,
 }
 
+_STR_JS_METHOD_NAMES = frozenset(
+    {
+        "toUpperCase",
+        "toLowerCase",
+        "trim",
+        "split",
+        "startsWith",
+        "endsWith",
+        "includes",
+        "slice",
+        "replace",
+    }
+)
+
+
+def _str_js_method_receiver(s: str, name: str) -> Callable[..., Any]:
+    """n8n-style names on Python ``str`` instances (return callables for ``visit_Call``)."""
+
+    if name == "toUpperCase":
+
+        def _fn() -> str:
+            return s.upper()
+
+        return _fn
+    if name == "toLowerCase":
+
+        def _fn() -> str:
+            return s.lower()
+
+        return _fn
+    if name == "trim":
+
+        def _fn() -> str:
+            return s.strip()
+
+        return _fn
+    if name == "split":
+
+        def _fn(sep: str | None = None) -> list[str]:
+            return s.split(sep) if sep is not None else s.split()
+
+        return _fn
+    if name == "startsWith":
+
+        def _fn(prefix: str) -> bool:
+            return s.startswith(prefix)
+
+        return _fn
+    if name == "endsWith":
+
+        def _fn(suffix: str) -> bool:
+            return s.endswith(suffix)
+
+        return _fn
+    if name == "includes":
+
+        def _fn(sub: str) -> bool:
+            return sub in s
+
+        return _fn
+    if name == "slice":
+
+        def _fn(start: int, end: int | None = None) -> str:
+            return s[start:end]
+
+        return _fn
+    if name == "replace":
+
+        def _fn(old: str, new: str = "") -> str:
+            return s.replace(old, new)
+
+        return _fn
+    raise UndefinedVariableError(f"String method {name!r} not supported", name)
+
 
 class SafeEvalVisitor(ast.NodeVisitor):
     """AST visitor that evaluates expressions safely."""
@@ -190,6 +264,8 @@ class SafeEvalVisitor(ast.NodeVisitor):
         attr = node.attr
         if attr.startswith("_"):
             raise ForbiddenOperationError(f"Access to private attribute '{attr}' forbidden")
+        if isinstance(obj, str) and attr in _STR_JS_METHOD_NAMES:
+            return _str_js_method_receiver(obj, attr)
         if isinstance(obj, dict):
             if attr in obj:
                 return obj[attr]

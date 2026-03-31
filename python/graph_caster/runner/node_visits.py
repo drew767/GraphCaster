@@ -20,7 +20,6 @@ from graph_caster.gc_pin import (
     gc_pin_valid_for_short_circuit,
     last_result_from_process_result,
     merged_process_result_for_pin_short_circuit,
-    snapshot_for_pin_event,
 )
 from graph_caster.mcp_client import (
     format_mcp_result_preview,
@@ -218,12 +217,7 @@ def run_subprocess_task_visit(
             store.put(cache_key, copy.deepcopy(outs_map[node.id]))
         snap_o = outs_map.get(node.id)
         if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-            runner.emit(
-                "node_outputs_snapshot",
-                nodeId=node.id,
-                graphId=runner._doc.graph_id,
-                snapshot=snapshot_for_pin_event(snap_o),
-            )
+            runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if not ok:
         if ctx.get("_gc_process_cancelled"):
@@ -360,12 +354,7 @@ def run_llm_agent_visit(
         store.put(cache_key, copy.deepcopy(outs_map[node.id]))
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if not ok:
         if ctx.get("_gc_process_cancelled"):
@@ -833,12 +822,7 @@ def run_http_request_visit(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if not ok:
         if ctx.get("_gc_process_cancelled"):
@@ -1065,12 +1049,7 @@ def run_rag_query_visit(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if not ok:
         if ctx.get("_gc_process_cancelled"):
@@ -1280,12 +1259,7 @@ def run_python_code_visit(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if not ok:
         if ctx.get("_gc_process_cancelled"):
@@ -1322,12 +1296,7 @@ def _apply_timer_patch_to_outputs(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if ok:
         wr = patch.get("waitResult")
@@ -1375,12 +1344,7 @@ def run_rag_index_visit(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if ok:
         ctx["last_result"] = True
@@ -1420,12 +1384,7 @@ def run_set_variable_visit(
 
     snap_o = outs_map.get(node.id)
     if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
-        runner.emit(
-            "node_outputs_snapshot",
-            nodeId=node.id,
-            graphId=runner._doc.graph_id,
-            snapshot=snapshot_for_pin_event(snap_o),
-        )
+        runner.emit_node_outputs_snapshot(ctx, node.id, snap_o)
 
     if ok:
         svr = patch.get("setVariableResult")
@@ -1536,3 +1495,82 @@ def run_wait_for_visit(
     if not ok and patch.get("processResult", {}).get("cancelled") is True:
         ctx["_gc_process_cancelled"] = True
     return _apply_timer_patch_to_outputs(runner, node, ctx, step_q, ok=ok, patch=patch)
+
+
+def run_trigger_webhook_visit(
+    runner: Any,
+    node: Node,
+    ctx: dict[str, Any],
+    step_q: StepQueue,
+    *,
+    fork_parallel_worker: bool = False,
+) -> tuple[Literal["ok", "continue", "break"], bool]:
+    _ = fork_parallel_worker
+    from graph_caster.nodes.trigger_webhook import (
+        TriggerWebhookNode,
+        webhook_node_config_from_data,
+    )
+
+    outs_map = ctx.setdefault("node_outputs", {})
+    impl = TriggerWebhookNode(node.id, webhook_node_config_from_data(node.data))
+    try:
+        impl.validate()
+    except ValueError as e:
+        runner.emit("error", nodeId=node.id, graphId=runner._doc.graph_id, message=str(e))
+        ctx["last_result"] = False
+        if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+            return "continue", False
+        return "break", False
+
+    trig_raw = ctx.get("trigger")
+    trig: dict[str, Any] = dict(trig_raw) if isinstance(trig_raw, dict) else {}
+    trig.setdefault("type", "webhook")
+    trig.setdefault("payload", {})
+    trig.setdefault("headers", {})
+    trig.setdefault("query", {})
+    try:
+        out = impl.execute_sync(trig)
+    except RuntimeError as e:
+        runner.emit("error", nodeId=node.id, graphId=runner._doc.graph_id, message=str(e))
+        ctx["last_result"] = False
+        if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+            return "continue", False
+        return "break", False
+
+    outs_map[node.id]["triggerResult"] = out
+    ctx["last_result"] = True
+    return "ok", False
+
+
+def run_trigger_schedule_visit(
+    runner: Any,
+    node: Node,
+    ctx: dict[str, Any],
+    step_q: StepQueue,
+    *,
+    fork_parallel_worker: bool = False,
+) -> tuple[Literal["ok", "continue", "break"], bool]:
+    _ = fork_parallel_worker
+    from graph_caster.nodes.trigger_schedule import (
+        TriggerScheduleNode,
+        schedule_node_config_from_data,
+    )
+
+    outs_map = ctx.setdefault("node_outputs", {})
+    impl = TriggerScheduleNode(node.id, schedule_node_config_from_data(node.data))
+    try:
+        impl.validate()
+    except ValueError as e:
+        runner.emit("error", nodeId=node.id, graphId=runner._doc.graph_id, message=str(e))
+        ctx["last_result"] = False
+        if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+            return "continue", False
+        return "break", False
+
+    trig_raw = ctx.get("trigger")
+    trig: dict[str, Any] = dict(trig_raw) if isinstance(trig_raw, dict) else {}
+    trig.setdefault("type", "schedule")
+    out = impl.execute_sync(trig)
+    outs_map[node.id]["triggerResult"] = out
+    ctx["last_result"] = True
+    return "ok", False

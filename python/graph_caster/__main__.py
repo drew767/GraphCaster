@@ -12,7 +12,7 @@ from pathlib import Path
 
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import GraphDocument
-from graph_caster.run_event_sink import NdjsonStdoutSink
+from graph_caster.run_event_sink import NdjsonStdoutSink, NodeExecutePublicStreamSink
 from graph_caster.runner import GraphRunner
 from graph_caster.run_sessions import RunSessionRegistry, get_default_run_registry
 from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_nested_run_result_json
@@ -149,6 +149,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="Upper bound on parallel fork branches (>=1); also fork.data.maxParallel and GC_FORK_MAX_PARALLEL; default 1 is sequential",
+    )
+    run.add_argument(
+        "--public-stream",
+        action="store_true",
+        help=(
+            "Omit node_execute data from stdout NDJSON (metadata only); run dir events.ndjson still "
+            "receives full redacted payloads when --artifacts-base is set. Also set via GC_PUBLIC_RUN_STREAM."
+        ),
     )
 
     sz = sub.add_parser("artifacts-size", help="Print total artifact size in bytes under runs/")
@@ -287,7 +295,15 @@ def _cmd_run(args: argparse.Namespace) -> int:
             print(f"graph-caster: graph_ref dependency cycle in workspace: {chain}", file=sys.stderr)
             return 3
 
-    sink = NdjsonStdoutSink(sys.stdout.write, sys.stdout.flush)
+    public_stream = bool(args.public_stream) or (
+        (os.environ.get("GC_PUBLIC_RUN_STREAM") or "").strip().lower() in ("1", "true", "yes", "on")
+    )
+    sink_inner = NdjsonStdoutSink(sys.stdout.write, sys.stdout.flush)
+    sink = (
+        NodeExecutePublicStreamSink(sink_inner, omit_node_execute_payload=True)
+        if public_stream
+        else sink_inner
+    )
 
     artifacts_base = Path(args.artifacts_base) if args.artifacts_base is not None else None
     workspace_root = Path(args.workspace_root).resolve() if args.workspace_root is not None else None
@@ -333,6 +349,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         step_cache=step_cache_pol,
         persist_run_events=persist_ev,
         fork_max_parallel=args.fork_max_parallel,
+        public_stream=public_stream,
     )
     try:
         ctx: dict = {"last_result": True}

@@ -3,6 +3,7 @@
 """Trigger types for graph execution entry points."""
 
 from graph_caster.triggers.base import TriggerContext, TriggerType
+from graph_caster.triggers.builtin_scheduler_policy import is_graph_builtin_scheduler_enabled
 
 # Scheduler is optional - requires croniter
 try:
@@ -14,6 +15,7 @@ except ImportError:
 __all__ = [
     "GraphCronScheduler",
     "ScheduleConfig",
+    "is_graph_builtin_scheduler_enabled",
     "TriggerContext",
     "TriggerType",
 ]

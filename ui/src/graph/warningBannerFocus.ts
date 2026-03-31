@@ -14,6 +14,8 @@ export function structureIssueFocusNodeId(issue: StructureIssue): string | null 
       return issue.ids[0] ?? null;
     case "start_has_incoming":
       return issue.startId;
+    case "trigger_has_incoming":
+      return issue.nodeId;
     case "unreachable_nodes":
       return issue.ids[0] ?? null;
     case "merge_few_inputs":

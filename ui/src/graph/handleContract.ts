@@ -26,6 +26,8 @@ import {
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
 } from "./nodeKinds";
 
 export type GraphHandleId = string;
@@ -48,6 +50,8 @@ const SET_GENERIC_IN = new Set<string>([HANDLE_IN_DEFAULT]);
 export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
   switch (nodeType) {
     case GRAPH_NODE_TYPE_START:
+    case GRAPH_NODE_TYPE_TRIGGER_WEBHOOK:
+    case GRAPH_NODE_TYPE_TRIGGER_SCHEDULE:
       return SET_START_OUT;
     case GRAPH_NODE_TYPE_EXIT:
       return EMPTY;
@@ -80,6 +84,8 @@ export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
 export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
   switch (nodeType) {
     case GRAPH_NODE_TYPE_START:
+    case GRAPH_NODE_TYPE_TRIGGER_WEBHOOK:
+    case GRAPH_NODE_TYPE_TRIGGER_SCHEDULE:
       return EMPTY;
     case GRAPH_NODE_TYPE_EXIT:
       return SET_EXIT_IN;

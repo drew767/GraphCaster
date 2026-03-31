@@ -28,6 +28,41 @@ def _top_k(data: dict[str, Any], default: int = 5) -> int:
     return max(1, min(100, n))
 
 
+def _retrieve_oversample(data: dict[str, Any]) -> int:
+    for key in ("retrieveOversample", "retrieve_oversample", "oversample"):
+        v = data.get(key)
+        if v is None:
+            continue
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            continue
+        return max(1, min(10, n))
+    return 1
+
+
+def _metadata_filter_from_data(
+    data: dict[str, Any], tmpl_ctx: dict[str, Any]
+) -> dict[str, Any] | None:
+    raw = data.get("metadataFilter")
+    if raw is None:
+        raw = data.get("metadata_filter")
+    if raw is None or raw == {}:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    out: dict[str, Any] = {}
+    for k, v in raw.items():
+        key = str(k)
+        if isinstance(v, str):
+            out[key] = render_template(v, tmpl_ctx).strip()
+        elif v is None:
+            continue
+        else:
+            out[key] = v
+    return out if out else None
+
+
 def _execute_rag_memory_query(
     *,
     node_id: str,
@@ -154,10 +189,25 @@ def _execute_rag_memory_query(
         embedding_dims = 64
     embedding_dims = max(8, min(4096, embedding_dims))
 
+    meta_filt = _metadata_filter_from_data(data, tmpl_ctx)
+    ros = _retrieve_oversample(data)
     hits = retrieve_from_memory(
-        graph_id, cid, q, top_k=top_k, embedding_dims=embedding_dims
+        graph_id,
+        cid,
+        q,
+        top_k=top_k,
+        embedding_dims=embedding_dims,
+        metadata_filter=meta_filt,
+        retrieve_oversample=ros,
     )
-    body = json.dumps({"hits": hits, "query": q, "collectionId": cid}, ensure_ascii=False)
+    body_payload = {
+        "hits": hits,
+        "query": q,
+        "collectionId": cid,
+        "metadataFilter": meta_filt,
+        "retrieveOversample": ros,
+    }
+    body = json.dumps(body_payload, ensure_ascii=False)
     emit(
         "process_complete",
         nodeId=node_id,
@@ -176,7 +226,7 @@ def _execute_rag_memory_query(
             "statusCode": 200,
             "error": None,
             "bodyText": body,
-            "bodyJson": {"hits": hits, "query": q, "collectionId": cid},
+            "bodyJson": body_payload,
         },
         "ragResult": {
             "success": True,
@@ -184,6 +234,8 @@ def _execute_rag_memory_query(
             "topK": top_k,
             "collectionId": cid,
             "vectorBackend": "memory",
+            "metadataFilter": meta_filt,
+            "retrieveOversample": ros,
             "hits": hits,
         },
     }
@@ -215,6 +267,8 @@ def execute_rag_query(
     Default ``POST`` with JSON body ``{"query", "top_k", optional ``collection_id``} unless ``body`` is set.
     Templates in ``query``, ``url``, ``collectionId``, ``body`` see extra keys ``rag_query``, ``ragQuery``, ``top_k``, ``collection_id``.
     When ``vectorBackend`` is ``memory``, queries the in-process store populated by ``rag_index`` (no HTTP).
+    Memory path optional fields: ``metadataFilter`` (AND equality on chunk metadata; string values are mustache-rendered),
+    ``retrieveOversample`` (1–10, widens FAISS candidate pool before metadata post-filter).
     """
     tmpl_ctx = _template_context(ctx)
     backend = str(data.get("vectorBackend") or "").strip().lower()

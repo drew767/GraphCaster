@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Awaitable, Callable
 
+from graph_caster.triggers.builtin_scheduler_policy import is_graph_builtin_scheduler_enabled
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -92,6 +94,12 @@ class GraphCronScheduler:
         Begins monitoring all registered and enabled schedules.
         Idempotent - calling multiple times has no effect.
         """
+        if not is_graph_builtin_scheduler_enabled():
+            logger.info(
+                "GraphCronScheduler.start skipped (built-in cron disabled). "
+                "Set GC_GRAPH_BUILTIN_SCHEDULER=1 to enable."
+            )
+            return
         if self._running:
             return
         self._running = True

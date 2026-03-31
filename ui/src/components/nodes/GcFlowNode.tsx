@@ -14,7 +14,8 @@ function GcFlowNodeInner(props: NodeProps) {
   const tier = useGcEffectiveNodeTier(props.id, props.selected);
   const data = props.data as GcNodeData | undefined;
   const kind = data?.graphNodeType ?? "unknown";
-  const showTarget = kind !== "start";
+  const showTarget =
+    kind !== "start" && kind !== "trigger_webhook" && kind !== "trigger_schedule";
   const showSource = kind !== "exit";
   const showErrorOut =
     showSource &&

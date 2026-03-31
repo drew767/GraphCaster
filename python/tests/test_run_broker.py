@@ -407,3 +407,245 @@ def test_broadcaster_splits_newlines_in_sse_out() -> None:
     assert "data: a\n" in joined
     assert "data: b\n" in joined
     assert "event: exit\n" in joined
+
+
+def test_broadcaster_stamps_sequence_on_events() -> None:
+    """Broadcaster should stamp monotonic seq on each JSON object on the out channel."""
+    from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster
+
+    broadcaster = RunBroadcaster(run_id="test-run")
+    sub_q = broadcaster.subscribe()
+
+    broadcaster.broadcast(FanOutMsg("out", '{"type": "process_output", "line": "a"}'))
+    broadcaster.broadcast(FanOutMsg("out", '{"type": "process_output", "line": "b"}'))
+    broadcaster.broadcast(FanOutMsg("exit", 0))
+
+    events: list[object] = []
+    while not sub_q.empty():
+        msg = sub_q.get_nowait()
+        if msg.kind == "out":
+            data = json.loads(msg.payload)
+            events.append(data.get("seq"))
+        elif msg.kind == "exit":
+            events.append(f"exit:{msg.payload}")
+
+    assert events[0] == 1
+    assert events[1] == 2
+    assert events[2] == "exit:0"
+
+
+def test_broadcaster_priority_mode_preserves_critical_events() -> None:
+    """In priority mode, critical events survive when the subscriber queue is under pressure."""
+    from graph_caster.run_broker.bounded_queue import MessagePriority
+    from graph_caster.run_broker.broadcaster import (
+        FanOutMsg,
+        RunBroadcaster,
+        RunBroadcasterConfig,
+    )
+
+    config = RunBroadcasterConfig(max_sub_queue_depth=3, use_priority_queue=True)
+    broadcaster = RunBroadcaster(run_id="test-run", config=config)
+    sub_q = broadcaster.subscribe()
+
+    for i in range(5):
+        broadcaster.broadcast_with_priority(
+            FanOutMsg("out", f'{{"line": "{i}"}}'),
+            MessagePriority.LOW,
+        )
+
+    broadcaster.broadcast_with_priority(
+        FanOutMsg("out", '{"type": "run_started"}'),
+        MessagePriority.CRITICAL,
+    )
+
+    events: list[FanOutMsg] = []
+    while True:
+        try:
+            events.append(sub_q.get(timeout=0.5))
+        except Exception:
+            break
+
+    payloads = [e.payload for e in events if e.kind == "out"]
+    assert any("run_started" in str(p) for p in payloads)
+
+
+def test_registry_run_manager_merges_trigger_into_context_json(tmp_path) -> None:
+    from graph_caster.run_broker.registry_run_manager import BrokerRegistryRunManager
+
+    gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    gdir = tmp_path / "graphs"
+    gdir.mkdir()
+    (gdir / f"{gid}.json").write_text(
+        json.dumps(_minimal_valid_doc(gid)),
+        encoding="utf-8",
+    )
+    reg = RunBrokerRegistry()
+    captured: dict = {}
+
+    class SP:
+        run_id = "rid-captured"
+
+    def fake_spawn(body: dict) -> SP:
+        captured.clear()
+        captured.update(body)
+        return SP()
+
+    reg.spawn_from_body = fake_spawn  # type: ignore[method-assign]
+    m = BrokerRegistryRunManager(reg, graphs_dir=gdir)
+
+    async def _go() -> None:
+        await m.start_run(
+            gid,
+            context={"inputs": {"a": 1}},
+            trigger_context={"type": "api", "graph_id": gid},
+        )
+
+    asyncio.run(_go())
+    ctx = captured.get("contextJson")
+    assert ctx is not None
+    assert ctx["inputs"] == {"a": 1}
+    assert ctx["trigger"] == {"type": "api", "graph_id": gid}
+
+
+def _doc_with_webhook_trigger(graph_id: str) -> dict:
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": graph_id, "title": "wh"},
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {
+                "id": "wh",
+                "type": "trigger_webhook",
+                "position": {"x": 0, "y": 0},
+                "data": {"path": "/hook", "method": "POST", "auth": "none"},
+            },
+            {"id": "x", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+        ],
+        "edges": [
+            {
+                "id": "e0",
+                "source": "s",
+                "sourceHandle": "out_default",
+                "target": "x",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+            {
+                "id": "e1",
+                "source": "wh",
+                "sourceHandle": "out_default",
+                "target": "x",
+                "targetHandle": "in_default",
+                "condition": None,
+            },
+        ],
+    }
+
+
+def test_webhook_graph_trigger_spawns_run(
+    tmp_path: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(tmp_path))
+    p = tmp_path / f"{gid}.json"
+    p.write_text(json.dumps(_doc_with_webhook_trigger(gid)), encoding="utf-8")
+
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    r = client.post("/webhooks/trigger/" + gid + "/hook", json={"hello": "world"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert "runId" in j
+    rid = j["runId"]
+    buf = ""
+    with client.stream("GET", f"/runs/{rid}/stream") as response:
+        assert response.status_code == 200
+        for chunk in response.iter_text():
+            buf += chunk
+            if "node_execute" in buf and "trigger_webhook" in buf:
+                break
+    assert "trigger_webhook" in buf
+    assert "run_finished" in buf
+
+
+def test_webhook_graph_trigger_response_mode_wait(
+    tmp_path: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gid = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+    monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(tmp_path))
+    art = tmp_path / "artifacts"
+    art.mkdir()
+    monkeypatch.setenv("GC_RUN_BROKER_ARTIFACTS_BASE", str(art))
+    doc = _doc_with_webhook_trigger(gid)
+    for n in doc["nodes"]:
+        if n["id"] == "wh":
+            n["data"] = {
+                "path": "/hook",
+                "method": "POST",
+                "auth": "none",
+                "responseMode": "wait",
+            }
+    p = tmp_path / f"{gid}.json"
+    p.write_text(json.dumps(doc), encoding="utf-8")
+
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    r = client.post("/webhooks/trigger/" + gid + "/hook", json={"k": 1})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j.get("status") == "success"
+    assert "runId" in j
+    assert j.get("outputs") is None
+
+
+def test_webhook_graph_trigger_bearer_auth(
+    tmp_path: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(tmp_path))
+    doc = _doc_with_webhook_trigger(gid)
+    for n in doc["nodes"]:
+        if n["id"] == "wh":
+            n["data"] = {
+                "path": "/secure",
+                "method": "POST",
+                "auth": "bearer",
+                "secret": "tok",
+            }
+    p = tmp_path / f"{gid}.json"
+    p.write_text(json.dumps(doc), encoding="utf-8")
+
+    reg = RunBrokerRegistry()
+    client = TestClient(create_app(reg))
+    r0 = client.post("/webhooks/trigger/" + gid + "/secure", json={})
+    assert r0.status_code == 401
+    r1 = client.post(
+        "/webhooks/trigger/" + gid + "/secure",
+        json={},
+        headers={"Authorization": "Bearer tok"},
+    )
+    assert r1.status_code == 200, r1.text
+
+
+def test_prometheus_text_includes_fork_threadpool_gauge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GC_GRAPH_FORK_THREADPOOL_MAX", "8")
+    reg = RunBrokerRegistry()
+    text = reg.prometheus_metrics_text()
+    assert "gc_graph_fork_threadpool_max_config 8" in text
+
+
+def test_build_graph_caster_run_argv_includes_start_node_id() -> None:
+    from pathlib import Path
+
+    from graph_caster.cli_run_args import build_graph_caster_run_argv
+
+    argv = build_graph_caster_run_argv(
+        Path("/tmp/doc.json"),
+        run_id="rid",
+        start_node_id="wh-start",
+    )
+    assert "--start" in argv
+    assert argv[argv.index("--start") + 1] == "wh-start"

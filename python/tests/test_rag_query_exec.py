@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+from graph_caster.rag.embedding import hash_embedding
+from graph_caster.rag.memory_registry import _reset_memory_registry_for_tests, get_memory_store
 from graph_caster.rag_query_exec import execute_rag_query
 
 
@@ -78,3 +80,45 @@ def test_execute_rag_query_post_default_json_success() -> None:
     assert out["ragResult"]["query"] == "hello"
     assert out["ragResult"]["topK"] == 3
     assert ctx["last_result"]["json"] == {"hits": [{"id": "1"}]}
+
+
+def test_execute_rag_query_memory_metadata_filter() -> None:
+    _reset_memory_registry_for_tests()
+    try:
+        gid = "test-graph-rag-filter"
+        st = get_memory_store(gid, "books")
+        st.clear()
+        qemb = hash_embedding("shared topical text", dims=32)
+        other = hash_embedding("other vector", dims=32)
+        st.upsert(
+            ["n1", "n2"],
+            [qemb, other],
+            ["keep me", "drop me"],
+            [{"section": "intro"}, {"section": "refs"}],
+        )
+
+        def emit(*_a: object, **_k: object) -> None:
+            pass
+
+        ok, out = execute_rag_query(
+            node_id="rq",
+            graph_id=gid,
+            data={
+                "vectorBackend": "memory",
+                "collectionId": "books",
+                "query": "shared topical text",
+                "topK": 2,
+                "embeddingDims": 32,
+                "metadataFilter": {"section": "intro"},
+            },
+            ctx={},
+            emit=emit,
+        )
+        assert ok is True
+        hits = out["ragResult"]["hits"]
+        assert len(hits) == 1
+        assert hits[0]["content"] == "keep me"
+        assert out["ragResult"]["metadataFilter"] == {"section": "intro"}
+        assert out["ragResult"]["retrieveOversample"] == 1
+    finally:
+        _reset_memory_registry_for_tests()

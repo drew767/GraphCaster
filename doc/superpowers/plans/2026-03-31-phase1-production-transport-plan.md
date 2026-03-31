@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.11+, redis.asyncio, Starlette/FastAPI, existing run_broker
 
+**Implementation status (2026-03-31):** основная фаза транспорта уже в дереве (**`run_broker/relay/`**, **`heartbeat.py`**, интеграция в broadcaster, тесты вроде **`test_relay_redis.py`**, **`test_run_broker.py`**). Чекбоксы ниже — **исторический черновик**; не трактовать неотмеченные шаги как «код отсутствует». Актуальная инкрементальная сводка: **`2026-03-31-graph-caster-forward-development-plan.md`** (Tasks 1–3), **`2026-03-31-graph-caster-comprehensive-roadmap.md`** (Phase 1).
+
 ---
 
 ## File Structure

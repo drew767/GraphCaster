@@ -75,7 +75,7 @@
 | F17 + секреты из файла | **`compute_step_cache_key`** (`node_output_cache.py`): при непустом **`envKeys`** в ключ добавляется **`ws_sec_fp`** — SHA-256 файла секретов или **`no_file`** / **`no_workspace`** |
 | CLI / брокер | **`--workspace-root`** (`__main__.py`); **`run_start_body_to_argv_paths`** / **`build_graph_caster_run_argv`** — поле **`workspaceRoot`**; вложенный прогон (`nested_run_subprocess`) прокидывает **`host.workspace_root`** |
 
-Код: **`python/graph_caster/secrets_loader.py`** (**`secrets_file_fingerprint`**), **`runner.py`** (**`_get_workspace_secrets`**, **`_get_secrets_file_fingerprint`**, redacted **`data`** в outputs), тесты **`python/tests/test_workspace_secrets_env.py`**. Пример пути: **`.graphcaster/workspace.secrets.env.example`**; игнор — **`.gitignore`**.
+Код: **`python/graph_caster/secrets_loader.py`** (**`secrets_file_fingerprint`** для file-backend), **`python/graph_caster/secrets/`** (провайдеры: **`GC_SECRETS_PROVIDER`** = **`file`** \| **`vault`** \| **`aws`**; один экземпляр на прогон в **`runner/graph_runner.py`**: **`_ensure_secrets_provider`**, **`_get_workspace_secrets`**, **`_get_secrets_file_fingerprint`**), redacted **`data`** в outputs, тесты **`python/tests/test_workspace_secrets_env.py`**, **`python/tests/test_secrets_provider.py`**. **Vault:** **`pip install -e ".[vault]"`**, **`VAULT_ADDR`**, **`VAULT_TOKEN`**, опц. **`GC_VAULT_KV_MOUNT`**, **`GC_VAULT_KV_PATH`**. **AWS JSON secret:** **`pip install -e ".[s3]"`**, **`GC_AWS_SECRET_JSON_ID`** (или **`GC_AWS_SECRETS_JSON_ID`** — см. **`aws_provider.py`**), опц. **`GC_AWS_REGION`**. Пример пути file: **`.graphcaster/workspace.secrets.env.example`**; игнор — **`.gitignore`**.
 
 ---
 
@@ -140,6 +140,7 @@
 | Модалка ошибки открытия: копирование и busy-состояние | **`OpenGraphErrorModal`**: общий **`writeTextToClipboard`** (**`lib/clipboardWrite.ts`**); **`onCopy`**: в начале **`if (copyBusyRef.current) return`**, затем ref и **`copyBusy`** **синхронно**, сброс в **`finally`**; **`safeClose`** по **`copyBusyRef`** блокирует **Escape** / backdrop / **Закрыть** на время копирования; **`aria-busy`**, кнопки **Copy** / **Закрыть** **`disabled`** при **`copyBusy`**; эффект **`[open, presentation?.copyText]`**: при **`open === false`** — полный сброс **`copyBusy`** / ref / **`copyDone`**; при **`open === true`** — всегда **`setCopyDone(false)`**, а **`copyBusy`** и ref сбрасываются **только если** **`!copyBusyRef.current`**, чтобы смена **`presentation`** во время копирования **не** обнуляла ref и не открывала **`safeClose`** до **`finally`** |
 | Инспектор: явная ошибка вместо «голого» alert | Ошибки разбора JSON в **Data** ноды, в **inputs/outputs** графа и невалидный **schema version** — **`OpenGraphErrorModal`** через **`onUserMessage`** (**`presentationForInspector*`**); тип **`AppMessagePresentation`**, состояние **`appMessageModal`** в **`AppShell`** |
 | Save / workspace: одна модалка, полевые ошибки без второй модалки поверх диалога | **`GraphSaveModal`**: под полем имени — **`SaveFieldIssue`** (пустое имя; **`getDocument()` === null** — **`document_unavailable`** / **`app.saveModal.documentUnavailable`**; сбой **`saveJsonWithFilePickerOrDownload`**; конфликт **`graphId`** с другим файлом в **`graphs/`**; сбой **`writeJsonFileToDir`**; потеря привязки папки — **`workspaceUnavailable`**); **`onSaveToWorkspace`** → **`Promise<GraphSaveToWorkspaceResult>`**; **`saveDocumentToWorkspace`** возвращает структурированный результат и **не** открывает **`AppMessageModal`** для duplicate **`graphId`** / ошибки записи на этом пути; **`role="alert"`**, **`aria-describedby`**, **`aria-busy`** при **`isSaving`** или **`copyBusy`**; копирование текста ошибки — **`handleCopyIssue`** с **`copyBusy`** / **`copyBusyRef`** (синхронно, **`try`/`finally`**, защита от повторного входа), те же ключи **`app.errors.openModal.copy`** / **`copied`**; пока **`copyBusy`** или **`isSaving`** — отключены **Copy**, **Отмена**, **Save**, поле имени и плитки workspace; **`safeClose`** учитывает **`isSavingRef`** и **`copyBusyRef`** (**Escape**, backdrop, **Отмена**); **`isSavingRef`** — в **`handleSave`** / **`finally`**; эффект **`[open, suggestedFileName]`**: при **`open === false`** — сброс **`copyBusy`** / ref; при **`open === true`** — **`setFileName`**, **`setSaveIssue(null)`**, а **`copyBusy`** / ref сбрасываются **только если** **`!copyBusyRef.current`** (та же защита от гонки со сменой пропов во время копирования); успешный Save по-прежнему закрывает через **`onClose`** |
+| Автодополнение выражений в условии ребра и URL **`http_request`** | Подсказки для **`$json`**, **`$node`**, **`$env`**, **`$node["…"]` / `['…']`** по id нод текущего графа, имён **builtins** выражения (как **`python/graph_caster/expression/functions.py`**); **Ctrl+Space** — полный список; **`expressionAutocomplete.ts`**, **`ExpressionAutocompleteInput.tsx`**, **`InspectorPanel.tsx`**, стили **`app.css`**, i18n **`app.inspector.expressionAutocompleteHint`**; Vitest **`expressionAutocomplete.test.ts`** |
 
 Код: **`ui/src/lib/clipboardWrite.ts`**, Vitest **`ui/src/lib/clipboardWrite.test.ts`**; **`OpenGraphErrorModal.tsx`**, **`GraphSaveModal.tsx`**; **`ui/src/graph/openGraphErrorPresentation.ts`** (в т.ч. **`presentationForSave*`** / **`presentationForWorkspace*`** для Vitest и прочих вызовов; путь Save из **`GraphSaveModal`** их не использует), **`AppShell.tsx`**, **`InspectorPanel.tsx`**; Vitest **`openGraphErrorPresentation.test.ts`**. В **`doc/DEVELOPMENT_PLAN.md`** пункт P1 по открытию — **закрыт**; в **`COMPETITIVE_ANALYSIS.md`** §**1** и §**28.2** — только отсылка сюда, **без** дублирования деталей реализации P1 (открытие, инспектор, Save, копирование в буфер).
 
@@ -322,9 +323,33 @@
 
 **Сделано / инварианты из §21.2 (бывший план):** совместимость с **`parseDocument` / `toReactFlow` / `fromReactFlow`** (единый канон JSON); пакетное удаление — один проход RF → один `remove` batch → один checkpoint; autosave после undo пишет откатанное состояние; run-lock согласован с политикой UX.
 
-**Не сделано** (см. [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§21**; **co-edit / F22** — **§28.2** п.10): отдельная история **viewport**; отдельные **команды** с `apply`/`revert` per op (как в **Dify**); конфликт «файл на диске изменён снаружи» при autosave; **Yjs** для undo при **F22**.
+**Не сделано** (см. [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) **§21**; **co-edit / F22** — **§28.2** п.10): отдельная история **viewport**; отдельные **команды** с `apply`/`revert` per op (как в **Dify**); **Yjs** для undo при **F22**. Конфликт **файла на диске** при autosave / сохранении — закрыт (отпечаток **`graphs/`**, **`WorkspaceFileConflictModal`**, **`workspaceFs.ts`**).
 
 Код: `ui/src/graph/documentHistory.ts`, `ui/src/layout/AppShell.tsx`, `ui/src/components/GraphCanvas.tsx`, `ui/src/components/TopBar.tsx`; тесты: `ui/src/graph/documentHistory.test.ts`.
+
+---
+
+## REST API v1 и OpenAPI 3.0 (тонкий хост / BFF)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Стабильные HTTP-операции старта прогона, статуса, отмены и реплея сохранённых событий без дублирования оркестратора в хосте | **`POST /api/v1/graphs/{graph_id}/run`**, **`GET /api/v1/runs/{run_id}`**, **`GET /api/v1/runs/{run_id}/events`** (NDJSON тела при **`GC_RUN_BROKER_ARTIFACTS_BASE`**, query **`maxBytes`**, заголовок **`X-GC-Events-Truncated`**), **`POST /api/v1/runs/{run_id}/cancel`** — **`run_broker/routes/api_v1_routes.py`**, **`APIV1Handler`**, **`BrokerRegistryRunManager.get_run_events_ndjson`**; опционально **`GC_RUN_BROKER_V1_API_KEYS`** (**`Bearer kid:secret`**, области **`run:execute`** / **`run:view`** / **`run:cancel`**) |
+| Публичный машиночитаемый контракт | **`GET /api/v1/openapi.json`** — OpenAPI **3.0.3**, одна функция-SSOT **`build_api_v1_openapi_document()`**, версия документа **`GC_API_V1_OPENAPI_DOCUMENT_VERSION`** в **`api_v1_openapi.py`**; маршрут **не** требует **`X-GC-Dev-Token`**, даже при **`GC_RUN_BROKER_TOKEN`** (**`BrokerTokenMiddleware`**) |
+
+Код и проверки: **`python/tests/test_api_v1.py`** (класс **`TestAPIV1OpenApi`**). Документация: **`python/README.md`** (абзац **REST API v1**), **`ui/README.md`** (**Встраивание** — ссылка на **`openapi.json`** для хоста).
+
+---
+
+## Операторская redaction и встроенный cron (MVP)
+
+| Тема | Реализация |
+|------|------------|
+| **`node_outputs_snapshot`** — дополнительное маскирование тел под стрим | **`GC_RUN_SNAPSHOT_REDACT=1`** или **`context["redact_node_outputs_snapshot"]`** → **`graph_caster/redaction/run_event_redaction.py`**, эмиссия через **`GraphRunner.emit_node_outputs_snapshot`**; тесты **`python/tests/test_run_event_redaction.py`** |
+| **`ai_route`** — вложенные заголовки | Ключи **`authorization`**, **`cookie`** (и прежний набор) в **`_redact_object`** (**`ai_routing.py`**); тест **`test_build_ai_route_request_redacts_nested_authorization`** |
+| **`GraphCronScheduler`** без сюрприза в проде | Старт цикла только при **`GC_GRAPH_BUILTIN_SCHEDULER=1`**; политика **`graph_caster/triggers/builtin_scheduler_policy.py`**; тесты **`python/tests/test_trigger_schedule.py`** |
+| Метрики брокера и лимиты fork | **`GET /metrics`**: **`gc_graph_fork_threadpool_max_config`** (**`GC_GRAPH_FORK_THREADPOOL_MAX`**, **0** если не задано); **`WorkerPool.in_flight_count`** — незавершённые futures |
+| Координация слотов воркеров (межпроцессный lease, MVP) | **`WorkerCoordinator`**, **`InMemoryWorkerCoordinator`**, **`RedisWorkerCoordinator`** (**`execution/worker_coordinator.py`**, **`redis_lock.py`**); опц. **`WorkerPool(..., slot_coordinator=…, coordinator_slot_ttl_sec=…)`**; env **`GC_WORKER_COORDINATOR_REDIS_URL`**; тесты **`python/tests/test_worker_coordinator.py`** |
+| Нагрузочный скрипт (не CI) | **`python/scripts/bench_run_broker_fanout.py`** — грубый **lines/sec** fan-out **`RunBroadcaster`** |
 
 ---
 
@@ -338,7 +363,7 @@
 | Нормализация пустого / невалидного `run_id` из контекста | Пустое / `None` / пробелы → новый UUID; см. `_normalize_run_id_candidate` в `runner.py` |
 | Ограничение размера `mode` в потоке | Обрезка до 128 символов |
 
-Контракт: `schemas/run-event.schema.json`. Код: `python/graph_caster/runner.py` (`_event_sink.emit`, `run_from`, вложенный `GraphRunner(..., run_id=…)`).
+Контракт: `schemas/run-event.schema.json`. Код: `python/graph_caster/runner.py` (`_event_sink.emit`, `run_from`, вложенный `GraphRunner(..., run_id=…)`). **Публичный поток (без `node_execute.data` на stdout/SSE):** `--public-stream` / `GC_PUBLIC_RUN_STREAM`, брокер — **`publicStream`** в теле **`POST /runs`** или **`GC_RUN_BROKER_PUBLIC_STREAM`**; обёртка **`NodeExecutePublicStreamSink`** в `run_event_sink.py` (при **`TeeRunEventSink`** с файлом артефакта на диске по-прежнему пишется редуцированный **`data`**); тесты **`python/tests/test_public_stream_node_execute.py`**.
 
 **Не копируем целиком** n8n **`ExecutionPushMessage`**, их redaction / **`flattedRunData`**. **Dev-брокер:** **SSE** и **WebSocket** с **`viewerToken`** (сессия подписки, аналог **`pushRef`**); **relay** кадров между процессами — **§39.2** п.7, отдельный прод-транспорт / инфраструктура хоста.
 
@@ -352,6 +377,7 @@
 | Один NDJSON ↔ один кадр моста без второго enum **`type`** | **`python/graph_caster/run_transport/`**: **`frame_from_ndjson_line`**, **`ndjson_line_from_event`**; спека кадра и ping — **`doc/RUN_EVENT_TRANSPORT.md`**; зависимость **`jsonschema`** в основных зависимостях пакета (**`pyproject.toml`**) |
 | Дуплекс (**cancel** как stdin CLI) | Входящие WS text JSON **`{ "type": "cancel_run", "runId": "…" }`** → отмена прогона (**`run_broker/app.py`**) |
 | Веб-UI | **`VITE_GC_RUN_TRANSPORT=ws`** (иначе **SSE** по умолчанию); **`ui/src/run/webRunBroker.ts`**, **`webRunBrokerDispatch.ts`**, **`useRunBridge.ts`** |
+| Конфликт сохранения при внешнем изменении JSON в **`graphs/`** | После открытия файла — базовый отпечаток **`File.lastModified` / `size`** (`readWorkspaceGraphFileWithFingerprint`); автосохранение и сохранение из модалки сравнивают с диском; модалка **`WorkspaceFileConflictModal`** (перезагрузить / перезаписать / приостановить автосохранение); перезапись из **`GraphSaveModal`** — **`file_changed_on_disk`** + кнопка; **`ui/src/lib/workspaceFs.ts`**, **`ui/src/lib/workspaceFs.test.ts`** |
 
 Тесты: **`python/tests/test_run_event_frame.py`**, **`python/tests/test_run_broker.py`** (в т.ч. WS + неверный токен, очередь **`POST /runs`** vs лимит слотов и **503** при переполнении pending). В **`COMPETITIVE_ANALYSIS.md`** обзорный ряд **§39.1** для **GraphCaster** и **§3.2.1** («Для GC») ссылаются сюда вместо дублирования полного списка отличий от n8n **`ExecutionPushMessage`**.
 
@@ -551,6 +577,20 @@
 **Сводка для [`COMPETITIVE_ANALYSIS.md`](COMPETITIVE_ANALYSIS.md) §22.2:** межпрогонный step-cache под **`artifacts_base`** для нод **`task`**, **`mcp_tool`**, **`llm_agent`** (успешные **`processResult`** + **`agentResult`**) и **`ai_route`** при **`data.stepCache`** (провайдер / test-harness — см. таблицу выше); транзитив **`dirty`** и **bubble** во вложенном **`graph_ref`** — в подразделе **«Ревизия вложенного `graph_ref`…»** выше; связь **`--context-json`**, **`gcPin`**, **`node_outputs_snapshot`** — в отдельных разделах этого файла. Детали перечисления «закрыто» — **только здесь**, не в competitive.
 
 Политика **dirty** в UI: id попадают в **`--step-cache-dirty`** при следующем успешном **`invoke` `gc_start_run`** (процесс Python стартовал); при ошибке старта список **не** очищается. Идентификаторы нод не должны содержать **`,`** (формат CSV в CLI).
+
+---
+
+## RAG: vector memory (**rag_index** / **rag_query**, in-process)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Индекс документов и retrieval (Dify / Langflow / Flowise) | Ноды **`rag_index`** / **`rag_query`**: **`rag_index_exec`**, **`rag_query_exec`**; чанкинг **`rag/text_split.py`**, псевдо-эмбеддинг **`rag/embedding.hash_embedding`** (детерминированный MVP без модели) |
+| Фильтр по метаданным чанка / oversample (memory path) | **`metadataFilter`** (AND, равенство по ключам; строки в значениях — шаблоны) и **`retrieveOversample`** (1–10; для **FAISS** расширяет пул кандидатов до post-filter). Реализация: **`rag/vector_store.py`** (**`metadata_matches_row`**), **`rag/retriever.retrieve_from_memory`**, Chroma **`where`**, **`rag_query_exec`** |
+| Абстракция векторного хранилища | Интерфейс **`VectorStore`** + **`InMemoryVectorStore`** в **`rag/vector_store.py`**; реестр **`rag/memory_registry.get_memory_store`** |
+| Персистентность / масштаб (опционально) | **`GC_RAG_VECTOR_BACKEND`**: **`memory`** (по умолчанию), **`chroma`** (нужен **`GC_RAG_CHROMA_PATH`** и **`pip install -e ".[rag-chroma]"`**), **`faiss`** (**`[rag-faiss]`** — in-process **FAISS** **IndexFlatIP** на нормализованных векторах). Реализации: **`rag/chroma_vector_store.py`**, **`rag/faiss_vector_store.py`** |
+| Тесты | **`python/tests/test_rag_index_node.py`**, **`test_rag_query_exec.py`**, **`test_rag_vector_backends.py`** (часть кейсов пропускается без optional deps) |
+
+Документация env: **`python/README.md`** (фрагмент про RAG / vector backend).
 
 ---
 

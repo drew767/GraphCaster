@@ -8,8 +8,32 @@ for graphs triggered by HTTP webhooks. Similar to n8n's Webhook node pattern.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
+
+
+def webhook_node_config_from_data(data: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Build constructor kwargs for `WebhookNodeConfig` from graph node `data` (snake_case or camelCase)."""
+    d = dict(data or {})
+    path_raw = d.get("path", "/hook")
+    path = str(path_raw).strip() if path_raw is not None else "/hook"
+    method = d.get("method", "POST")
+    auth = d.get("auth", "none")
+    secret = d.get("secret")
+    rm_raw = d.get("response_mode", d.get("responseMode", "immediate"))
+    rm = str(rm_raw).strip().lower() if rm_raw is not None else "immediate"
+    if rm == "lastnode":
+        rm = "wait"
+    if rm not in ("immediate", "wait"):
+        rm = "immediate"
+    return {
+        "path": path if path else "/hook",
+        "method": method,
+        "auth": auth,
+        "secret": secret,
+        "response_mode": rm,
+    }
 
 
 @dataclass
@@ -94,6 +118,9 @@ class TriggerWebhookNode:
                 f"TriggerWebhookNode expects webhook trigger, got: {trigger_context.get('type')}"
             )
 
+        return self._extract_webhook_output(trigger_context)
+
+    def _extract_webhook_output(self, trigger_context: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "payload": trigger_context.get("payload", {}),
             "headers": trigger_context.get("headers", {}),
@@ -101,3 +128,11 @@ class TriggerWebhookNode:
             "path": self.config.path,
             "query": trigger_context.get("query", {}),
         }
+
+    def execute_sync(self, trigger_context: dict[str, Any]) -> dict[str, Any]:
+        """Synchronous visit body for `GraphRunner` (no event loop)."""
+        if trigger_context.get("type") != "webhook":
+            raise RuntimeError(
+                f"TriggerWebhookNode expects webhook trigger, got: {trigger_context.get('type')}"
+            )
+        return self._extract_webhook_output(trigger_context)

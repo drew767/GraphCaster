@@ -9,6 +9,18 @@ from typing import Any, Sequence
 from graph_caster.rag.embedding import cosine_similarity
 
 
+def metadata_matches_row(
+    meta: dict[str, Any], metadata_filter: dict[str, Any] | None
+) -> bool:
+    """AND-equality filter on chunk metadata (exact key match, ``meta[k] == v``)."""
+    if not metadata_filter:
+        return True
+    for key, expected in metadata_filter.items():
+        if meta.get(key) != expected:
+            return False
+    return True
+
+
 @dataclass
 class VectorHit:
     id: str
@@ -33,7 +45,14 @@ class VectorStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def query(self, embedding: Sequence[float], top_k: int) -> list[VectorHit]:
+    def query(
+        self,
+        embedding: Sequence[float],
+        top_k: int,
+        *,
+        metadata_filter: dict[str, Any] | None = None,
+        oversample: int = 1,
+    ) -> list[VectorHit]:
         raise NotImplementedError
 
 
@@ -59,10 +78,20 @@ class InMemoryVectorStore(VectorStore):
         for i, e, d, m in zip(ids, embeddings, documents, md, strict=True):
             self._rows.append((i, list(e), d, dict(m)))
 
-    def query(self, embedding: Sequence[float], top_k: int) -> list[VectorHit]:
+    def query(
+        self,
+        embedding: Sequence[float],
+        top_k: int,
+        *,
+        metadata_filter: dict[str, Any] | None = None,
+        oversample: int = 1,
+    ) -> list[VectorHit]:
+        del oversample  # full scan; oversample ignored
         k = max(1, min(100, top_k))
         scored: list[tuple[str, list[float], str, dict[str, Any], float]] = []
         for rid, emb, doc, meta in self._rows:
+            if not metadata_matches_row(meta, metadata_filter):
+                continue
             scored.append((rid, emb, doc, meta, cosine_similarity(embedding, emb)))
         scored.sort(key=lambda t: t[4], reverse=True)
         return [

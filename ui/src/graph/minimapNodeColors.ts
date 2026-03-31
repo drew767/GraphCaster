@@ -24,6 +24,8 @@ import {
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
 } from "./nodeKinds";
 import type { GcNodeData } from "./toReactFlow";
 
@@ -39,6 +41,8 @@ import type { GcNodeData } from "./toReactFlow";
  */
 const MINIMAP_FILL_BY_GRAPH_TYPE: Readonly<Record<string, string>> = {
   [GRAPH_NODE_TYPE_START]: "#34c759",
+  [GRAPH_NODE_TYPE_TRIGGER_WEBHOOK]: "#0ea5e9",
+  [GRAPH_NODE_TYPE_TRIGGER_SCHEDULE]: "#f97316",
   [GRAPH_NODE_TYPE_EXIT]: "#ff3b30",
   [GRAPH_NODE_TYPE_TASK]: "#3b82f6",
   [GRAPH_NODE_TYPE_LLM_AGENT]: "#5ac8fa",

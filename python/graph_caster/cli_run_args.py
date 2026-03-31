@@ -14,12 +14,14 @@ def build_graph_caster_run_argv(
     workspace_root: Path | None = None,
     artifacts_base: Path | None = None,
     until_node: str | None = None,
+    start_node_id: str | None = None,
     context_json_path: Path | None = None,
     step_cache: bool = False,
     step_cache_dirty: str = "",
     no_persist_run_events: bool = False,
     enable_session_stdin: bool = True,
     nested_context_out: Path | None = None,
+    public_stream: bool = False,
 ) -> list[str]:
     rid = str(run_id).strip()
     if not rid:
@@ -29,6 +31,9 @@ def build_graph_caster_run_argv(
     if enable_session_stdin:
         argv.extend(["--track-session", "--control-stdin"])
     argv.extend(["--run-id", rid])
+    sn = str(start_node_id).strip() if start_node_id is not None else ""
+    if sn:
+        argv.extend(["--start", sn])
     if graphs_dir is not None and str(graphs_dir).strip():
         argv.extend(["-g", str(Path(graphs_dir))])
     if workspace_root is not None and str(workspace_root).strip():
@@ -48,6 +53,8 @@ def build_graph_caster_run_argv(
         argv.extend(["--context-json", str(Path(context_json_path))])
     if nested_context_out is not None and str(nested_context_out).strip():
         argv.extend(["--nested-context-out", str(Path(nested_context_out))])
+    if public_stream:
+        argv.append("--public-stream")
     return argv
 
 
@@ -65,6 +72,8 @@ def run_start_body_to_argv_paths(
     artifacts_base = Path(str(artifacts_raw)) if artifacts_raw and str(artifacts_raw).strip() else None
     until_raw = body.get("untilNodeId")
     until_node = str(until_raw).strip() if until_raw is not None and str(until_raw).strip() else None
+    start_raw = body.get("startNodeId")
+    start_node = str(start_raw).strip() if start_raw is not None and str(start_raw).strip() else None
     step_cache = body.get("stepCache") is True
     dirty_raw = body.get("stepCacheDirty")
     step_cache_dirty = str(dirty_raw).strip() if dirty_raw is not None else ""
@@ -72,6 +81,7 @@ def run_start_body_to_argv_paths(
     if not run_id:
         raise ValueError("runId required")
     no_persist = body.get("noPersistRunEvents") is True
+    public_stream = body.get("publicStream") is True
     return build_graph_caster_run_argv(
         document_path,
         run_id=run_id,
@@ -79,8 +89,10 @@ def run_start_body_to_argv_paths(
         workspace_root=workspace_root,
         artifacts_base=artifacts_base,
         until_node=until_node,
+        start_node_id=start_node,
         context_json_path=context_json_path,
         step_cache=step_cache,
         step_cache_dirty=step_cache_dirty,
         no_persist_run_events=no_persist,
+        public_stream=public_stream,
     )

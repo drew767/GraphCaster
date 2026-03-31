@@ -39,6 +39,15 @@ class RunManagerProtocol(Protocol):
         """Cancel a run. Returns dict with cancelled bool and optional message."""
         ...
 
+    async def get_run_events_ndjson(
+        self, run_id: str, max_bytes: int
+    ) -> tuple[str, bool] | None:
+        """Return persisted run-event NDJSON (utf-8) and whether the tail cap applied.
+
+        ``None`` means the run id is unknown. Empty string means no persisted events (yet).
+        """
+        ...
+
 
 @dataclass
 class RunRequest:
@@ -76,6 +85,7 @@ class APIV1Handler:
     Endpoints:
       POST /api/v1/graphs/{graphId}/run - Start a run
       GET /api/v1/runs/{runId} - Get run status
+      GET /api/v1/runs/{runId}/events - Persisted run-event NDJSON (when artifacts are enabled)
       POST /api/v1/runs/{runId}/cancel - Cancel a run
     """
 
@@ -155,6 +165,21 @@ class APIV1Handler:
             outputs=status.get("outputs"),
             error=status.get("error"),
         )
+
+    async def get_run_events(
+        self,
+        run_id: str,
+        *,
+        max_bytes: int,
+        auth_header: str | None = None,
+    ) -> tuple[str, bool]:
+        """Return persisted NDJSON lines for ``run_id`` (``text``, ``truncated``)."""
+        self._check_auth(auth_header, "run:view")
+
+        out = await self._run_manager.get_run_events_ndjson(run_id, max_bytes)
+        if out is None:
+            raise KeyError(f"Run not found: {run_id}")
+        return out
 
     async def cancel_run(
         self,

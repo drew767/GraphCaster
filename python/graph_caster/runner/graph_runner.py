@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from graph_caster.document_revision import graph_document_revision
+from graph_caster.execution.pool_sizing import resolve_fork_parallel_threadpool_workers
 from graph_caster.fork_parallel import EDGE_SOURCE_OUT_ERROR, ForkBranchPlan, build_fork_parallel_plans
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
@@ -60,6 +61,8 @@ from graph_caster.validate import (
     find_llm_agent_structure_warnings,
     find_agent_structure_warnings,
     find_mcp_tool_structure_warnings,
+    find_trigger_schedule_structure_warnings,
+    find_trigger_webhook_structure_warnings,
     merge_mode,
 )
 from graph_caster.runner.edge_routing import edges_from_source, evaluate_next_edge, fork_unconditional_edges
@@ -76,6 +79,8 @@ from graph_caster.runner.node_visits import (
     run_llm_agent_visit,
     run_agent_visit,
     run_subprocess_task_visit,
+    run_trigger_schedule_visit,
+    run_trigger_webhook_visit,
 )
 from graph_caster.runner.step_cache_lookup import plan_step_cache_key
 from graph_caster.runner.run_helpers import (
@@ -96,6 +101,7 @@ from graph_caster.runner.run_helpers import (
     run_mode_wire,
     task_has_process_command,
 )
+from graph_caster.secrets.providers import SecretsProvider
 
 EventSink = Callable[[RunEventDict], None] | RunEventSink
 
@@ -119,6 +125,7 @@ class GraphRunner:
         step_cache: StepCachePolicy | None = None,
         persist_run_events: bool = False,
         fork_max_parallel: int | None = None,
+        public_stream: bool = False,
     ) -> None:
         if host is not None and graphs_root is not None:
             raise ValueError("pass only one of host= or graphs_root=")
@@ -140,6 +147,7 @@ class GraphRunner:
         self._workspace_secrets: dict[str, str] = {}
         self._secrets_file_fp_loaded = False
         self._secrets_file_fp: str = ""
+        self._secrets_provider_inst: SecretsProvider | None = None
         self._emit_lock = threading.Lock()
         self._state_lock = threading.RLock()
         if fork_max_parallel is not None:
@@ -147,23 +155,27 @@ class GraphRunner:
         else:
             raw = (os.environ.get("GC_FORK_MAX_PARALLEL") or "").strip()
             self._fork_max_parallel_cap = max(1, int(raw)) if raw.isdigit() else 1
+        self._public_stream = bool(public_stream)
+
+    def _ensure_secrets_provider(self) -> SecretsProvider:
+        if self._secrets_provider_inst is None:
+            from graph_caster.secrets.factory import make_secrets_provider
+
+            self._secrets_provider_inst = make_secrets_provider(
+                self._host.resolved_workspace_root()
+            )
+        return self._secrets_provider_inst
 
     def _get_workspace_secrets(self) -> dict[str, str]:
         if not self._workspace_secrets_loaded:
             self._workspace_secrets_loaded = True
-            root = self._host.resolved_workspace_root()
-            if root is not None:
-                from graph_caster.secrets_loader import load_workspace_secrets
-
-                self._workspace_secrets = load_workspace_secrets(root)
+            self._workspace_secrets = self._ensure_secrets_provider().as_mapping()
         return self._workspace_secrets
 
     def _get_secrets_file_fingerprint(self) -> str:
         if not self._secrets_file_fp_loaded:
             self._secrets_file_fp_loaded = True
-            from graph_caster.secrets_loader import secrets_file_fingerprint
-
-            self._secrets_file_fp = secrets_file_fingerprint(self._host.resolved_workspace_root())
+            self._secrets_file_fp = self._ensure_secrets_provider().fingerprint()
         return self._secrets_file_fp
 
     def _step_cache_workspace_secrets_fp(self, node_data: dict[str, Any]) -> str | None:
@@ -239,6 +251,26 @@ class GraphRunner:
             ev["runId"] = rid
         with self._emit_lock:
             self._event_sink.emit(ev)
+
+    def emit_node_outputs_snapshot(
+        self, ctx: dict[str, Any], node_id: str, outs_slice: dict[str, Any]
+    ) -> None:
+        """Emit ``node_outputs_snapshot`` with pin trim, optional operator redaction policy."""
+        from graph_caster.gc_pin import snapshot_for_pin_event
+        from graph_caster.redaction.run_event_redaction import (
+            redact_snapshot_payload,
+            snapshot_redaction_enabled,
+        )
+
+        snap = snapshot_for_pin_event(outs_slice)
+        if snapshot_redaction_enabled(ctx):
+            snap = redact_snapshot_payload(snap)
+        self.emit(
+            "node_outputs_snapshot",
+            nodeId=node_id,
+            graphId=self._doc.graph_id,
+            snapshot=snap,
+        )
 
     def _merge_barrier_state(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return ctx.setdefault("_gc_merge_barrier", {})
@@ -551,6 +583,30 @@ class GraphRunner:
     ) -> tuple[Literal["ok", "continue", "break"], bool]:
         return run_wait_for_visit(self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker)
 
+    def _run_trigger_webhook_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_trigger_webhook_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
+    def _run_trigger_schedule_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_trigger_schedule_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
     def _fork_parallel_branch_worker(self, plan: ForkBranchPlan, ctx: dict[str, Any], step_q: StepQueue) -> None:
         if ctx.get("_run_cancelled"):
             return
@@ -642,7 +698,7 @@ class GraphRunner:
         max_workers: int,
     ) -> None:
         self._emit_fork_parallel_frontier_events(fork_id, plans)
-        n_workers = max(1, min(max_workers, len(plans)))
+        n_workers = resolve_fork_parallel_threadpool_workers(len(plans), max_workers)
         with ThreadPoolExecutor(max_workers=n_workers) as ex:
             futures = [ex.submit(self._fork_parallel_branch_worker, p, ctx, step_q) for p in plans]
             for fut in as_completed(futures):
@@ -875,12 +931,15 @@ class GraphRunner:
         )
         chosen = outcome.chosen
         if chosen is None and outcome.error_reason:
+            detail_emit = outcome.error_detail
+            if isinstance(detail_emit, str) and len(detail_emit) > 512:
+                detail_emit = detail_emit[:509] + "..."
             self.emit(
                 "ai_route_failed",
                 nodeId=node.id,
                 graphId=gid,
                 reason=outcome.error_reason,
-                detail=outcome.error_detail,
+                detail=detail_emit,
             )
             on_fail = str(node.data.get("onFailure") or "stop_run").strip().lower()
             if on_fail == "fallback" and n_out > 0:
@@ -1057,6 +1116,10 @@ class GraphRunner:
         for w in find_llm_agent_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_agent_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_trigger_webhook_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_trigger_schedule_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
         for w in find_port_data_kind_warnings(self._doc):
@@ -1256,6 +1319,26 @@ class GraphRunner:
                         continue
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("wait_for_break_non_ok")
+                        break
+                elif node.type == "trigger_webhook":
+                    outcome, _pin_wh = self._run_trigger_webhook_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("trigger_webhook_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("trigger_webhook_break_non_ok")
+                        break
+                elif node.type == "trigger_schedule":
+                    outcome, _pin_sc = self._run_trigger_schedule_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("trigger_schedule_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("trigger_schedule_break_non_ok")
                         break
                 elif node.type == "llm_agent":
                     outcome, _pin_u = self._run_llm_agent_visit(
@@ -1653,6 +1736,7 @@ class GraphRunner:
                 run_id=self._run_id,
                 step_cache=self._step_cache,
                 run_session=sess_coop,
+                public_stream=self._public_stream,
             )
         else:
             child = GraphRunner(
@@ -1664,6 +1748,7 @@ class GraphRunner:
                 stop_after_node_id=None,
                 step_cache=self._step_cache,
                 persist_run_events=False,
+                public_stream=self._public_stream,
             )
             child.run(context=child_ctx)
 

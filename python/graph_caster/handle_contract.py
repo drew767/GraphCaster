@@ -28,10 +28,14 @@ _GROUP = "group"
 _MERGE = "merge"
 _FORK = "fork"
 _AI_ROUTE = "ai_route"
+_TRIGGER_WEBHOOK = "trigger_webhook"
+_TRIGGER_SCHEDULE = "trigger_schedule"
 
 
 def _allowed_source_handles(node_type: str) -> frozenset[str]:
     if node_type == _START:
+        return frozenset({HANDLE_OUT_DEFAULT})
+    if node_type in (_TRIGGER_WEBHOOK, _TRIGGER_SCHEDULE):
         return frozenset({HANDLE_OUT_DEFAULT})
     if node_type == _EXIT:
         return frozenset()
@@ -60,6 +64,8 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
 
 def _allowed_target_handles(node_type: str) -> frozenset[str]:
     if node_type == _START:
+        return frozenset()
+    if node_type in (_TRIGGER_WEBHOOK, _TRIGGER_SCHEDULE):
         return frozenset()
     if node_type == _EXIT:
         return frozenset({HANDLE_IN_DEFAULT})

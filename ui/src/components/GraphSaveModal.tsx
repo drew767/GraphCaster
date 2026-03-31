@@ -13,7 +13,8 @@ export type GraphSaveToWorkspaceResult =
   | { ok: true }
   | { ok: false; reason: "no_workspace" }
   | { ok: false; reason: "duplicate_graph_id"; conflictingFile: string }
-  | { ok: false; reason: "write_failed"; detail: string | null };
+  | { ok: false; reason: "write_failed"; detail: string | null }
+  | { ok: false; reason: "file_changed_on_disk" };
 
 type SaveFieldIssue =
   | { kind: "empty_name" }
@@ -21,7 +22,8 @@ type SaveFieldIssue =
   | { kind: "duplicate_graph_id"; conflictingFile: string }
   | { kind: "workspace_write_failed"; detail: string | null }
   | { kind: "workspace_unavailable" }
-  | { kind: "document_unavailable" };
+  | { kind: "document_unavailable" }
+  | { kind: "disk_conflict" };
 
 type Props = {
   open: boolean;
@@ -33,6 +35,8 @@ type Props = {
   onClose: () => void;
   /** Called after a successful save (workspace or download) before the modal closes. */
   onSuccessfulSave?: () => void;
+  /** Next workspace save will ignore on-disk fingerprint mismatch (overwrite external changes). */
+  onMarkDiskConflictOverwrite?: () => void;
 };
 
 export function GraphSaveModal({
@@ -44,6 +48,7 @@ export function GraphSaveModal({
   onSaveToWorkspace,
   onClose,
   onSuccessfulSave,
+  onMarkDiskConflictOverwrite,
 }: Props) {
   const { t } = useTranslation();
   const [fileName, setFileName] = useState("");
@@ -152,6 +157,10 @@ export function GraphSaveModal({
           setSaveIssue({ kind: "workspace_unavailable" });
           return;
         }
+        if (result.reason === "file_changed_on_disk") {
+          setSaveIssue({ kind: "disk_conflict" });
+          return;
+        }
         return;
       }
       try {
@@ -171,6 +180,14 @@ export function GraphSaveModal({
       setIsSaving(false);
     }
   }, [fileName, getDocument, onClose, onSaveToWorkspace, onSuccessfulSave, workspaceLinked]);
+
+  const onOverwriteDiskConflict = useCallback(() => {
+    if (onMarkDiskConflictOverwrite) {
+      onMarkDiskConflictOverwrite();
+    }
+    setSaveIssue(null);
+    void handleSave();
+  }, [handleSave, onMarkDiskConflictOverwrite]);
 
   if (!open) {
     return null;
@@ -267,10 +284,20 @@ export function GraphSaveModal({
             </button>
           </div>
         ) : null}
-        <div className="gc-modal-actions">
+        <div className="gc-modal-actions gc-modal-actions--wrap">
           <button type="button" className="gc-btn" disabled={isSaving || copyBusy} onClick={safeClose}>
             {t("app.saveModal.cancel")}
           </button>
+          {saveIssue?.kind === "disk_conflict" && onMarkDiskConflictOverwrite ? (
+            <button
+              type="button"
+              className="gc-btn gc-btn-danger"
+              disabled={isSaving || copyBusy}
+              onClick={() => void onOverwriteDiskConflict()}
+            >
+              {t("app.saveModal.overwriteDisk")}
+            </button>
+          ) : null}
           <button
             type="button"
             className="gc-btn gc-btn-primary"
@@ -303,5 +330,7 @@ function formatSaveIssueMessage(issue: SaveFieldIssue, t: TFunction): string {
       return issue.detail != null
         ? `${t("app.saveModal.writeFailed")}\n\n${issue.detail}`
         : t("app.saveModal.writeFailed");
+    case "disk_conflict":
+      return t("app.saveModal.diskConflict");
   }
 }

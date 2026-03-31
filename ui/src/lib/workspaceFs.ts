@@ -101,13 +101,55 @@ export async function scanWorkspaceGraphs(
   return withDup;
 }
 
+/** Browser-reported lastModified (ms since epoch) and size for conflict detection (external edit). */
+export type WorkspaceGraphDiskFingerprint = {
+  lastModifiedMs: number;
+  sizeBytes: number;
+};
+
+export function workspaceDiskFingerprintConflicts(
+  baseline: WorkspaceGraphDiskFingerprint,
+  current: WorkspaceGraphDiskFingerprint,
+): boolean {
+  return (
+    baseline.lastModifiedMs !== current.lastModifiedMs || baseline.sizeBytes !== current.sizeBytes
+  );
+}
+
+export async function getWorkspaceGraphDiskFingerprint(
+  graphsDir: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<WorkspaceGraphDiskFingerprint | null> {
+  try {
+    const safe = sanitizeFileName(fileName);
+    const fh = await graphsDir.getFileHandle(safe);
+    const file = await fh.getFile();
+    return { lastModifiedMs: file.lastModified, sizeBytes: file.size };
+  } catch {
+    return null;
+  }
+}
+
+export async function readWorkspaceGraphFileWithFingerprint(
+  graphsDir: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<{ text: string; fingerprint: WorkspaceGraphDiskFingerprint }> {
+  const safe = sanitizeFileName(fileName);
+  const fh = await graphsDir.getFileHandle(safe);
+  const file = await fh.getFile();
+  const text = await file.text();
+  return {
+    text,
+    fingerprint: { lastModifiedMs: file.lastModified, sizeBytes: file.size },
+  };
+}
+
 export async function readWorkspaceGraphFile(
   graphsDir: FileSystemDirectoryHandle,
   fileName: string,
 ): Promise<string> {
-  const safe = sanitizeFileName(fileName);
-  const fh = await graphsDir.getFileHandle(safe);
-  return (await fh.getFile()).text();
+  const { text } = await readWorkspaceGraphFileWithFingerprint(graphsDir, fileName);
+  return text;
 }
 
 export async function writeJsonFileToDir(

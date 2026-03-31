@@ -9,8 +9,21 @@ Trigger node pattern.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+
+
+def schedule_node_config_from_data(data: Mapping[str, Any] | None) -> dict[str, Any]:
+    d = dict(data or {})
+    cron = d.get("cron_expression", d.get("cronExpression", ""))
+    tz = d.get("timezone", d.get("timeZone", "UTC"))
+    en = d.get("enabled", True)
+    return {
+        "cron_expression": str(cron or "").strip(),
+        "timezone": str(tz or "UTC").strip() or "UTC",
+        "enabled": bool(en) if en is not None else True,
+    }
 
 
 @dataclass
@@ -88,8 +101,15 @@ class TriggerScheduleNode:
             - cron_expression: The cron expression from node config
             - timezone: Configured timezone
         """
+        return self._extract_schedule_output(trigger_context)
+
+    def _extract_schedule_output(self, trigger_context: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "scheduled_time": trigger_context.get("scheduled_time"),
             "cron_expression": self.config.cron_expression,
             "timezone": self.config.timezone,
         }
+
+    def execute_sync(self, trigger_context: dict[str, Any]) -> dict[str, Any]:
+        """Synchronous visit body for `GraphRunner` (no event loop)."""
+        return self._extract_schedule_output(trigger_context)

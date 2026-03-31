@@ -13,6 +13,7 @@ export type StructureIssue =
   | { kind: "no_start" }
   | { kind: "multiple_starts"; ids: string[] }
   | { kind: "start_has_incoming"; startId: string }
+  | { kind: "trigger_has_incoming"; nodeId: string; triggerType: string }
   | { kind: "unreachable_nodes"; ids: string[] }
   | { kind: "merge_few_inputs"; nodeId: string; incomingEdges: number }
   | { kind: "fork_few_outputs"; nodeId: string; unconditionalOutgoing: number }
@@ -190,6 +191,7 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "no_start":
     case "multiple_starts":
     case "start_has_incoming":
+    case "trigger_has_incoming":
     case "graph_ref_workspace_cycle":
       return true;
     case "ai_route_no_outgoing":
@@ -254,6 +256,14 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
       if (edges.some((e) => e.target === s.id)) {
         issues.push({ kind: "start_has_incoming", startId: s.id });
       }
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "trigger_webhook" && n.type !== "trigger_schedule") {
+      continue;
+    }
+    if (edges.some((e) => e.target === n.id)) {
+      issues.push({ kind: "trigger_has_incoming", nodeId: n.id, triggerType: n.type });
     }
   }
   if (starts.length === 1) {
@@ -611,6 +621,14 @@ export function edgeIdsForStructureIssueHighlights(
     if (i.kind === "start_has_incoming") {
       for (const e of edges) {
         if (e.target === i.startId) {
+          out.add(e.id);
+        }
+      }
+      continue;
+    }
+    if (i.kind === "trigger_has_incoming") {
+      for (const e of edges) {
+        if (e.target === i.nodeId) {
           out.add(e.id);
         }
       }

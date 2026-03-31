@@ -1,6 +1,10 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 export const GRAPH_NODE_TYPE_START = "start" as const;
+/** HTTP webhook entry (dev broker: `POST /webhooks/trigger/{graphId}/…`). */
+export const GRAPH_NODE_TYPE_TRIGGER_WEBHOOK = "trigger_webhook" as const;
+/** Cron-style entry (runner expects `trigger` in context when started mid-graph). */
+export const GRAPH_NODE_TYPE_TRIGGER_SCHEDULE = "trigger_schedule" as const;
 export const GRAPH_NODE_TYPE_EXIT = "exit" as const;
 export const GRAPH_NODE_TYPE_TASK = "task" as const;
 export const GRAPH_NODE_TYPE_GRAPH_REF = "graph_ref" as const;

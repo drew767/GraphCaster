@@ -56,6 +56,7 @@ NESTED_CONTEXT_INPUT_KEYS: frozenset[str] = frozenset(
         "last_result",
         "_gc_started_at_iso",
         "run_id",
+        "trigger",
     }
 )
 
@@ -152,6 +153,7 @@ def run_nested_graph_ref_subprocess(
     run_id: str | None,
     step_cache: StepCachePolicy | None,
     run_session: RunSession | None,
+    public_stream: bool = False,
 ) -> None:
     """Run nested graph in a subprocess; sets ``child_ctx`` success/cancel flags and ``node_outputs`` merge."""
 
@@ -199,6 +201,7 @@ def run_nested_graph_ref_subprocess(
             no_persist_run_events=no_persist,
             enable_session_stdin=enable_stdin,
             nested_context_out=ctx_out,
+            public_stream=bool(public_stream),
         )
         cmd = [sys.executable, "-m", "graph_caster", *argv_tail]
 

@@ -1,6 +1,7 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import i18n from "../i18n";
+import { createNdjsonSeqReorderSink, type NdjsonSeqReorderSink } from "./ndjsonSeqReorder";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
 import { dispatchBrokerWebSocketJson } from "./webRunBrokerDispatch";
@@ -28,12 +29,44 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
 const brokerStreams = new Map<string, EventSource>();
 const brokerSockets = new Map<string, WebSocket>();
 
+const ndjsonSeqSinksByRun = new Map<string, NdjsonSeqReorderSink>();
+
+/** When set, transient WS close must not reconnect (user cancel / stream replacement). */
+const wsReconnectSuppressed = new Set<string>();
+
+function ndjsonSeqSinkForRun(rid: string): NdjsonSeqReorderSink {
+  let s = ndjsonSeqSinksByRun.get(rid);
+  if (s == null) {
+    s = createNdjsonSeqReorderSink((line) => {
+      store.runSessionAppendLineForRun(rid, line);
+      applyRunnerNdjsonSideEffects(line, rid);
+    });
+    ndjsonSeqSinksByRun.set(rid, s);
+  }
+  return s;
+}
+
+function releaseNdjsonSeqSink(rid: string): void {
+  const s = ndjsonSeqSinksByRun.get(rid);
+  if (s != null) {
+    s.reset();
+    ndjsonSeqSinksByRun.delete(rid);
+  }
+}
+
 const MAX_SSE_RECONNECT_ATTEMPTS = 12;
+const MAX_WS_RECONNECT_ATTEMPTS = 12;
 const SSE_BACKOFF_BASE_MS = 400;
 const SSE_BACKOFF_CAP_MS = 25_000;
+const WS_BACKOFF_BASE_MS = 400;
+const WS_BACKOFF_CAP_MS = 25_000;
 
 function sseReconnectDelayMs(attempt: number): number {
   return Math.min(SSE_BACKOFF_CAP_MS, SSE_BACKOFF_BASE_MS * 2 ** attempt);
+}
+
+function wsReconnectDelayMs(attempt: number): number {
+  return Math.min(WS_BACKOFF_CAP_MS, WS_BACKOFF_BASE_MS * 2 ** attempt);
 }
 
 function scheduleLaunchAfterRunExit(rid: string, code: number | null): void {
@@ -75,8 +108,7 @@ function attachWebBrokerSseRunStream(
 
   es.addEventListener("message", (e: MessageEvent<string>) => {
     const line = e.data;
-    store.runSessionAppendLineForRun(rid, line);
-    applyRunnerNdjsonSideEffects(line, rid);
+    ndjsonSeqSinkForRun(rid).accept(line);
   });
 
   es.addEventListener("err", (e: MessageEvent<string>) => {
@@ -134,8 +166,12 @@ function attachWebBrokerSseRunStream(
   };
 }
 
-function attachWebBrokerWebSocket(rid: string, viewerToken: string): void {
-  let exitReceived = false;
+function attachWebBrokerWebSocket(
+  rid: string,
+  viewerToken: string,
+  attempt: number,
+  state: { exitReceived: boolean },
+): void {
   const url = runBrokerWebSocketUrl(rid, viewerToken);
   const ws = new WebSocket(url);
   brokerSockets.set(rid, ws);
@@ -147,31 +183,74 @@ function attachWebBrokerWebSocket(rid: string, viewerToken: string): void {
     } catch {
       return;
     }
+    if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const m = parsed as Record<string, unknown>;
+      if (m.channel === "ping") {
+        try {
+          ws.send(JSON.stringify({ type: "pong", runId: rid }));
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+    }
     dispatchBrokerWebSocketJson(rid, parsed, {
       appendLine: (line) => {
-        store.runSessionAppendLineForRun(rid, line);
+        ndjsonSeqSinkForRun(rid).accept(line);
       },
-      applyNdjson: (line, runId) => {
-        applyRunnerNdjsonSideEffects(line, runId);
+      applyNdjson: (_line, _runId) => {
+        /* NDJSON side effects run in seq sink flush */
       },
       onExit: (code) => {
-        exitReceived = true;
+        state.exitReceived = true;
         closeWebRunBrokerStreamForRun(rid);
         scheduleLaunchAfterRunExit(rid, code);
       },
     });
   };
 
+  const scheduleReconnect = (): void => {
+    if (wsReconnectSuppressed.has(rid)) {
+      return;
+    }
+    if (state.exitReceived) {
+      return;
+    }
+    if (attempt >= MAX_WS_RECONNECT_ATTEMPTS) {
+      state.exitReceived = true;
+      store.runSessionAppendLineForRun(
+        rid,
+        "[host] Run stream: reconnect attempts exhausted (WebSocket). Treating run as finished.",
+      );
+      scheduleLaunchAfterRunExit(rid, null);
+      return;
+    }
+    window.setTimeout(() => {
+      attachWebBrokerWebSocket(rid, viewerToken, attempt + 1, state);
+    }, wsReconnectDelayMs(attempt));
+  };
+
   ws.onerror = () => {
     if (!brokerSockets.has(rid)) {
       return;
     }
-    closeWebRunBrokerStreamForRun(rid);
-    if (exitReceived) {
+    brokerSockets.delete(rid);
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    scheduleReconnect();
+  };
+
+  ws.onclose = () => {
+    if (brokerSockets.get(rid) === ws) {
+      brokerSockets.delete(rid);
+    }
+    if (state.exitReceived) {
       return;
     }
-    exitReceived = true;
-    scheduleLaunchAfterRunExit(rid, null);
+    scheduleReconnect();
   };
 }
 
@@ -188,9 +267,15 @@ export function closeWebRunBrokerStream(): void {
     }
   }
   brokerSockets.clear();
+  ndjsonSeqSinksByRun.clear();
+  wsReconnectSuppressed.clear();
 }
 
 export function closeWebRunBrokerStreamForRun(runId: string): void {
+  const rid = runId.trim();
+  if (rid !== "") {
+    wsReconnectSuppressed.add(rid);
+  }
   const es = brokerStreams.get(runId);
   if (es != null) {
     es.close();
@@ -205,6 +290,7 @@ export function closeWebRunBrokerStreamForRun(runId: string): void {
     }
     brokerSockets.delete(runId);
   }
+  releaseNdjsonSeqSink(runId);
 }
 
 export async function probeRunBrokerHealth(): Promise<boolean> {
@@ -297,12 +383,14 @@ export async function startWebBrokerRun(args: {
   }
 
   closeWebRunBrokerStreamForRun(rid);
+  wsReconnectSuppressed.delete(rid.trim());
 
   if (runTransportIsWebSocket()) {
     if (viewerToken === "") {
       throw new Error("broker response missing viewerToken");
     }
-    attachWebBrokerWebSocket(rid, viewerToken);
+    const wsState = { exitReceived: false };
+    attachWebBrokerWebSocket(rid, viewerToken, 0, wsState);
     return;
   }
 

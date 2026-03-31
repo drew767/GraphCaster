@@ -66,6 +66,8 @@ _SOURCE_OUT_DEFAULT_JSON = frozenset(
         "merge",
         "fork",
         "ai_route",
+        "trigger_webhook",
+        "trigger_schedule",
     }
 )
 

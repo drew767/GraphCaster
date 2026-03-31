@@ -212,6 +212,36 @@ def test_graph_runner_ai_route_emits_events() -> None:
     assert decided["edgeId"] == "e1"
 
 
+def test_build_ai_route_request_redacts_nested_authorization() -> None:
+    doc = _doc_ai_route_two_branches()
+    node = doc.nodes[1]
+    out = usable_ai_route_out_edges(doc, "a")
+    ctx = {
+        "last_result": True,
+        "node_outputs": {
+            "s": {
+                "nodeType": "start",
+                "headers": {"authorization": "Bearer super-secret", "x-trace": "1"},
+            },
+        },
+        "run_id": "r",
+    }
+    body, err = build_ai_route_request(
+        doc=doc,
+        node=node,
+        outgoing=out,
+        ctx=ctx,
+        run_id="r",
+        max_request_bytes=65536,
+        preds=["s"],
+    )
+    assert err is None and body is not None
+    lno = body["lastNodeOutput"]
+    assert isinstance(lno, dict)
+    assert lno["headers"]["authorization"] == "[redacted]"
+    assert lno["headers"]["x-trace"] == "1"
+
+
 def test_build_ai_route_request_too_large() -> None:
     doc = _doc_ai_route_two_branches()
     node = doc.nodes[1]

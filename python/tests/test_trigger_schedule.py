@@ -107,9 +107,10 @@ class TestGraphCronScheduler:
         scheduler.unregister("nonexistent")
 
     @pytest.mark.anyio
-    async def test_start_stop_lifecycle(self) -> None:
+    async def test_start_stop_lifecycle(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from graph_caster.triggers.scheduler import GraphCronScheduler, ScheduleConfig
 
+        monkeypatch.setenv("GC_GRAPH_BUILTIN_SCHEDULER", "1")
         callback = AsyncMock()
         scheduler = GraphCronScheduler(run_callback=callback)
 
@@ -128,9 +129,10 @@ class TestGraphCronScheduler:
         assert len(scheduler._tasks) == 0
 
     @pytest.mark.anyio
-    async def test_start_is_idempotent(self) -> None:
+    async def test_start_is_idempotent(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from graph_caster.triggers.scheduler import GraphCronScheduler
 
+        monkeypatch.setenv("GC_GRAPH_BUILTIN_SCHEDULER", "1")
         callback = AsyncMock()
         scheduler = GraphCronScheduler(run_callback=callback)
 
@@ -141,9 +143,10 @@ class TestGraphCronScheduler:
         await scheduler.stop()
 
     @pytest.mark.anyio
-    async def test_disabled_schedule_not_started(self) -> None:
+    async def test_disabled_schedule_not_started(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from graph_caster.triggers.scheduler import GraphCronScheduler, ScheduleConfig
 
+        monkeypatch.setenv("GC_GRAPH_BUILTIN_SCHEDULER", "1")
         callback = AsyncMock()
         scheduler = GraphCronScheduler(run_callback=callback)
 
@@ -158,6 +161,21 @@ class TestGraphCronScheduler:
         assert "graph-disabled" not in scheduler._tasks
 
         await scheduler.stop()
+
+    @pytest.mark.anyio
+    async def test_builtin_scheduler_disabled_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from graph_caster.triggers.scheduler import GraphCronScheduler, ScheduleConfig
+
+        monkeypatch.delenv("GC_GRAPH_BUILTIN_SCHEDULER", raising=False)
+        callback = AsyncMock()
+        scheduler = GraphCronScheduler(run_callback=callback)
+        scheduler.register(
+            ScheduleConfig(graph_id="graph-1", cron_expression="0 * * * *"),
+        )
+        await scheduler.start()
+        assert scheduler._running is False
+        assert scheduler._tasks == {}
+        callback.assert_not_called()
 
 
 class TestScheduleNodeConfig:

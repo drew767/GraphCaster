@@ -813,6 +813,14 @@ body {
   border-color: #34c759;
 }
 
+.gc-flow-node--trigger_webhook {
+  border-color: #0ea5e9;
+}
+
+.gc-flow-node--trigger_schedule {
+  border-color: #f97316;
+}
+
 .gc-flow-node--exit {
   border-color: #ff3b30;
 }
@@ -2024,6 +2032,11 @@ body {
   gap: 0.5rem;
 }
 
+.gc-modal-actions--wrap {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 /* Toasts */
 .gc-toast-stack {
   position: fixed;
@@ -2166,4 +2179,63 @@ body {
 .gc-console-gc-hint {
   color: var(--gc-text-secondary);
   font-style: italic;
+}
+
+/* Expression / mustache autocomplete (inspector) */
+.gc-expression-ac {
+  position: relative;
+  width: 100%;
+}
+
+.gc-expression-ac > input {
+  width: 100%;
+}
+
+.gc-expression-ac__list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 80;
+  margin: 2px 0 0;
+  padding: 0.2rem 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--gc-radius-sm, 6px);
+  border: 1px solid var(--gc-border);
+  background: var(--gc-surface-1);
+  box-shadow: var(--gc-shadow-raise, 0 4px 18px rgb(0 0 0 / 0.14));
+}
+
+.gc-expression-ac__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.32rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.gc-expression-ac__item:hover,
+.gc-expression-ac__item--active {
+  background: color-mix(in srgb, var(--gc-accent) 14%, var(--gc-surface-2));
+}
+
+.gc-expression-ac__mono {
+  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  color: var(--gc-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-expression-ac__kind {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--gc-text-secondary);
+  opacity: 0.85;
 }

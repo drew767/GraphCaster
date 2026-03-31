@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from graph_caster.artifacts import read_persisted_events_ndjson_capped
 from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.registry import RunBrokerRegistry
 from graph_caster.workspace import resolve_graph_path
@@ -59,7 +60,9 @@ class BrokerRegistryRunManager:
             workspace_root=_workspace_root_from_env(),
         )
 
-    def _find_summary_sync(self, graph_id: str, run_id: str) -> dict[str, Any] | None:
+    def _find_summary_and_dir_sync(
+        self, graph_id: str, run_id: str
+    ) -> tuple[dict[str, Any], str] | None:
         if not self._artifacts_base:
             return None
         root = self._artifacts_base / "runs" / graph_id
@@ -76,16 +79,22 @@ class BrokerRegistryRunManager:
             except (json.JSONDecodeError, OSError):
                 continue
             if str(data.get("runId", "")) == run_id:
-                return data
+                return data, sub.name
         return None
+
+    def _find_summary_sync(self, graph_id: str, run_id: str) -> dict[str, Any] | None:
+        got = self._find_summary_and_dir_sync(graph_id, run_id)
+        return got[0] if got else None
 
     async def start_run(
         self,
         graph_id: str,
         context: dict[str, Any] | None = None,
-        trigger_context: dict[str, Any] | None = None,  # noqa: ARG002
+        trigger_context: dict[str, Any] | None = None,
     ) -> str:
-        del trigger_context
+        merged_ctx: dict[str, Any] = dict(context) if context else {}
+        if trigger_context:
+            merged_ctx["trigger"] = trigger_context
         if self._graphs_dir is None:
             raise ValueError(
                 "Run broker graphs directory is not configured (set GC_RUN_BROKER_GRAPHS_DIR)"
@@ -98,7 +107,7 @@ class BrokerRegistryRunManager:
         doc_json = await asyncio.to_thread(path.read_text, encoding="utf-8")
         body: dict[str, Any] = {
             "documentJson": doc_json,
-            "contextJson": context if context is not None else {},
+            "contextJson": merged_ctx,
             "graphsDir": str(gdir),
         }
         if self._workspace_root is not None:
@@ -112,10 +121,13 @@ class BrokerRegistryRunManager:
             raise
         self._run_graph[sp.run_id] = graph_id
         self._run_created[sp.run_id] = datetime.now(timezone.utc).isoformat()
+        self._registry.bind_run_graph_id(sp.run_id, graph_id)
         return sp.run_id
 
     async def get_run_status(self, run_id: str) -> dict[str, Any] | None:
-        graph_id = self._run_graph.get(run_id)
+        graph_id = self._run_graph.get(run_id) or self._registry.get_graph_id_for_run(
+            run_id
+        )
         reg = self._registry.get(run_id)
         created_at = self._run_created.get(run_id, "")
 
@@ -185,3 +197,30 @@ class BrokerRegistryRunManager:
         if not ok:
             return {"cancelled": False, "message": "Run not found or cancel failed"}
         return {"cancelled": True, "message": None}
+
+    async def get_run_events_ndjson(
+        self, run_id: str, max_bytes: int
+    ) -> tuple[str, bool] | None:
+        """Return persisted ``events.ndjson`` body (possibly capped) or ``None`` if run unknown.
+
+        When the run is known but has no persisted artifact dir or ``events.ndjson`` yet,
+        returns an empty string and ``truncated=False`` (same as
+        :func:`read_persisted_events_ndjson_capped` when the file is missing).
+        """
+        st = await self.get_run_status(run_id)
+        if st is None:
+            return None
+        graph_id = str(st.get("graph_id") or "").strip()
+        if not graph_id or not self._artifacts_base:
+            return "", False
+
+        def read() -> tuple[str, bool]:
+            got = self._find_summary_and_dir_sync(graph_id, run_id)
+            if got is None:
+                return "", False
+            _summary, run_dir_name = got
+            return read_persisted_events_ndjson_capped(
+                self._artifacts_base, graph_id, run_dir_name, max_bytes
+            )
+
+        return await asyncio.to_thread(read)

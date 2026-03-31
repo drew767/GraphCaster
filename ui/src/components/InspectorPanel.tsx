@@ -22,6 +22,8 @@ import {
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
   isGraphDocumentFrameType,
 } from "../graph/nodeKinds";
 import { runSessionAppendLine, useRunSession } from "../run/runSessionStore";
@@ -43,6 +45,7 @@ import {
   type GcCursorAgentCwdBase,
 } from "../graph/cursorAgentPreset";
 import type { GraphRefSnapshotLoadResult } from "../graph/graphRefLazySnapshot";
+import { ExpressionAutocompleteInput } from "./ExpressionAutocompleteInput";
 
 type Props = {
   selection: GraphCanvasSelection | null;
@@ -157,6 +160,10 @@ export function InspectorPanel({
 }: Props) {
   const { t } = useTranslation();
   const runSession = useRunSession();
+  const expressionNodeIds = useMemo(
+    () => graphDocument.nodes?.map((n) => n.id) ?? [],
+    [graphDocument.nodes],
+  );
   const [dataText, setDataText] = useState("{}");
   const [conditionText, setConditionText] = useState("");
   const [edgeRouteDescriptionText, setEdgeRouteDescriptionText] = useState("");
@@ -1620,17 +1627,18 @@ export function InspectorPanel({
                 <label className="gc-inspector-k" htmlFor="gc-inspector-http-url">
                   {t("app.inspector.httpRequestUrl")}
                 </label>
-                <input
+                <ExpressionAutocompleteInput
+                  key={`http-url-${selection.id}`}
                   id="gc-inspector-http-url"
                   className="gc-inspector-condition-input"
                   disabled={runLocked}
                   spellCheck={false}
                   value={httpUrl}
-                  onChange={(ev) => {
-                    setHttpUrl(ev.target.value);
-                  }}
+                  onChange={setHttpUrl}
+                  nodeIds={expressionNodeIds}
                 />
                 <p className="gc-inspector-edge-hint">{t("app.inspector.httpRequestUrlHint")}</p>
+                <p className="gc-inspector-edge-hint">{t("app.inspector.expressionAutocompleteHint")}</p>
               </div>
               <div className="gc-inspector-row gc-inspector-row--field">
                 <label className="gc-inspector-k" htmlFor="gc-inspector-http-method">
@@ -3391,6 +3399,15 @@ export function InspectorPanel({
                 : t("app.inspector.commentFrameHint")}
             </p>
           ) : null}
+          {selection.kind === "node" &&
+          (selection.graphNodeType === GRAPH_NODE_TYPE_TRIGGER_WEBHOOK ||
+            selection.graphNodeType === GRAPH_NODE_TYPE_TRIGGER_SCHEDULE) ? (
+            <p className="gc-inspector-edge-hint">
+              {selection.graphNodeType === GRAPH_NODE_TYPE_TRIGGER_WEBHOOK
+                ? t("app.inspector.triggerWebhookHint")
+                : t("app.inspector.triggerScheduleHint")}
+            </p>
+          ) : null}
           {selection.graphNodeType === "graph_ref" ? (
             <div className="gc-inspector-graphref">
               <div className="gc-inspector-graphref-preview">
@@ -3664,20 +3681,19 @@ export function InspectorPanel({
             <label className="gc-inspector-data-label" htmlFor="gc-inspector-condition">
               {t("app.inspector.edgeCondition")}
             </label>
-            <input
+            <ExpressionAutocompleteInput
+              key={`edge-cond-${selection.id}`}
               id="gc-inspector-condition"
               className="gc-inspector-condition-input"
-              type="text"
               value={conditionText}
-              onChange={(ev) => {
-                setConditionText(ev.target.value);
-              }}
+              onChange={setConditionText}
               readOnly={runLocked}
               spellCheck={false}
-              autoComplete="off"
               placeholder={t("app.inspector.edgeConditionPlaceholder")}
+              nodeIds={expressionNodeIds}
             />
             <p className="gc-inspector-edge-hint">{t("app.inspector.edgeConditionHint")}</p>
+            <p className="gc-inspector-edge-hint">{t("app.inspector.expressionAutocompleteHint")}</p>
             <button
               type="submit"
               className="gc-btn gc-btn-primary gc-inspector-apply"

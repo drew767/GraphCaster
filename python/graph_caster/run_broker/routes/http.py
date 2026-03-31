@@ -19,6 +19,7 @@ from graph_caster.run_broker.idempotency import IdempotencyCache
 from graph_caster.run_broker.registry import RunBrokerRegistry
 from graph_caster.run_broker.routes.common import MAX_PERSISTED_EVENTS_BYTES
 from graph_caster.run_broker.routes.responses import new_run_json, pending_queue_full_response
+from graph_caster.run_broker.routes.trigger_webhook_route import handle_webhook_graph_trigger
 from graph_caster.run_broker.webhook_signature import verify_webhook_signature
 from graph_caster.run_catalog import list_run_catalog_rows, rebuild_catalog_from_disk
 
@@ -56,6 +57,9 @@ def make_http_handlers(
         if entry is None:
             return JSONResponse({"error": "run lost after spawn"}, status_code=500)
         return JSONResponse(new_run_json(sp))
+
+    async def webhook_graph_trigger(request: Request) -> Response:
+        return await handle_webhook_graph_trigger(request, reg)
 
     async def webhook_run(request: Request) -> Response:
         wh_secret = os.environ.get("GC_RUN_BROKER_WEBHOOK_SECRET", "").strip()
@@ -245,6 +249,7 @@ def make_http_handlers(
         "health": health,
         "prometheus_metrics": prometheus_metrics,
         "create_run": create_run,
+        "webhook_graph_trigger": webhook_graph_trigger,
         "webhook_run": webhook_run,
         "cancel_run": cancel_run,
         "persisted_list": persisted_list,

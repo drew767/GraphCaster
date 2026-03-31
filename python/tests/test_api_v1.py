@@ -1,4 +1,4 @@
-﻿# Copyright Aura. All Rights Reserved.
+# Copyright Aura. All Rights Reserved.
 
 from __future__ import annotations
 
@@ -20,6 +20,10 @@ from graph_caster.run_broker.routes.api_v1 import (
     CancelResponse,
     RunRequest,
     RunResponse,
+)
+from graph_caster.run_broker.routes.api_v1_openapi import (
+    GC_API_V1_OPENAPI_DOCUMENT_VERSION,
+    build_api_v1_openapi_document,
 )
 
 
@@ -125,6 +129,7 @@ class MockRunManager:
     def __init__(self) -> None:
         self.runs: dict[str, dict[str, Any]] = {}
         self.start_run_called: list[dict[str, Any]] = []
+        self.events_ndjson: dict[str, tuple[str, bool]] = {}
 
     async def start_run(
         self,
@@ -169,6 +174,17 @@ class MockRunManager:
             return {"cancelled": False, "message": "Run not found"}
         run["status"] = "cancelled"
         return {"cancelled": True, "message": "Run cancelled"}
+
+    async def get_run_events_ndjson(
+        self, run_id: str, max_bytes: int
+    ) -> tuple[str, bool] | None:
+        if run_id not in self.runs:
+            return None
+        text, truncated = self.events_ndjson.get(run_id, ("", False))
+        data = text.encode("utf-8")
+        if len(data) <= max_bytes:
+            return text, truncated
+        return data[-max_bytes:].decode("utf-8", errors="replace"), True
 
 
 class TestAPIV1Handler:
@@ -243,6 +259,33 @@ class TestAPIV1Handler:
 
             with pytest.raises(KeyError, match="Run not found"):
                 await handler.get_run_status("nonexistent")
+
+        asyncio.run(run_test())
+
+    def test_get_run_events_raises_on_not_found(self) -> None:
+        """Test that get_run_events raises KeyError for unknown run."""
+
+        async def run_test() -> None:
+            manager = MockRunManager()
+            handler = APIV1Handler(manager)
+
+            with pytest.raises(KeyError, match="Run not found"):
+                await handler.get_run_events("nonexistent", max_bytes=1000)
+
+        asyncio.run(run_test())
+
+    def test_get_run_events_returns_persisted_text(self) -> None:
+        """Test get_run_events returns NDJSON from the run manager."""
+
+        async def run_test() -> None:
+            manager = MockRunManager()
+            handler = APIV1Handler(manager)
+            await handler.start_run("graph-123", RunRequest())
+            line = '{"type":"run_started","runId":"run_1"}\n'
+            manager.events_ndjson["run_1"] = (line, False)
+            text, trunc = await handler.get_run_events("run_1", max_bytes=10_000)
+            assert text == line
+            assert trunc is False
 
         asyncio.run(run_test())
 
@@ -390,6 +433,40 @@ def _minimal_valid_doc(graph_id: str) -> dict:
     }
 
 
+class TestAPIV1OpenApi:
+    def test_build_openapi_has_stable_paths_and_version(self) -> None:
+        doc = build_api_v1_openapi_document()
+        assert doc["openapi"] == "3.0.3"
+        assert doc["info"]["version"] == GC_API_V1_OPENAPI_DOCUMENT_VERSION
+        paths = doc["paths"]
+        assert "/api/v1/openapi.json" in paths
+        assert "/api/v1/graphs/{graph_id}/run" in paths
+        assert "/api/v1/runs/{run_id}" in paths
+        assert "/api/v1/runs/{run_id}/events" in paths
+        assert "/api/v1/runs/{run_id}/cancel" in paths
+
+    def test_get_openapi_json_route(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("GC_RUN_BROKER_TOKEN", raising=False)
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.get("/api/v1/openapi.json")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["openapi"] == "3.0.3"
+        assert body["info"]["version"] == GC_API_V1_OPENAPI_DOCUMENT_VERSION
+
+    def test_openapi_json_allowed_without_dev_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GC_RUN_BROKER_TOKEN", "dev-only-secret")
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.get("/api/v1/openapi.json")
+        assert r.status_code == 200
+        r2 = client.get("/health")
+        assert r2.status_code == 401
+
+
 class TestAPIV1Http:
     def test_post_run_returns_503_when_graphs_dir_unset(
         self, monkeypatch: pytest.MonkeyPatch
@@ -451,6 +528,38 @@ class TestAPIV1Http:
             if status in ("success", "failed", "cancelled", "partial"):
                 break
         assert status == "success"
+
+        ev = client.get(f"/api/v1/runs/{rid}/events")
+        assert ev.status_code == 200, ev.text
+        assert ev.headers.get("X-GC-Events-Truncated") == "false"
+        assert "application/x-ndjson" in (ev.headers.get("content-type") or "").lower()
+
+    def test_get_run_events_404_unknown_run(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        graphs = tmp_path / "graphs"
+        graphs.mkdir()
+        monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(graphs))
+        monkeypatch.delenv("GC_RUN_BROKER_V1_API_KEYS", raising=False)
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.get("/api/v1/runs/not-a-real-run-id/events")
+        assert r.status_code == 404
+
+    def test_get_run_events_rejects_bad_max_bytes(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        graphs = tmp_path / "graphs"
+        graphs.mkdir()
+        monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(graphs))
+        monkeypatch.delenv("GC_RUN_BROKER_V1_API_KEYS", raising=False)
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.get(
+            "/api/v1/runs/any/events",
+            params={"maxBytes": "nope"},
+        )
+        assert r.status_code == 400
 
     def test_post_run_with_env_api_key(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path

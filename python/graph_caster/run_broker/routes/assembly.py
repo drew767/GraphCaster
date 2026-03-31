@@ -23,6 +23,16 @@ def build_run_broker_routes(
     routes: list[Route | WebSocketRoute] = [
         Route("/health", h["health"], methods=["GET"]),
         Route("/metrics", h["prometheus_metrics"], methods=["GET"]),
+        Route(
+            "/webhooks/trigger/{graph_id}/{path:path}",
+            h["webhook_graph_trigger"],
+            methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        ),
+        Route(
+            "/webhooks/trigger/{graph_id}",
+            h["webhook_graph_trigger"],
+            methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        ),
         Route("/webhooks/run", h["webhook_run"], methods=["POST"]),
         Route("/runs", h["create_run"], methods=["POST"]),
         Route("/runs/{run_id}/stream", stream_run, methods=["GET"]),

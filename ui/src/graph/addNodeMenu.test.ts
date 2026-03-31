@@ -30,6 +30,8 @@ import {
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
 } from "./nodeKinds";
 
 function labelEcho(ty: AddMenuPrimitiveType): string {
@@ -41,13 +43,15 @@ describe("primitivesForAddNodeCategory", () => {
     expect(primitivesForAddNodeCategory("all")).toEqual(ADD_MENU_PRIMITIVE_ORDER);
   });
 
-  it("flow is start exit fork merge", () => {
+  it("flow is start, triggers, exit, fork, merge", () => {
     const got = new Set(primitivesForAddNodeCategory("flow"));
     expect(got.has(GRAPH_NODE_TYPE_START)).toBe(true);
+    expect(got.has(GRAPH_NODE_TYPE_TRIGGER_WEBHOOK)).toBe(true);
+    expect(got.has(GRAPH_NODE_TYPE_TRIGGER_SCHEDULE)).toBe(true);
     expect(got.has(GRAPH_NODE_TYPE_EXIT)).toBe(true);
     expect(got.has(GRAPH_NODE_TYPE_FORK)).toBe(true);
     expect(got.has(GRAPH_NODE_TYPE_MERGE)).toBe(true);
-    expect(got.size).toBe(4);
+    expect(got.size).toBe(6);
   });
 
   it("steps is task, ai_route, mcp_tool, http_request, rag_query, rag_index, timer nodes, set_variable, python_code, llm_agent, and agent", () => {

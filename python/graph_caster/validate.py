@@ -372,6 +372,56 @@ def find_ai_route_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]
     return out
 
 
+def _norm_webhook_path_suffix(path: str) -> str:
+    s = str(path or "").strip()
+    return s.lstrip("/")
+
+
+def find_trigger_webhook_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    """Non-fatal issues for trigger_webhook nodes (invalid path, duplicate route/method)."""
+    out: list[dict[str, Any]] = []
+    seen: dict[tuple[str, str], str] = {}
+    for n in doc.nodes:
+        if n.type != "trigger_webhook":
+            continue
+        d = n.data or {}
+        p = str(d.get("path", "")).strip()
+        if not p.startswith("/"):
+            out.append({"kind": "trigger_webhook_invalid_path", "nodeId": n.id})
+            continue
+        m_raw = d.get("method", "POST")
+        m = str(m_raw).strip().upper() if m_raw is not None else "POST"
+        if not m:
+            m = "POST"
+        key = (_norm_webhook_path_suffix(p), m)
+        other = seen.get(key)
+        if other is not None:
+            out.append(
+                {
+                    "kind": "trigger_webhook_duplicate_route",
+                    "nodeId": n.id,
+                    "otherNodeId": other,
+                    "path": p,
+                    "method": m,
+                }
+            )
+        else:
+            seen[key] = n.id
+    return out
+
+
+def find_trigger_schedule_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "trigger_schedule":
+            continue
+        d = n.data or {}
+        cron = str(d.get("cron_expression", "")).strip()
+        if not cron:
+            out.append({"kind": "trigger_schedule_empty_cron", "nodeId": n.id})
+    return out
+
+
 def find_unreachable_out_error_sources(doc: GraphDocument) -> list[str]:
     """
     Source node ids that have at least one out_error edge but whose type cannot
@@ -411,6 +461,14 @@ def validate_graph_structure(doc: GraphDocument) -> str:
     for e in doc.edges:
         if e.target == start_id:
             raise GraphStructureError(f"start node '{start_id}' must not have incoming edges (edge '{e.id}' targets it)")
+    for n in doc.nodes:
+        if n.type not in ("trigger_webhook", "trigger_schedule"):
+            continue
+        for e in doc.edges:
+            if e.target == n.id:
+                raise GraphStructureError(
+                    f"trigger node '{n.id}' (type {n.type!r}) must not have incoming edges (edge '{e.id}' targets it)"
+                )
     gid = str(doc.graph_id).strip() if doc.graph_id else ""
     if not gid or gid == "default":
         raise GraphStructureError("meta.graphId (or top-level graphId) must be set to a non-empty unique id")

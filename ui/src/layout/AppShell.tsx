@@ -12,6 +12,7 @@ import { NodeSearchPalette } from "../components/NodeSearchPalette";
 import { ConsolePanel } from "../components/ConsolePanel";
 import { OpenGraphErrorModal } from "../components/OpenGraphErrorModal";
 import { GraphSaveModal, type GraphSaveToWorkspaceResult } from "../components/GraphSaveModal";
+import { WorkspaceFileConflictModal } from "../components/WorkspaceFileConflictModal";
 import { RunHistoryModal } from "../components/RunHistoryModal";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { KeyboardShortcutsModal } from "../components/KeyboardShortcutsModal";
@@ -113,11 +114,14 @@ import {
   defaultWorkspaceFileName,
   ensureGraphsDirectory,
   findWorkspaceGraphIdConflict,
+  getWorkspaceGraphDiskFingerprint,
   pickProjectRootDirectory,
   readWorkspaceGraphFile,
+  readWorkspaceGraphFileWithFingerprint,
   sanitizeWorkspaceGraphFileName,
   scanWorkspaceGraphs,
   supportsFileSystemAccess,
+  workspaceDiskFingerprintConflicts,
   writeJsonFileToDir,
   type WorkspaceGraphEntry,
 } from "../lib/workspaceFs";
@@ -254,6 +258,14 @@ export function AppShell({ onLangChange }: Props) {
     [graphDocument, structureIssues],
   );
   const [activeWorkspaceFile, setActiveWorkspaceFile] = useState<string | null>(null);
+  const workspaceDiskBaselineRef = useRef<{
+    fileName: string;
+    lastModifiedMs: number;
+    sizeBytes: number;
+  } | null>(null);
+  const forceOverwriteDiskConflictRef = useRef(false);
+  const [workspaceAutosaveConflictOpen, setWorkspaceAutosaveConflictOpen] = useState(false);
+  const [autosaveDiskConflictPaused, setAutosaveDiskConflictPaused] = useState(false);
   const [layoutDirtyEpoch, setLayoutDirtyEpoch] = useState(0);
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -552,7 +564,10 @@ export function AppShell({ onLangChange }: Props) {
     setGraphDocument(createMinimalGraphDocument());
     historyRef.current = clearHistory(historyRef.current);
     bumpHistoryUi();
+    workspaceDiskBaselineRef.current = null;
     setActiveWorkspaceFile(null);
+    setWorkspaceAutosaveConflictOpen(false);
+    setAutosaveDiskConflictPaused(false);
     bumpLayoutEpoch();
     setSelection(null);
   }, [bumpHistoryUi, bumpLayoutEpoch]);
@@ -588,7 +603,10 @@ export function AppShell({ onLangChange }: Props) {
         return;
       }
       nestedGraphRefStackRef.current = [];
+      workspaceDiskBaselineRef.current = null;
       setActiveWorkspaceFile(null);
+      setWorkspaceAutosaveConflictOpen(false);
+      setAutosaveDiskConflictPaused(false);
       preDragDocumentRef.current = null;
       setDanglingEdgesExportIds(null);
       setGraphDocument(res.doc);
@@ -612,6 +630,10 @@ export function AppShell({ onLangChange }: Props) {
     try {
       const graphs = await ensureGraphsDirectory(root);
       setWorkspaceGraphsDir(graphs);
+      workspaceDiskBaselineRef.current = null;
+      setActiveWorkspaceFile(null);
+      setWorkspaceAutosaveConflictOpen(false);
+      setAutosaveDiskConflictPaused(false);
       await rescanWorkspace(graphs);
     } catch {
       window.alert(t("app.workspace.linkFailed"));
@@ -630,8 +652,11 @@ export function AppShell({ onLangChange }: Props) {
         nestedGraphRefStackRef.current = [];
       }
       let text: string;
+      let openFingerprint: { lastModifiedMs: number; sizeBytes: number };
       try {
-        text = await readWorkspaceGraphFile(workspaceGraphsDir, fileName);
+        const snap = await readWorkspaceGraphFileWithFingerprint(workspaceGraphsDir, fileName);
+        text = snap.text;
+        openFingerprint = snap.fingerprint;
       } catch {
         setAppMessageModal(presentationForReadFailure(t, { fileName }));
         return false;
@@ -654,6 +679,13 @@ export function AppShell({ onLangChange }: Props) {
       historyRef.current = clearHistory(historyRef.current);
       bumpHistoryUi();
       setActiveWorkspaceFile(fileName);
+      workspaceDiskBaselineRef.current = {
+        fileName,
+        lastModifiedMs: openFingerprint.lastModifiedMs,
+        sizeBytes: openFingerprint.sizeBytes,
+      };
+      setWorkspaceAutosaveConflictOpen(false);
+      setAutosaveDiskConflictPaused(false);
       bumpLayoutEpoch();
       setSelection(null);
       const frame = options?.nestedFrameToAppend;
@@ -846,6 +878,10 @@ export function AppShell({ onLangChange }: Props) {
     [commitHistorySnapshot, runSessionBlocking],
   );
 
+  const markDiskConflictOverwrite = useCallback(() => {
+    forceOverwriteDiskConflictRef.current = true;
+  }, []);
+
   const saveDocumentToWorkspace = useCallback(
     async (doc: GraphDocumentJson, targetFileName: string): Promise<GraphSaveToWorkspaceResult> => {
       if (!workspaceGraphsDir) {
@@ -857,8 +893,40 @@ export function AppShell({ onLangChange }: Props) {
       if (conflict) {
         return { ok: false, reason: "duplicate_graph_id", conflictingFile: conflict };
       }
+      const baseline = workspaceDiskBaselineRef.current;
+      const forceOverwrite = forceOverwriteDiskConflictRef.current;
+      if (
+        !forceOverwrite &&
+        baseline != null &&
+        baseline.fileName === safeTarget &&
+        safeTarget === activeWorkspaceFile
+      ) {
+        const cur = await getWorkspaceGraphDiskFingerprint(workspaceGraphsDir, safeTarget);
+        if (
+          cur != null &&
+          workspaceDiskFingerprintConflicts(
+            { lastModifiedMs: baseline.lastModifiedMs, sizeBytes: baseline.sizeBytes },
+            cur,
+          )
+        ) {
+          return { ok: false, reason: "file_changed_on_disk" };
+        }
+      }
       try {
         await writeJsonFileToDir(workspaceGraphsDir, safeTarget, doc);
+        forceOverwriteDiskConflictRef.current = false;
+        const fpAfter = await getWorkspaceGraphDiskFingerprint(workspaceGraphsDir, safeTarget);
+        if (fpAfter) {
+          workspaceDiskBaselineRef.current = {
+            fileName: safeTarget,
+            lastModifiedMs: fpAfter.lastModifiedMs,
+            sizeBytes: fpAfter.sizeBytes,
+          };
+        } else {
+          workspaceDiskBaselineRef.current = null;
+        }
+        setAutosaveDiskConflictPaused(false);
+        setWorkspaceAutosaveConflictOpen(false);
         setGraphDocument(doc);
         setActiveWorkspaceFile(safeTarget);
         setAutosaveFailed(false);
@@ -870,8 +938,74 @@ export function AppShell({ onLangChange }: Props) {
         return { ok: false, reason: "write_failed", detail: d === "" ? null : d };
       }
     },
-    [rescanWorkspace, workspaceGraphsDir, workspaceIndex],
+    [activeWorkspaceFile, rescanWorkspace, workspaceGraphsDir, workspaceIndex],
   );
+
+  const onAutosaveDiskConflictReload = useCallback(() => {
+    setWorkspaceAutosaveConflictOpen(false);
+    setAutosaveDiskConflictPaused(false);
+    const fn = activeWorkspaceFile;
+    if (fn) {
+      void onOpenWorkspaceGraph(fn);
+    }
+  }, [activeWorkspaceFile, onOpenWorkspaceGraph]);
+
+  const onAutosaveDiskConflictOverwrite = useCallback(async () => {
+    if (!workspaceGraphsDir || !activeWorkspaceFile) {
+      return;
+    }
+    setWorkspaceAutosaveConflictOpen(false);
+    setAutosaveDiskConflictPaused(false);
+    forceOverwriteDiskConflictRef.current = true;
+    const api = canvasRef.current;
+    if (!api) {
+      return;
+    }
+    const doc = api.exportDocument({ notifyRemovedDanglingEdges: false });
+    const gidConflict = findWorkspaceGraphIdConflict(
+      workspaceIndex,
+      graphIdFromDocument(doc) ?? "",
+      activeWorkspaceFile,
+    );
+    if (gidConflict) {
+      forceOverwriteDiskConflictRef.current = false;
+      return;
+    }
+    try {
+      await writeJsonFileToDir(workspaceGraphsDir, activeWorkspaceFile, doc);
+      forceOverwriteDiskConflictRef.current = false;
+      const fpAfter = await getWorkspaceGraphDiskFingerprint(workspaceGraphsDir, activeWorkspaceFile);
+      if (fpAfter) {
+        workspaceDiskBaselineRef.current = {
+          fileName: activeWorkspaceFile,
+          lastModifiedMs: fpAfter.lastModifiedMs,
+          sizeBytes: fpAfter.sizeBytes,
+        };
+      }
+      invalidateGraphRefSnapshotCacheForGraphId(graphIdFromDocument(doc));
+      setGraphDocument(doc);
+      setAutosaveFailed(false);
+    } catch {
+      setAutosaveFailed(true);
+      const now = Date.now();
+      if (now - lastAutosaveFailConsoleMsRef.current >= 30_000) {
+        lastAutosaveFailConsoleMsRef.current = now;
+        runSessionAppendLine(t("app.editor.autosaveFailedConsole"));
+      }
+    }
+  }, [
+    activeWorkspaceFile,
+    invalidateGraphRefSnapshotCacheForGraphId,
+    t,
+    workspaceGraphsDir,
+    workspaceIndex,
+  ]);
+
+  const onAutosaveDiskConflictPause = useCallback(() => {
+    setWorkspaceAutosaveConflictOpen(false);
+    setAutosaveDiskConflictPaused(true);
+    pushToast(t("app.workspace.diskConflictPausedToast"), "info");
+  }, [pushToast, t]);
 
   const openSaveModal = useCallback(() => {
     if (runSessionHasBlockingActivity()) {
@@ -1014,6 +1148,9 @@ export function AppShell({ onLangChange }: Props) {
     if (runSessionBlocking) {
       return;
     }
+    if (autosaveDiskConflictPaused) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       void (async () => {
         if (runSessionHasBlockingActivity()) {
@@ -1032,8 +1169,30 @@ export function AppShell({ onLangChange }: Props) {
         if (conflict) {
           return;
         }
+        const baseline = workspaceDiskBaselineRef.current;
+        if (baseline != null && baseline.fileName === activeWorkspaceFile) {
+          const cur = await getWorkspaceGraphDiskFingerprint(workspaceGraphsDir, activeWorkspaceFile);
+          if (
+            cur != null &&
+            workspaceDiskFingerprintConflicts(
+              { lastModifiedMs: baseline.lastModifiedMs, sizeBytes: baseline.sizeBytes },
+              cur,
+            )
+          ) {
+            setWorkspaceAutosaveConflictOpen(true);
+            return;
+          }
+        }
         try {
           await writeJsonFileToDir(workspaceGraphsDir, activeWorkspaceFile, doc);
+          const fpAfter = await getWorkspaceGraphDiskFingerprint(workspaceGraphsDir, activeWorkspaceFile);
+          if (fpAfter) {
+            workspaceDiskBaselineRef.current = {
+              fileName: activeWorkspaceFile,
+              lastModifiedMs: fpAfter.lastModifiedMs,
+              sizeBytes: fpAfter.sizeBytes,
+            };
+          }
           invalidateGraphRefSnapshotCacheForGraphId(graphIdFromDocument(doc));
           setGraphDocument(doc);
           setAutosaveFailed(false);
@@ -1052,6 +1211,7 @@ export function AppShell({ onLangChange }: Props) {
     };
   }, [
     activeWorkspaceFile,
+    autosaveDiskConflictPaused,
     graphDocument,
     invalidateGraphRefSnapshotCacheForGraphId,
     layoutDirtyEpoch,
@@ -1975,15 +2135,20 @@ export function AppShell({ onLangChange }: Props) {
                                                                             root: issue.root,
                                                                             meta: issue.meta,
                                                                           })
-                                                                        : issue.kind === "start_has_incoming"
-                                                                          ? t("app.structure.startHasIncoming", {
-                                                                              id: issue.startId,
+                                                                        : issue.kind === "trigger_has_incoming"
+                                                                          ? t("app.structure.triggerHasIncoming", {
+                                                                              id: issue.nodeId,
+                                                                              type: issue.triggerType,
                                                                             })
-                                                                          : t("app.structure.unknownIssue", {
-                                                                              kind: String(
-                                                                                (issue as { kind: string }).kind,
-                                                                              ),
-                                                                            })}
+                                                                          : issue.kind === "start_has_incoming"
+                                                                            ? t("app.structure.startHasIncoming", {
+                                                                                id: issue.startId,
+                                                                              })
+                                                                            : t("app.structure.unknownIssue", {
+                                                                                kind: String(
+                                                                                  (issue as { kind: string }).kind,
+                                                                                ),
+                                                                              })}
               </span>
               {!runSessionBlocking ? (
                 <span className="gc-branch-warnings__actions">
@@ -2242,6 +2407,7 @@ export function AppShell({ onLangChange }: Props) {
           canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ?? null
         }
         onSaveToWorkspace={(fileName, doc) => saveDocumentToWorkspace(doc, fileName)}
+        onMarkDiskConflictOverwrite={markDiskConflictOverwrite}
         onSuccessfulSave={() => {
           pushToast(t("app.toast.saved"), "success");
         }}
@@ -2254,6 +2420,13 @@ export function AppShell({ onLangChange }: Props) {
         onClose={() => {
           setKeyboardShortcutsOpen(false);
         }}
+      />
+      <WorkspaceFileConflictModal
+        open={workspaceAutosaveConflictOpen}
+        fileName={activeWorkspaceFile ?? ""}
+        onReload={onAutosaveDiskConflictReload}
+        onOverwrite={() => void onAutosaveDiskConflictOverwrite()}
+        onPauseAutosave={onAutosaveDiskConflictPause}
       />
       <OpenGraphErrorModal
         open={appMessageModal != null}

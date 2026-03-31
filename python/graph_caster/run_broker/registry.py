@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
+from graph_caster.execution.pool_sizing import fork_threadpool_env_ceiling_for_metrics
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
 from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.redis_coord import release_global_run_slot, try_acquire_global_run_slot
@@ -109,7 +110,20 @@ class RunBrokerRegistry:
     def __init__(self) -> None:
         self._runs: dict[str, RegisteredRun] = {}
         self._pending_fifo: deque[str] = deque()
+        self._run_graph_ids: dict[str, str] = {}
         self._lock = threading.Lock()
+
+    def bind_run_graph_id(self, run_id: str, graph_id: str) -> None:
+        """Remember **meta.graphId** for a **run_id** (for status/events after the worker exits)."""
+        rid, gid = str(run_id).strip(), str(graph_id).strip()
+        if not rid or not gid:
+            return
+        with self._lock:
+            self._run_graph_ids[rid] = gid
+
+    def get_graph_id_for_run(self, run_id: str) -> str | None:
+        with self._lock:
+            return self._run_graph_ids.get(run_id)
 
     def get(self, run_id: str) -> RegisteredRun | None:
         with self._lock:
@@ -128,6 +142,7 @@ class RunBrokerRegistry:
             n_pend = len(self._pending_fifo)
             n_cap = _max_concurrent_runs()
             pend_cap = _pending_max()
+        fork_tp_cap = fork_threadpool_env_ceiling_for_metrics()
         lines = [
             "# HELP gc_run_broker_workers_active Child runner processes currently held by the broker.",
             "# TYPE gc_run_broker_workers_active gauge",
@@ -144,6 +159,9 @@ class RunBrokerRegistry:
             "# HELP gc_run_broker_pending_max_config Pending FIFO capacity from env.",
             "# TYPE gc_run_broker_pending_max_config gauge",
             f"gc_run_broker_pending_max_config {pend_cap}",
+            "# HELP gc_graph_fork_threadpool_max_config Fork frontier threadpool ceiling from GC_GRAPH_FORK_THREADPOOL_MAX (0 if unset).",
+            "# TYPE gc_graph_fork_threadpool_max_config gauge",
+            f"gc_graph_fork_threadpool_max_config {fork_tp_cap}",
         ]
         from graph_caster.run_broker.redis_coord import global_active_workers_gauge, redis_coord_config
 
@@ -343,6 +361,10 @@ class RunBrokerRegistry:
 
         run_id = str(body.get("runId") or "").strip() or str(uuid.uuid4())
         merged = {**body, "runId": run_id}
+        if merged.get("publicStream") is not True:
+            _ps = (os.environ.get("GC_RUN_BROKER_PUBLIC_STREAM") or "").strip().lower()
+            if _ps in ("1", "true", "yes", "on"):
+                merged = {**merged, "publicStream": True}
 
         temp_paths: list[Path] = []
         try:

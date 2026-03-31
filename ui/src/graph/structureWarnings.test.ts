@@ -49,6 +49,14 @@ describe("structureIssuesBlockRun", () => {
     ).toBe(true);
   });
 
+  it("is true for trigger_has_incoming", () => {
+    expect(
+      structureIssuesBlockRun([
+        { kind: "trigger_has_incoming", nodeId: "w1", triggerType: "trigger_webhook" },
+      ]),
+    ).toBe(true);
+  });
+
   it("is false when only merge_few_inputs", () => {
     expect(
       structureIssuesBlockRun([{ kind: "merge_few_inputs", nodeId: "m1", incomingEdges: 1 }]),

@@ -20,6 +20,8 @@ import {
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_TASK,
+  GRAPH_NODE_TYPE_TRIGGER_WEBHOOK,
+  GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
 } from "./nodeKinds";
 
 function newShortIdSegment(): string {
@@ -173,6 +175,21 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         title: "Agent",
         inputText: "",
         maxIterations: 10,
+      };
+    case GRAPH_NODE_TYPE_TRIGGER_WEBHOOK:
+      return {
+        title: "Webhook trigger",
+        path: "/hook",
+        method: "POST",
+        auth: "none",
+        responseMode: "immediate",
+      };
+    case GRAPH_NODE_TYPE_TRIGGER_SCHEDULE:
+      return {
+        title: "Schedule trigger",
+        cronExpression: "0 * * * *",
+        timezone: "UTC",
+        enabled: true,
       };
     default:
       return {};

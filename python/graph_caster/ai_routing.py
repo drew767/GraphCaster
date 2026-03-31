@@ -16,7 +16,7 @@ from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_
 AI_ROUTE_MAX_ROUTE_DESCRIPTION_LEN = 1024
 
 _SENSITIVE_KEY_RE = re.compile(
-    r"(apikey|api_key|secret|token|password|auth|bearer)$",
+    r"(apikey|api_key|secret|token|password|auth|bearer|authorization|cookie)$",
     re.IGNORECASE,
 )
 
