@@ -635,6 +635,7 @@ def test_prometheus_text_includes_fork_threadpool_gauge(
     reg = RunBrokerRegistry()
     text = reg.prometheus_metrics_text()
     assert "gc_graph_fork_threadpool_max_config 8" in text
+    assert "gc_graph_fork_threadpool_min_config 0" in text
 
 
 def test_build_graph_caster_run_argv_includes_start_node_id() -> None:

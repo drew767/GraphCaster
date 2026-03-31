@@ -196,3 +196,104 @@ export function getExpressionCompletions(
 
   return null;
 }
+
+/** Surface syntax issues inside `{{ ... }}` templates (no nested `{{` assumed). */
+export type ExpressionTemplateSyntaxIssue =
+  | { kind: "stray_close_mustache" }
+  | { kind: "unclosed_mustache" }
+  | { kind: "unbalanced_parens" }
+  | { kind: "unclosed_string" };
+
+function scanInnerExpression(inner: string): ExpressionTemplateSyntaxIssue | null {
+  let depth = 0;
+  let brackets = 0;
+  let inStr: '"' | "'" | null = null;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i]!;
+    if (inStr) {
+      if (c === "\\" && i + 1 < inner.length) {
+        i++;
+        continue;
+      }
+      if (c === inStr) {
+        inStr = null;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      inStr = c;
+      continue;
+    }
+    if (c === "(") {
+      depth++;
+    } else if (c === ")") {
+      depth--;
+      if (depth < 0) {
+        return { kind: "unbalanced_parens" };
+      }
+    } else if (c === "[") {
+      brackets++;
+    } else if (c === "]") {
+      brackets--;
+      if (brackets < 0) {
+        return { kind: "unbalanced_parens" };
+      }
+    }
+  }
+  if (inStr) {
+    return { kind: "unclosed_string" };
+  }
+  if (depth !== 0 || brackets !== 0) {
+    return { kind: "unbalanced_parens" };
+  }
+  return null;
+}
+
+/**
+ * Lightweight validation for inspector expression fields (not a full language parser).
+ * Assumes mustache blocks do not nest `{{` inside `{{ ... }}`.
+ */
+export function scanExpressionTemplateSyntax(text: string): ExpressionTemplateSyntaxIssue | null {
+  if (!text.includes("{{") && !text.includes("}}")) {
+    return null;
+  }
+  let depth = 0;
+  for (let i = 0; i < text.length; ) {
+    if (text.slice(i, i + 2) === "{{") {
+      depth++;
+      i += 2;
+      continue;
+    }
+    if (text.slice(i, i + 2) === "}}") {
+      depth--;
+      if (depth < 0) {
+        return { kind: "stray_close_mustache" };
+      }
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  if (depth !== 0) {
+    return { kind: "unclosed_mustache" };
+  }
+
+  let pos = 0;
+  while (pos < text.length) {
+    const open = text.indexOf("{{", pos);
+    if (open < 0) {
+      break;
+    }
+    const close = text.indexOf("}}", open + 2);
+    if (close < 0) {
+      return { kind: "unclosed_mustache" };
+    }
+    const inner = text.slice(open + 2, close);
+    const innerIssue = scanInnerExpression(inner);
+    if (innerIssue) {
+      return innerIssue;
+    }
+    pos = close + 2;
+  }
+  return null;
+}

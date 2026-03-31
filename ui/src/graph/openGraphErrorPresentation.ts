@@ -12,6 +12,8 @@ export type AppMessagePresentation = {
 
 function messageKeyForParseError(error: GraphDocumentParseError): string {
   switch (error.kind) {
+    case "invalid_json":
+      return "app.errors.openModal.invalid_json";
     case "not_object":
       return "app.errors.openModal.not_object";
     case "invalid_meta":

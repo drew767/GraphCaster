@@ -9,7 +9,8 @@ import {
   type ConsoleFilterMode,
   passesConsoleFilter,
 } from "../run/consoleLineMeta";
-import { reduceConsoleLinesToRunTimeline, type RunTimelineStatus } from "../run/buildRunTimeline";
+import { reduceConsoleLinesToRunTimeline } from "../run/buildRunTimeline";
+import { ExecutionTimeline } from "./ExecutionTimeline";
 import { gcErrorTranslationKey } from "../lib/errorMessages";
 import { jsonHighlightedConsoleLine } from "../lib/jsonConsoleHighlight";
 import { runSessionClearConsole, useRunSession } from "../run/runSessionStore";
@@ -23,46 +24,6 @@ type Props = {
 const TAIL_THRESHOLD_PX = 40;
 
 type PanelTab = "log" | "steps";
-
-function formatStepDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  if (ms < 60_000) {
-    return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;
-  }
-  const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
-  return `${m}m ${s}s`;
-}
-
-function truncateNodeLabel(id: string, max: number): string {
-  if (id.length <= max) {
-    return id;
-  }
-  return `${id.slice(0, max - 1)}…`;
-}
-
-function runTimelineStatusRowClass(status: RunTimelineStatus): string {
-  switch (status) {
-    case "running":
-      return "gc-run-timeline-row--running";
-    case "success":
-      return "gc-run-timeline-row--success";
-    case "failed":
-      return "gc-run-timeline-row--failed";
-    case "skipped":
-      return "gc-run-timeline-row--skipped";
-    case "cancelled":
-      return "gc-run-timeline-row--cancelled";
-    case "partial":
-      return "gc-run-timeline-row--partial";
-    default: {
-      const _x: never = status;
-      return _x;
-    }
-  }
-}
 
 export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Props) {
   const { t } = useTranslation();
@@ -370,53 +331,7 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
           ) : timeline.length === 0 ? (
             <div className="gc-console-line gc-console-line--muted">{t("app.console.timelineEmpty")}</div>
           ) : (
-            timeline.map((row) => {
-              const navigable = onNavigateToNode != null;
-              const statusLabel = t(`app.console.timelineStatus.${row.status}`);
-              const typePart = row.nodeType != null ? `${row.nodeType} · ` : "";
-              const mainText = `${typePart}${truncateNodeLabel(row.nodeId, 36)}`;
-              const metaParts = [
-                row.durationMs != null ? formatStepDuration(row.durationMs) : null,
-                row.summary != null && row.summary !== "" ? row.summary : null,
-              ].filter(Boolean);
-              const rowClass = ["gc-run-timeline-row", runTimelineStatusRowClass(row.status), navigable ? "gc-run-timeline-row--nav" : ""]
-                .filter(Boolean)
-                .join(" ");
-              return (
-                <div
-                  key={row.id}
-                  className={rowClass}
-                  role={navigable ? "button" : undefined}
-                  tabIndex={navigable ? 0 : undefined}
-                  aria-label={t("app.console.timelineRowAria", {
-                    nodeId: row.nodeId,
-                    status: statusLabel,
-                  })}
-                  onClick={() => {
-                    if (onNavigateToNode != null) {
-                      onNavigateToNode(row.nodeId);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (!navigable) {
-                      return;
-                    }
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onNavigateToNode(row.nodeId);
-                    }
-                  }}
-                >
-                  <span className="gc-run-timeline-row__status" title={statusLabel} aria-hidden />
-                  <span className="gc-run-timeline-row__body">
-                    <span className="gc-run-timeline-row__title">{mainText}</span>
-                    {metaParts.length > 0 ? (
-                      <span className="gc-run-timeline-row__meta">{metaParts.join(" · ")}</span>
-                    ) : null}
-                  </span>
-                </div>
-              );
-            })
+            <ExecutionTimeline rows={timeline} onNavigateToNode={onNavigateToNode} />
           )}
         </div>
       </footer>

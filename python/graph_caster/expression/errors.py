@@ -23,6 +23,13 @@ class ExpressionEvaluationError(ExpressionError):
         super().__init__(f"{message} in expression: {expression}")
 
 
+class ExpressionTimeoutError(ExpressionEvaluationError):
+    """Raised when evaluation exceeds the configured wall-clock limit."""
+
+    def __init__(self, message: str, expression: str):
+        super().__init__(message, expression)
+
+
 class UndefinedVariableError(ExpressionEvaluationError):
     """Raised when referencing undefined variable."""
 

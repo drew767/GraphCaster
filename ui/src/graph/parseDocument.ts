@@ -65,6 +65,7 @@ function normalizeEdgeConditionParsed(cond: unknown): string | null | undefined 
 }
 
 export type GraphDocumentParseError =
+  | { kind: "invalid_json" }
   | { kind: "not_object" }
   | { kind: "invalid_meta" }
   | { kind: "invalid_viewport" }

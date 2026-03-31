@@ -6,6 +6,7 @@ import {
   cursorInsideMustache,
   getExpressionCompletions,
   GC_EXPRESSION_BUILTIN_NAMES,
+  scanExpressionTemplateSyntax,
 } from "./expressionAutocomplete";
 
 describe("cursorInsideMustache", () => {
@@ -63,5 +64,27 @@ describe("getExpressionCompletions", () => {
     const copy = [...GC_EXPRESSION_BUILTIN_NAMES];
     copy.sort((a, b) => a.localeCompare(b));
     expect(GC_EXPRESSION_BUILTIN_NAMES.every((n, i) => n === copy[i])).toBe(true);
+  });
+});
+
+describe("scanExpressionTemplateSyntax", () => {
+  it("returns null when no mustache", () => {
+    expect(scanExpressionTemplateSyntax("$json.foo")).toBeNull();
+  });
+
+  it("detects unclosed mustache", () => {
+    expect(scanExpressionTemplateSyntax("{{ $json.a")).toEqual({ kind: "unclosed_mustache" });
+  });
+
+  it("detects stray close", () => {
+    expect(scanExpressionTemplateSyntax("x}}")).toEqual({ kind: "stray_close_mustache" });
+  });
+
+  it("detects unbalanced parens inside block", () => {
+    expect(scanExpressionTemplateSyntax("{{ ceil(1 }}")).toEqual({ kind: "unbalanced_parens" });
+  });
+
+  it("allows balanced template", () => {
+    expect(scanExpressionTemplateSyntax("{{ ceil(1) }}")).toBeNull();
   });
 });

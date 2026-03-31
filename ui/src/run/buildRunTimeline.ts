@@ -16,6 +16,28 @@ export type RunTimelineStatus =
   | "cancelled"
   | "partial";
 
+/** CSS modifier for console / execution timeline rows (status dot). */
+export function runTimelineStatusRowClass(status: RunTimelineStatus): string {
+  switch (status) {
+    case "running":
+      return "gc-run-timeline-row--running";
+    case "success":
+      return "gc-run-timeline-row--success";
+    case "failed":
+      return "gc-run-timeline-row--failed";
+    case "skipped":
+      return "gc-run-timeline-row--skipped";
+    case "cancelled":
+      return "gc-run-timeline-row--cancelled";
+    case "partial":
+      return "gc-run-timeline-row--partial";
+    default: {
+      const _x: never = status;
+      return _x;
+    }
+  }
+}
+
 export type RunTimelineRow = {
   id: string;
   nodeId: string;
@@ -306,4 +328,54 @@ export function reduceConsoleLinesToRunTimeline(lines: string[]): RunTimelineRow
   }
 
   return rows;
+}
+
+/** Largest **durationMs** among rows (0 if none). */
+export function maxTimelineDurationMs(rows: RunTimelineRow[]): number {
+  let m = 0;
+  for (const r of rows) {
+    const d = r.durationMs;
+    if (d != null && Number.isFinite(d) && d > m) {
+      m = d;
+    }
+  }
+  return m;
+}
+
+/**
+ * Greedy lane indices for overlapping steps on the console line axis (parallel hint).
+ * Open-ended rows (no **endedLineIndex**) extend through the last **startedLineIndex** in **rows**.
+ */
+export function assignTimelineLanes(rows: RunTimelineRow[]): number[] {
+  const tail = rows.length ? rows[rows.length - 1]!.startedLineIndex + 1 : 0;
+  const endFor = (r: RunTimelineRow) => r.endedLineIndex ?? tail;
+
+  const lanes: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    const a0 = r.startedLineIndex;
+    const a1 = endFor(r);
+    let lane = 0;
+    while (true) {
+      let clash = false;
+      for (let j = 0; j < i; j++) {
+        if (lanes[j] !== lane) {
+          continue;
+        }
+        const o = rows[j]!;
+        const b0 = o.startedLineIndex;
+        const b1 = endFor(o);
+        if (a0 <= b1 && b0 <= a1) {
+          clash = true;
+          break;
+        }
+      }
+      if (!clash) {
+        break;
+      }
+      lane++;
+    }
+    lanes.push(lane);
+  }
+  return lanes;
 }

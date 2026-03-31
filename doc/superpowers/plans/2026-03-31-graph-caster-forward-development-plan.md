@@ -222,11 +222,11 @@ flowchart LR
 
 План сохранён в `doc/superpowers/plans/2026-03-31-graph-caster-forward-development-plan.md`.
 
+**Статус 2026-04-01:** Tasks **1–11** выполнены по коду; регрессия: `cd python && py -3 -m pytest tests -q` (**796** passed), `cd ui && npm test -- --run` (**481** passed), `npm run build`.
+
 **1. Subagent-Driven (рекомендуется)** — свежий субагент на каждую задачу + двухстадийное ревью (spec → quality).
 
 **2. Inline execution** — пакетами по 2–3 задачи с ручным чекпоинтом.
-
-Какой режим выбираете?
 
 ---
 

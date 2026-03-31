@@ -7,6 +7,7 @@ from .errors import (
     ExpressionError,
     ExpressionEvaluationError,
     ExpressionSyntaxError,
+    ExpressionTimeoutError,
     ForbiddenOperationError,
     UndefinedVariableError,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "ExpressionError",
     "ExpressionSyntaxError",
     "ExpressionEvaluationError",
+    "ExpressionTimeoutError",
     "UndefinedVariableError",
     "ForbiddenOperationError",
     "render_template",

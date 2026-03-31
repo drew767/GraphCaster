@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from graph_caster.rag.embedding import hash_embedding
+from graph_caster.rag.embed_dispatch import rag_embed_chunk
 from graph_caster.rag.memory_registry import get_memory_store
 from graph_caster.rag.text_split import split_text_chunks
 
@@ -29,7 +29,7 @@ def index_text_for_collection(
     metas: list[dict[str, object]] = []
     for i, ch in enumerate(chunks):
         ids.append(f"{collection_id}:{i}")
-        embeddings.append(hash_embedding(ch, dims=embedding_dims))
+        embeddings.append(rag_embed_chunk(ch, embedding_dims))
         docs.append(ch)
         metas.append({"chunkIndex": i, "collectionId": collection_id})
     store.upsert(ids, embeddings, docs, metas)

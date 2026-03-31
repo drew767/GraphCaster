@@ -27,6 +27,9 @@ function mockT(): TFunction {
     if (key === "app.errors.openModal.nodes_not_array") {
       return "nodes_not_array_msg";
     }
+    if (key === "app.errors.openModal.invalid_json") {
+      return "invalid_json_msg";
+    }
     if (key === "app.errors.openModal.json_invalid_prefix") {
       return "JSON_PREFIX";
     }
@@ -86,6 +89,11 @@ describe("presentationForParseError", () => {
       reason: "id",
     });
     expect(p.message).toBe("bad_node:3");
+  });
+
+  it("handles invalid_json kind", () => {
+    const p = presentationForParseError(mockT(), { kind: "invalid_json" });
+    expect(p.message).toBe("invalid_json_msg");
   });
 });
 

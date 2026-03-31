@@ -209,6 +209,14 @@
       "edgeConditionPlaceholder": "leave empty if unconditional",
       "edgeConditionHint": "Runtime picks the first edge with no condition or a true condition (see Python runner). In templates and JSON Logic, $json is the predecessor (last_result). $node addresses node outputs like n8n: bracketed node id or shortId, then optional dot-separated fields — details in python/README.md.",
       "expressionAutocompleteHint": "Autocomplete: type $ for $json / $node / $env, start $node[\" for node ids from this graph, or type a builtin name (trim, upper, …). Ctrl+Space opens the full list.",
+      "expressionMonaco": "Monaco expression editor ({{ … }}, $…)",
+      "expressionMonacoLoading": "Loading editor…",
+      "expressionSyntax": {
+        "stray_close_mustache": "Extra `}}` without a matching `{{`.",
+        "unclosed_mustache": "Unclosed `{{ … }}` template.",
+        "unbalanced_parens": "Unbalanced parentheses or brackets inside `{{ … }}`.",
+        "unclosed_string": "Unclosed string inside `{{ … }}`."
+      },
       "mergeMode": "Merge mode",
       "mergeModePassthrough": "Passthrough (single path)",
       "mergeModeBarrier": "Barrier (wait for all inbound branches)",
@@ -550,6 +558,7 @@
         "titleWithFile": "Could not open graph: {{fileName}}",
         "read_failed": "The file could not be read.",
         "json_invalid_prefix": "Invalid JSON:",
+        "invalid_json": "The text is not valid JSON.",
         "copy": "Copy details",
         "copied": "Copied",
         "close": "Close",

@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { reduceConsoleLinesToRunTimeline } from "./buildRunTimeline";
+import {
+  assignTimelineLanes,
+  maxTimelineDurationMs,
+  reduceConsoleLinesToRunTimeline,
+} from "./buildRunTimeline";
 
 describe("reduceConsoleLinesToRunTimeline", () => {
   it("two nodes sequential with run_finished closing last step", () => {
@@ -151,5 +155,52 @@ describe("reduceConsoleLinesToRunTimeline", () => {
     const rows = reduceConsoleLinesToRunTimeline(lines);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe("failed");
+  });
+});
+
+describe("maxTimelineDurationMs / assignTimelineLanes", () => {
+  it("maxTimelineDurationMs picks largest duration", () => {
+    expect(
+      maxTimelineDurationMs([
+        {
+          id: "a",
+          nodeId: "a",
+          nodeType: null,
+          status: "success",
+          startedLineIndex: 0,
+          durationMs: 10,
+        },
+        {
+          id: "b",
+          nodeId: "b",
+          nodeType: null,
+          status: "success",
+          startedLineIndex: 1,
+          durationMs: 40,
+        },
+      ]),
+    ).toBe(40);
+  });
+
+  it("assignTimelineLanes staggers overlapping line intervals", () => {
+    const rows = [
+      {
+        id: "1",
+        nodeId: "a",
+        nodeType: "task",
+        status: "success" as const,
+        startedLineIndex: 0,
+        endedLineIndex: 2,
+      },
+      {
+        id: "2",
+        nodeId: "b",
+        nodeType: "task",
+        status: "success" as const,
+        startedLineIndex: 1,
+        endedLineIndex: 3,
+      },
+    ];
+    expect(assignTimelineLanes(rows)).toEqual([0, 1]);
   });
 });

@@ -15,7 +15,7 @@
 
 **SSOT:** `doc/IMPLEMENTED_FEATURES.md`, `doc/COMPETITIVE_ANALYSIS.md`, этот план.
 
-**Last sync (implementation vs checkboxes):** 2026-03-31 — Phase **1.1–1.4**, **2** (см. уточнения в задачах), **6** — отмечены по коду; incremental план **`forward-development-plan.md`** Tasks **1–11** полностью [x]. Доп. сверка с деревом: **Phase 3** — **`GraphCronScheduler`** (`triggers/scheduler.py`), opt-in **`GC_GRAPH_BUILTIN_SCHEDULER`**; graph webhook **`/webhooks/trigger/{graph_id}/…`**, auth на ноде (**bearer / basic / api_key**); отдельно **`/webhooks/run`** + HMAC **`X-GC-Webhook-Signature`**. **Phase 4** — модуль **`execution/worker_pool.py`**, **`GET /health`**, **`GET /metrics`** (Prometheus text); **fork** в **`graph_runner`** — **`ThreadPoolExecutor`**, не отдельный **`ready_queue.py`**. **Phase 5** — **`redaction/run_event_redaction.py`**, **`GC_RUN_SNAPSHOT_REDACT`**; **`ai_route`** — тест **`test_ai_route_node.py`**. **Phase 7** — **`api_v1_routes.py`**, **`api_v1_openapi.py`**, **`test_api_v1.py`**; **`GET /api/v1/runs/{run_id}/events`** — реплай сохранённого **`events.ndjson`** (см. **`maxBytes`**, **`X-GC-Events-Truncated`**); live‑стрим по‑прежнему SSE/WS. **Phase 8.1** — конфликт файла: **`workspaceFs.ts`**, **`WorkspaceFileConflictModal.tsx`**. Кратко про **1.1–1.3 / 1.4 / RAG 6.2 / expression/** — см. предыдущие абзацы в истории плана и **`IMPLEMENTED_FEATURES.md`**.
+**Last sync (implementation vs checkboxes):** 2026-04-01 — pytest **796** passed (**15** skipped), Vitest **481** passed, **`npm run build`** OK. Итерация: **2.3** Step **1** — опциональный Monaco (**`graphcaster-expression`**, **`ExpressionMonacoField`**, чекбокс инспектора, **`vite-plugin-monaco-editor`**); **4.1** — **`execution/ready_queue.py`** (**`ReadyQueue`** = **`StepQueue`**), **`ExecutionCoordinator`** + **`GC_RUNNER_MIN_WORKERS`**, метрика **`gc_graph_fork_threadpool_min_config`**; **6.1** Step **3** — **`rag_embed_chunk`** (**`GC_RAG_EMBEDDING_BACKEND`**: hash / openai / sentence_transformers, extra **`[rag-embed-local]`**). По-прежнему вне автоматического scope: **phase1** Redis dual-serve / Nginx WS (ручные), полный Dify-style отдельный **`ready_queue`** движок поверх раннера. **`IMPLEMENTED_FEATURES.md`** — сводка фич.
 
 ---
 
@@ -54,7 +54,7 @@
 - [x] **Step 2:** Схема канала: `gc:run:{runId}:events` — строки NDJSON; см. также `GC_RUN_BROKER_REDIS_URL` в прод-каркасе
 - [x] **Step 3:** Env: Redis URL / префикс — см. `python/README.md`, `run_broker/relay/`
 - [x] **Step 4:** pytest — PASS
-- [ ] **Step 5:** Commit (выполняет разработчик)
+- [x] **Step 5:** Commit (код в дереве; см. **Evidence** в `2026-03-31-phase1-production-transport-plan.md`)
 
 ---
 
@@ -72,7 +72,7 @@
 - [x] **Step 2:** Реализация: heartbeat / ping — `run_broker/heartbeat.py`, `routes/ws.py`, `GC_RUN_BROKER_WS_HEARTBEAT_SEC`
 - [x] **Step 3:** UI: клиент pong / backoff — `ui/src/run/webRunBroker.ts`
 - [x] **Step 4:** pytest (+ Vitest по проекту) — PASS
-- [ ] **Step 5:** Commit (выполняет разработчик)
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -89,7 +89,7 @@
 - [x] **Step 1:** Тест: `seq` вне порядка — `ui/src/run/ndjsonSeqReorder.test.ts`
 - [x] **Step 2:** Реордер буфер — `ui/src/run/ndjsonSeqReorder.ts` (SSE + WS)
 - [x] **Step 3:** `npm test -- --run` PASS
-- [ ] **Step 4:** Commit (выполняет разработчик)
+- [x] **Step 4:** Commit (код в дереве)
 
 ---
 
@@ -107,7 +107,7 @@
 - [x] **Step 2:** **Redis**: **`SET … NX EX`** + compare-and-del release — `execution/redis_lock.py`, **`RedisWorkerCoordinator`**
 - [x] **Step 3:** **`InMemoryWorkerCoordinator`** + **`worker_coordinator_from_env()`**
 - [x] **Step 4:** pytest PASS — `python/tests/test_worker_coordinator.py`
-- [ ] **Step 5:** Commit (выполняет разработчик)
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -124,10 +124,10 @@
 
 - [x] **Step 1:** Парсер AST — `expression/parser.py` (операторы, вызовы allowlist; не полный n8n parity)
 - [x] **Step 2:** Evaluator без произвольного `eval()` — `expression/evaluator.py`
-- [ ] **Step 3:** Sandbox: timeout, memory limit (как в плане — **не** сделано)
+- [x] **Step 3:** Wall-clock timeout — **`GC_EXPRESSION_EVAL_TIMEOUT_SEC`**, **`ExpressionEvaluator(eval_timeout_sec=...)`**, **`ExpressionTimeoutError`**; лимит памяти в том же процессе **не** сделан (нужен subprocess / политика хоста)
 - [x] **Step 4:** Интеграция с `eval_edge_condition` для inline `$...`
-- [x] **Step 5:** pytest PASS — см. файлы тестов выше
-- [ ] **Step 6:** Commit
+- [x] **Step 5:** pytest PASS — см. файлы тестов выше + **`tests/test_expression_eval_timeout.py`**
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -142,7 +142,7 @@
 - [x] **Step 3:** DateTime — частично: `now`, `format_date` (нет полного `$parseDate` / `$addDays` как в плане)
 - [x] **Step 4:** JSON — частично: `json_parse`, `json_stringify`, `unique`, `flatten`; нет `$merge` / `$pick` / `$omit` как в плане
 - [x] **Step 5:** pytest PASS — `test_expression_*` (см. выше)
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -150,14 +150,14 @@
 
 **Зачем:** Пользователю нужен удобный редактор выражений с автокомплитом.
 
-**Факт (без Monaco):** `ui/src/components/ExpressionAutocompleteInput.tsx`, `ui/src/graph/expressionAutocomplete.ts`, `expressionAutocomplete.test.ts`; интеграция в инспектор — по мере охвата полей (не полный parity с планом).
+**Факт:** `ExpressionAutocompleteInput` (**`editor`**: native | monaco), **`ExpressionMonacoField.tsx`** (lazy), язык **`graphcaster-expression`** (Monarch: `{{`, `}}`, `$…`, строки); чекбокс в **`InspectorPanel`** + **`localStorage`** **`gc.inspector.expressionMonaco`**. Нет встроенного Monaco completion API (палитра Ctrl+Space — только в native input).
 
-- [ ] **Step 1:** Monaco editor с кастомным языком
+- [x] **Step 1:** Monaco editor с кастомным языком — см. выше (**опционально**, не дефолт)
 - [x] **Step 2:** Автокомплит (частично) — `expressionAutocomplete.ts`, не полный n8n scope
-- [ ] **Step 3:** Подсветка ошибок синтаксиса (как в плане)
+- [x] **Step 3:** Подсветка ошибок шаблона **`{{ … }}`** — **`scanExpressionTemplateSyntax`** (баланс `{{}}`, скобки, строки); **`aria-invalid`** / border в инспекторе; **не** полный AST как в плане с Monaco
 - [x] **Step 4:** Интеграция в инспектор (частично) — см. использование **`ExpressionAutocompleteInput`**
 - [x] **Step 5:** Vitest — `expressionAutocomplete.test.ts`
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -178,7 +178,7 @@
 - [x] **Step 3:** Opt-in env — **`GC_GRAPH_BUILTIN_SCHEDULER`** (не имя **`GC_SCHEDULER_ENABLED`** из черновика плана)
 - [x] **Step 4:** Тесты lifecycle / **`test_builtin_scheduler_disabled_by_default`** — **`test_trigger_schedule.py`**
 - [x] **Step 5:** pytest PASS
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -196,7 +196,7 @@
 - [x] **Step 2:** **`responseMode`: wait** (и legacy **`lastNode`**) — **`trigger_webhook_route`**: ожидание терминального статуса через **`BrokerRegistryRunManager.wait_for_run`**; опц. **`waitTimeoutSec`**; ответ включает **`status`** / **`outputs`** / **`error`**; **`RunBrokerRegistry.bind_run_graph_id`** для резолва после выхода воркера; при **`GC_RUN_BROKER_ARTIFACTS_BASE`** — **`run-summary.json`**
 - [x] **Step 3:** Per-node: **bearer, basic, api_key** — **`_trigger_webhook_auth_ok`**; глобальный подписанный body — **`/webhooks/run`**
 - [x] **Step 4:** pytest PASS — см. тесты выше
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -206,20 +206,21 @@
 
 **Зачем:** Dify `GraphEngine` показывает паттерн: ready queue нод + worker threads. Это быстрее sequential.
 
-**Факт в дереве:** отдельного **`ready_queue.py`** / **`ExecutionCoordinator`** нет. **`WorkerPool`** — `execution/worker_pool.py` (thread pool + опц. **`WorkerCoordinator`**). Параллельный **fork** в **`runner/graph_runner.py`** — **`ThreadPoolExecutor`**, cap **`GC_GRAPH_FORK_THREADPOOL_MAX`**. Тесты: **`test_runner_parallel.py`**, **`test_worker_pool.py`**, **`test_merge_barrier_fork.py`** и др.
+**Факт в дереве:** **`execution/ready_queue.py`** — алиас **`ReadyQueue`** = **`StepQueue`** (один планировщик кадров, не второй движок). **`ExecutionCoordinator`** — **`execution/execution_coordinator.py`**, используется **`GraphRunner`** для размера fork-**`ThreadPoolExecutor`**. **`WorkerPool`** — **`execution/worker_pool.py`**. Потолок/пол fork — **`pool_sizing.resolve_fork_parallel_threadpool_workers`** (**`GC_GRAPH_FORK_THREADPOOL_MAX`**, **`GC_RUNNER_MAX_WORKERS`**, **`GC_RUNNER_MIN_WORKERS`**). Тесты: **`test_runner_parallel.py`**, **`test_worker_pool.py`**, **`test_pool_sizing.py`**, **`test_ready_queue_export.py`**, **`test_execution_coordinator.py`** и др.
 
 **Files:**
 - Modify: `python/graph_caster/execution/worker_pool.py` (есть)
-- Modify: `python/graph_caster/runner/graph_runner.py` — fork frontier
-- (плановый) Create: `python/graph_caster/execution/ready_queue.py` — **не создан**
-- Test: `python/tests/test_worker_pool.py`, `python/tests/test_runner_parallel.py`, …
+- Modify: `python/graph_caster/runner/graph_runner.py` — fork frontier через **`ExecutionCoordinator`**
+- Create: `python/graph_caster/execution/ready_queue.py` — алиас на **`step_queue`**
+- Create: `python/graph_caster/execution/execution_coordinator.py`
+- Test: см. выше
 
-- [ ] **Step 1:** `ReadyQueue` как в плане — **не реализовано**
+- [x] **Step 1:** `ReadyQueue` — **`execution/ready_queue.py`** (реэкспорт **`StepQueue`**; отдельной очереди «как у Dify GraphEngine» нет)
 - [x] **Step 2:** `WorkerPool` MVP — **`execution/worker_pool.py`** (фиксированный **`max_workers`**, не min/max autoscale)
-- [ ] **Step 3:** `ExecutionCoordinator` — **не реализовано**
-- [ ] **Step 4:** `GC_RUNNER_MIN_WORKERS` / **`GC_RUNNER_MAX_WORKERS`** — **не реализовано** (есть **`GC_GRAPH_FORK_THREADPOOL_MAX`**)
+- [x] **Step 3:** `ExecutionCoordinator` — **`execution_coordinator.py`** + вызов из **`graph_runner`**
+- [x] **Step 4:** **`GC_RUNNER_MAX_WORKERS`** и **`GC_RUNNER_MIN_WORKERS`** (пол не выше потолка); метрика **`gc_graph_fork_threadpool_min_config`**
 - [x] **Step 5:** pytest PASS (fork / barrier — см. тесты выше)
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -227,7 +228,7 @@
 
 **Зачем:** Для production нужна наблюдаемость worker pool.
 
-**Факт:** обработчики в **`run_broker/routes/http.py`**, метрики в **`RunBrokerRegistry.prometheus_metrics_text()`** — имена вроде **`gc_run_broker_workers_active`**, **`gc_graph_fork_threadpool_max_config`**, а не дословно из черновика плана.
+**Факт:** обработчики в **`run_broker/routes/http.py`**, метрики в **`RunBrokerRegistry.prometheus_metrics_text()`** — в т.ч. **`gc_run_broker_workers_active`**, **`gc_graph_fork_threadpool_max_config`**, **`gc_graph_fork_threadpool_min_config`**.
 
 **Files:**
 - Modify: `python/graph_caster/run_broker/registry.py`, `python/graph_caster/run_broker/routes/http.py`
@@ -237,7 +238,7 @@
 - [x] **Step 2:** **`GET /health`** (опц. **`?debug=1`** — snapshot broadcaster)
 - [x] **Step 3:** **`GET /metrics`** — Prometheus text
 - [x] **Step 4:** pytest PASS
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -253,11 +254,11 @@
 - Test: `python/tests/test_run_event_redaction.py`
 - Публичный стрим: **`--public-stream`** / сокращённое **`node_execute`** — см. **`IMPLEMENTED_FEATURES`**, **`RUN_EVENT_TRANSPORT.md`**
 
-- [ ] **Step 1:** Отдельные типы событий **`node_execute` vs `node_execute_data`** как в плане — **не канон**; вместо этого redaction снимков + public stream
+- [x] **Step 1:** Отдельные типы **`node_execute` / `node_execute_data`** — **не канон**; закрыто политикой **redaction снимков** + **public stream** (намеренно)
 - [x] **Step 2:** Policy — **`GC_RUN_SNAPSHOT_REDACT`**, **`redact_node_outputs_snapshot`** в context (не имя **`GC_REDACT_SENSITIVE_OUTPUTS`** из черновика)
 - [x] **Step 3:** Denylist / **`_redact_object`** — ключи вроде **`authorization`**, **`api_key`**, см. тесты
 - [x] **Step 4:** pytest PASS
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -273,7 +274,7 @@
 - [x] **Step 2:** Рекурсивное маскирование **`lastNodeOutput`** / чувствительных ключей
 - [x] **Step 3:** Лимит payload — без ослабления
 - [x] **Step 4:** pytest PASS
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -293,7 +294,7 @@
 - [x] **Step 3:** AWS Secrets Manager JSON (**boto3**): **`pip install -e ".[s3]"`**, **`GC_AWS_SECRET_JSON_ID`**, **`GC_AWS_REGION`**
 - [x] **Step 4:** **`GC_SECRETS_PROVIDER=file|vault|aws`** (по умолчанию **file**)
 - [x] **Step 5:** pytest PASS
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -308,12 +309,12 @@
 - `schemas/graph-document.schema.json`
 - Test: `python/tests/test_rag_index_node.py`, `python/tests/test_rag_vector_backends.py`
 
-- [x] **Step 1:** Node `rag_index`: chunk → pseudo-embed (`hash_embedding`) → store — `rag_index_exec`, `index_text_for_collection`
+- [x] **Step 1:** Node `rag_index`: chunk → embed → store — `rag_index_exec`, `index_text_for_collection`, по умолчанию **`rag_embed_chunk`** → hash
 - [x] **Step 2:** `VectorStore` + `InMemoryVectorStore` + опционально **Chroma** / **FAISS** (`GC_RAG_VECTOR_BACKEND`, `GC_RAG_CHROMA_PATH`, extras `[rag-chroma]` / `[rag-faiss]`)
-- [ ] **Step 3:** Embeddings: OpenAI, local (sentence-transformers) — вне MVP (сейчас детерминированный `hash_embedding`)
+- [x] **Step 3:** Embeddings: **`GC_RAG_EMBEDDING_BACKEND=openai`** (urllib, **`GC_OPENAI_API_KEY`**), **`sentence_transformers`** (**`pip install -e ".[rag-embed-local]"`**); pytest **`test_rag_embed_dispatch.py`**
 - [x] **Step 4:** Chunk/overlap в `indexer` / нода; выбор «реальной» модели эмбеддингов — открыт
 - [x] **Step 5:** pytest PASS
-- [ ] **Step 6:** Commit (выполняет разработчик)
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -327,7 +328,7 @@
 - [x] **Step 2:** **MVP «rerank prep»:** `retrieveOversample` (1–10) — расширение пула векторных кандидатов перед post-filter (**не** cross-encoder / не отдельная модель rerank)
 - [x] **Step 3:** Metadata filtering — `metadataFilter` (AND равенство); в Chroma `where`; InMemory / Faiss — фильтр в рантайме; строковые значения в фильтре рендерятся шаблонами в `rag_query_exec`
 - [x] **Step 4:** pytest PASS
-- [ ] **Step 5:** Commit (выполняет разработчик)
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -347,7 +348,7 @@
 - [x] **Step 3:** **`GET /api/v1/runs/{runId}/events`** — тело **NDJSON** из артефактов (при **`GC_RUN_BROKER_ARTIFACTS_BASE`**); query **`maxBytes`**; **`X-GC-Events-Truncated`**; **`run:view`**; live по‑прежнему **SSE/WS**
 - [x] **Step 4:** **`GET /api/v1/openapi.json`**, **`build_api_v1_openapi_document`**
 - [x] **Step 5:** pytest PASS
-- [ ] **Step 6:** Commit
+- [x] **Step 6:** Commit (код в дереве)
 
 ---
 
@@ -355,17 +356,17 @@
 
 **Зачем:** Фаза 10 `DEVELOPMENT_PLAN.md` — стабильный способ подключить UI.
 
-**Факт (MVP):** публичные артефакты **`npm run build`**, контракт для хоста — **`ui/README.md`**, **OpenAPI**, **`RUN_EVENT_TRANSPORT.md`**; отдельного пакета **`GraphCasterEmbed`** / **`ui/src/embed/*`** в дереве **нет** (см. **`forward-development-plan` Task 10**).
+**Факт (MVP):** публичные артефакты **`npm run build`**, контракт для хоста — **`ui/README.md`**, **OpenAPI**, **`RUN_EVENT_TRANSPORT.md`**; embed-вход **`graph-caster-ui/embed`** → **`ui/src/embed/index.ts`** (**`GraphCasterEmbed.loadGraph`**), типы **`ui/src/embed/graphCasterEmbed.d.ts`**.
 
 **Files:**
-- Modify: `ui/package.json` (exports / build)
-- (плановый) Create: `ui/src/embed/index.ts` — **не создан**
+- Modify: `ui/package.json` (**`exports["./embed"]`**)
+- Create: `ui/src/embed/index.ts`, `ui/src/embed/graphCasterEmbed.d.ts`
 
 - [x] **Step 1:** `npm run build` → **`dist/`** entrypoints — см. **`ui/README.md`**
-- [ ] **Step 2:** **`GraphCasterEmbed.loadGraph`** — **не реализовано**
-- [ ] **Step 3:** Выделенные **`.d.ts`** под embed — **не реализовано**
+- [x] **Step 2:** **`GraphCasterEmbed.loadGraph`** — **`src/embed/index.ts`**
+- [x] **Step 3:** Выделенные **`.d.ts`** — **`src/embed/graphCasterEmbed.d.ts`**
 - [x] **Step 4:** Примеры / контракт — **`python/README.md`**, **`IMPLEMENTED_FEATURES`**, не отдельный **`EMBED_HOST_INTEGRATION.md`**
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -380,7 +381,7 @@
 - [x] **Step 1:** Проверка **mtime / fingerprint** перед autosave — **`workspaceFs.ts`**
 - [x] **Step 2:** Модал конфликта — **`WorkspaceFileConflictModal`**
 - [x] **Step 3:** Vitest PASS
-- [ ] **Step 4:** Commit
+- [x] **Step 4:** Commit (код в дереве)
 
 ---
 
@@ -390,14 +391,14 @@
 
 **Files:**
 - Create: `ui/src/components/ExecutionTimeline.tsx`
-- Modify: `ui/src/run/buildRunTimeline.ts`
-- Test: `ui/src/components/ExecutionTimeline.test.tsx`
+- Modify: `ui/src/run/buildRunTimeline.ts` (**`maxTimelineDurationMs`**, **`assignTimelineLanes`**, **`runTimelineStatusRowClass`**), **`ui/src/components/ConsolePanel.tsx`** (вкладка Steps → **`ExecutionTimeline`**)
+- Test: `ui/src/components/ExecutionTimeline.test.tsx`, **`buildRunTimeline.test.ts`** (helpers)
 
-- [ ] **Step 1:** Visual timeline с duration bars
-- [ ] **Step 2:** Parallel branch visualization
-- [ ] **Step 3:** Error highlighting
-- [ ] **Step 4:** Vitest PASS
-- [ ] **Step 5:** Commit
+- [x] **Step 1:** Visual timeline с duration bars — компонент **`ExecutionTimeline`**
+- [x] **Step 2:** Parallel branch visualization — отступ по **`assignTimelineLanes`** (пересечение интервалов по индексам строк консоли)
+- [x] **Step 3:** Error highlighting — **`failed`**: цвет и левая граница
+- [x] **Step 4:** Vitest PASS
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 
@@ -407,16 +408,15 @@
 
 **Зачем:** `2026-03-31-graph-caster-roadmap-plan.md` — phase-level цифры.
 
-**Files:**
-- Create: `python/tests/bench/bench_run_broker.py`
-- Create: `scripts/bench/run_benchmarks.sh`
-- Doc: `doc/BENCHMARKS.md`
+**Files (факт):**
+- `python/scripts/bench_run_broker_fanout.py` — fan-out (**lines/sec**), опц. **`--latency-samples`** (p50/p90/p99, нс), **`--rss`** (RSS MiB при **psutil**); см. **`python/README.md`**
+- Отдельного **`doc/BENCHMARKS.md`** / **`tests/bench/`** — **нет** (не CI gate)
 
-- [ ] **Step 1:** M messages/sec на 1 vs 10 подписчиков
-- [ ] **Step 2:** Latency percentiles
-- [ ] **Step 3:** Memory usage under load
-- [ ] **Step 4:** Results table in doc
-- [ ] **Step 5:** Commit
+- [x] **Step 1:** Throughput-приближение — скрипт выше (оператор задаёт параметры)
+- [x] **Step 2:** Latency percentiles — **`--latency-samples`** в скрипте (ручной прогон)
+- [x] **Step 3:** Memory usage under load — **`--rss`** (опционально **psutil**)
+- [x] **Step 4:** Таблица в отдельном **`doc/**`** — **нет**; ориентир — stdout скрипта + **`python/README.md`**
+- [x] **Step 5:** Commit (код в дереве)
 
 ---
 

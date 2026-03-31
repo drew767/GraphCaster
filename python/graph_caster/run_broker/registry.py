@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Literal
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
-from graph_caster.execution.pool_sizing import fork_threadpool_env_ceiling_for_metrics
+from graph_caster.execution.pool_sizing import (
+    fork_threadpool_env_ceiling_for_metrics,
+    fork_threadpool_env_min_for_metrics,
+)
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
 from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.redis_coord import release_global_run_slot, try_acquire_global_run_slot
@@ -143,6 +146,7 @@ class RunBrokerRegistry:
             n_cap = _max_concurrent_runs()
             pend_cap = _pending_max()
         fork_tp_cap = fork_threadpool_env_ceiling_for_metrics()
+        fork_tp_min = fork_threadpool_env_min_for_metrics()
         lines = [
             "# HELP gc_run_broker_workers_active Child runner processes currently held by the broker.",
             "# TYPE gc_run_broker_workers_active gauge",
@@ -159,9 +163,12 @@ class RunBrokerRegistry:
             "# HELP gc_run_broker_pending_max_config Pending FIFO capacity from env.",
             "# TYPE gc_run_broker_pending_max_config gauge",
             f"gc_run_broker_pending_max_config {pend_cap}",
-            "# HELP gc_graph_fork_threadpool_max_config Fork frontier threadpool ceiling from GC_GRAPH_FORK_THREADPOOL_MAX (0 if unset).",
+            "# HELP gc_graph_fork_threadpool_max_config Fork frontier threadpool ceiling from GC_GRAPH_FORK_THREADPOOL_MAX, else GC_RUNNER_MAX_WORKERS (0 if unset).",
             "# TYPE gc_graph_fork_threadpool_max_config gauge",
             f"gc_graph_fork_threadpool_max_config {fork_tp_cap}",
+            "# HELP gc_graph_fork_threadpool_min_config Fork frontier threadpool floor from GC_RUNNER_MIN_WORKERS (0 if unset).",
+            "# TYPE gc_graph_fork_threadpool_min_config gauge",
+            f"gc_graph_fork_threadpool_min_config {fork_tp_min}",
         ]
         from graph_caster.run_broker.redis_coord import global_active_workers_gauge, redis_coord_config
 

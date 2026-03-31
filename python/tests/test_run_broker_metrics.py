@@ -16,3 +16,4 @@ def test_metrics_endpoint_text() -> None:
     assert r.status_code == 200
     assert "gc_run_broker_workers_active" in r.text
     assert "gc_run_broker_pending_queue_depth" in r.text
+    assert "gc_graph_fork_threadpool_min_config" in r.text

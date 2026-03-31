@@ -209,6 +209,14 @@
       "edgeConditionPlaceholder": "пусто — без условия",
       "edgeConditionHint": "Раннер берёт первое ребро без условия или с истинным условием (см. Python). В шаблонах и JSON Logic $json — вывод предшественника; $node — доступ к выводам нод как в n8n: id в скобках или короткий идентификатор и при необходимости поля через точки (см. python/README.md).",
       "expressionAutocompleteHint": "Автодополнение: введите $ для $json / $node / $env, начните $node[\" — подсказки id нод этого графа, или имя встроенной функции (trim, upper, …). Ctrl+Space — полный список.",
+      "expressionMonaco": "Редактор Monaco для выражений ({{ … }}, $…)",
+      "expressionMonacoLoading": "Загрузка редактора…",
+      "expressionSyntax": {
+        "stray_close_mustache": "Лишний `}}` без соответствующего `{{`.",
+        "unclosed_mustache": "Незакрытый шаблон `{{ … }}`.",
+        "unbalanced_parens": "Несбалансированные скобки внутри `{{ … }}`.",
+        "unclosed_string": "Незакрытая строка внутри `{{ … }}`."
+      },
       "mergeMode": "Режим слияния",
       "mergeModePassthrough": "Сквозной (один активный путь)",
       "mergeModeBarrier": "Барьер (ждать все входящие ветки)",
@@ -550,6 +558,7 @@
         "titleWithFile": "Не удалось открыть граф: {{fileName}}",
         "read_failed": "Не удалось прочитать файл.",
         "json_invalid_prefix": "Некорректный JSON:",
+        "invalid_json": "Текст не является корректным JSON.",
         "copy": "Копировать детали",
         "copied": "Скопировано",
         "close": "Закрыть",

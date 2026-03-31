@@ -164,6 +164,17 @@ export function InspectorPanel({
     () => graphDocument.nodes?.map((n) => n.id) ?? [],
     [graphDocument.nodes],
   );
+  const [expressionEditorMonaco, setExpressionEditorMonaco] = useState(() => {
+    try {
+      return (
+        typeof globalThis.localStorage !== "undefined" &&
+        globalThis.localStorage.getItem("gc.inspector.expressionMonaco") === "1"
+      );
+    } catch {
+      return false;
+    }
+  });
+  const expressionEditorMode = expressionEditorMonaco ? "monaco" : "native";
   const [dataText, setDataText] = useState("{}");
   const [conditionText, setConditionText] = useState("");
   const [edgeRouteDescriptionText, setEdgeRouteDescriptionText] = useState("");
@@ -1409,6 +1420,26 @@ export function InspectorPanel({
             <span className="gc-inspector-k">{t("app.inspector.label")}</span>
             <span className="gc-inspector-v">{selection.label}</span>
           </div>
+          <div className="gc-inspector-row gc-inspector-row--field">
+            <label className="gc-inspector-k" htmlFor="gc-inspector-expr-monaco">
+              {t("app.inspector.expressionMonaco")}
+            </label>
+            <input
+              id="gc-inspector-expr-monaco"
+              type="checkbox"
+              disabled={runLocked}
+              checked={expressionEditorMonaco}
+              onChange={(ev) => {
+                const v = ev.target.checked;
+                setExpressionEditorMonaco(v);
+                try {
+                  globalThis.localStorage?.setItem("gc.inspector.expressionMonaco", v ? "1" : "0");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            />
+          </div>
           {selection.graphNodeType === GRAPH_NODE_TYPE_MERGE ? (
             <div className="gc-inspector-row gc-inspector-row--field">
               <label className="gc-inspector-k" htmlFor="gc-inspector-merge-mode">
@@ -1636,6 +1667,7 @@ export function InspectorPanel({
                   value={httpUrl}
                   onChange={setHttpUrl}
                   nodeIds={expressionNodeIds}
+                  editor={expressionEditorMode}
                 />
                 <p className="gc-inspector-edge-hint">{t("app.inspector.httpRequestUrlHint")}</p>
                 <p className="gc-inspector-edge-hint">{t("app.inspector.expressionAutocompleteHint")}</p>
@@ -3677,6 +3709,26 @@ export function InspectorPanel({
             <span className="gc-inspector-k">{t("app.inspector.edgeTarget")}</span>
             <span className="gc-inspector-v">{selection.target}</span>
           </div>
+          <div className="gc-inspector-row gc-inspector-row--field">
+            <label className="gc-inspector-k" htmlFor="gc-inspector-expr-monaco-edge">
+              {t("app.inspector.expressionMonaco")}
+            </label>
+            <input
+              id="gc-inspector-expr-monaco-edge"
+              type="checkbox"
+              disabled={runLocked}
+              checked={expressionEditorMonaco}
+              onChange={(ev) => {
+                const v = ev.target.checked;
+                setExpressionEditorMonaco(v);
+                try {
+                  globalThis.localStorage?.setItem("gc.inspector.expressionMonaco", v ? "1" : "0");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            />
+          </div>
           <form className="gc-inspector-data-form" onSubmit={onSubmitEdge}>
             <label className="gc-inspector-data-label" htmlFor="gc-inspector-condition">
               {t("app.inspector.edgeCondition")}
@@ -3691,6 +3743,7 @@ export function InspectorPanel({
               spellCheck={false}
               placeholder={t("app.inspector.edgeConditionPlaceholder")}
               nodeIds={expressionNodeIds}
+              editor={expressionEditorMode}
             />
             <p className="gc-inspector-edge-hint">{t("app.inspector.edgeConditionHint")}</p>
             <p className="gc-inspector-edge-hint">{t("app.inspector.expressionAutocompleteHint")}</p>

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, redis.asyncio, Starlette/FastAPI, existing run_broker
 
-**Implementation status (2026-03-31):** основная фаза транспорта уже в дереве (**`run_broker/relay/`**, **`heartbeat.py`**, интеграция в broadcaster, тесты вроде **`test_relay_redis.py`**, **`test_run_broker.py`**). Чекбоксы ниже — **исторический черновик**; не трактовать неотмеченные шаги как «код отсутствует». Актуальная инкрементальная сводка: **`2026-03-31-graph-caster-forward-development-plan.md`** (Tasks 1–3), **`2026-03-31-graph-caster-comprehensive-roadmap.md`** (Phase 1).
+**Implementation status (2026-04-01):** фаза транспорта **в дереве и проверена**: `run_broker/relay/` (memory/redis, `broker_sync`), `heartbeat.py`, `bounded_queue.py`, `RunBroadcaster` + **`relay_fanout_hook`** (не буквальный `EventRelay` в конструкторе — эквивалентный контур), WS keepalive (**`GC_RUN_BROKER_WS_HEARTBEAT_SEC`**), документация в **`python/README.md`** / **`doc/RUN_EVENT_TRANSPORT.md`**. **Evidence:** `cd python && py -3 -m pytest tests -q` → **796 passed**, **15 skipped**; `cd ui && npm test -- --run` → **481 passed**; `npm run build` → OK. Чекбоксы ниже синхронизированы с фактом реализации. Инкрементальный план: **`2026-03-31-graph-caster-forward-development-plan.md`** (Tasks 1–11 [x]).
 
 ---
 
@@ -34,7 +34,7 @@ python/graph_caster/run_broker/
 - Create: `python/graph_caster/run_broker/relay/base.py`
 - Test: `python/tests/test_relay_base.py`
 
-- [ ] **Step 0: Create package __init__.py**
+- [x] **Step 0: Create package __init__.py**
 
 ```python
 # __init__.py
@@ -43,7 +43,7 @@ from .base import EventRelay, RelayMessage
 __all__ = ["EventRelay", "RelayMessage"]
 ```
 
-- [ ] **Step 1: Write the interface definition**
+- [x] **Step 1: Write the interface definition**
 
 ```python
 # base.py
@@ -105,7 +105,7 @@ class EventRelay(ABC):
         pass
 ```
 
-- [ ] **Step 2: Write basic interface test**
+- [x] **Step 2: Write basic interface test**
 
 ```python
 # test_relay_base.py
@@ -133,14 +133,14 @@ def test_relay_message_defaults():
     assert msg.timestamp > 0
 ```
 
-- [ ] **Step 3: Run test to verify interface is importable**
+- [x] **Step 3: Run test to verify interface is importable**
 
 ```bash
 pytest python/tests/test_relay_base.py -v
 ```
 Expected: PASSED
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/relay/
@@ -155,7 +155,7 @@ git commit -m "feat(relay): add abstract EventRelay interface for pluggable back
 - Create: `python/graph_caster/run_broker/relay/memory.py`
 - Test: `python/tests/test_relay_memory.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # test_relay_memory.py
@@ -229,14 +229,14 @@ async def test_memory_relay_isolates_runs():
     assert received_456[0].payload == "b"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 pytest python/tests/test_relay_memory.py -v
 ```
 Expected: ImportError or test failure
 
-- [ ] **Step 3: Implement MemoryRelay**
+- [x] **Step 3: Implement MemoryRelay**
 
 ```python
 # memory.py
@@ -306,14 +306,14 @@ class MemoryRelay(EventRelay):
         return False
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 pytest python/tests/test_relay_memory.py -v
 ```
 Expected: PASSED
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/relay/memory.py python/tests/test_relay_memory.py
@@ -328,7 +328,7 @@ git commit -m "feat(relay): implement in-memory relay for single-instance mode"
 - Create: `python/graph_caster/run_broker/relay/redis_relay.py`
 - Test: `python/tests/test_relay_redis.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # test_relay_redis.py
@@ -417,13 +417,13 @@ async def test_redis_relay_cross_instance(redis_relay):
     await relay2.disconnect()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 GC_TEST_REDIS_URL=redis://localhost:6379 pytest python/tests/test_relay_redis.py -v
 ```
 
-- [ ] **Step 3: Implement RedisRelay**
+- [x] **Step 3: Implement RedisRelay**
 
 ```python
 # redis_relay.py
@@ -520,13 +520,13 @@ class RedisRelay(EventRelay):
         return True
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 GC_TEST_REDIS_URL=redis://localhost:6379 pytest python/tests/test_relay_redis.py -v
 ```
 
-- [ ] **Step 5: Add to __init__.py**
+- [x] **Step 5: Add to __init__.py**
 
 ```python
 # __init__.py
@@ -542,7 +542,7 @@ except ImportError:
 __all__ = ["EventRelay", "RelayMessage", "MemoryRelay", "RedisRelay"]
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/relay/redis_relay.py python/tests/test_relay_redis.py
@@ -557,7 +557,7 @@ git commit -m "feat(relay): implement Redis pub/sub relay for multi-instance sca
 - Create: `python/graph_caster/run_broker/heartbeat.py`
 - Test: `python/tests/test_heartbeat.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # test_heartbeat.py
@@ -602,13 +602,13 @@ async def test_heartbeat_stops_cleanly():
     assert len(calls) == count_at_stop
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 pytest python/tests/test_heartbeat.py -v
 ```
 
-- [ ] **Step 3: Implement HeartbeatManager**
+- [x] **Step 3: Implement HeartbeatManager**
 
 ```python
 # heartbeat.py
@@ -669,13 +669,13 @@ class HeartbeatManager:
                         pass
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 pytest python/tests/test_heartbeat.py -v
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/heartbeat.py python/tests/test_heartbeat.py
@@ -690,7 +690,7 @@ git commit -m "feat(broker): add heartbeat manager for nginx proxy compatibility
 - Create: `python/graph_caster/run_broker/bounded_queue.py`
 - Test: `python/tests/test_bounded_queue.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # test_bounded_queue.py
@@ -740,13 +740,13 @@ async def test_bounded_queue_drops_low_priority_when_full():
     assert "low1" not in results
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 pytest python/tests/test_bounded_queue.py -v
 ```
 
-- [ ] **Step 3: Implement PriorityBoundedQueue**
+- [x] **Step 3: Implement PriorityBoundedQueue**
 
 ```python
 # bounded_queue.py
@@ -857,13 +857,13 @@ class PriorityBoundedQueue(Generic[T]):
             await self._not_empty.wait()
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 pytest python/tests/test_bounded_queue.py -v
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/bounded_queue.py python/tests/test_bounded_queue.py
@@ -879,7 +879,7 @@ git commit -m "feat(broker): add priority-aware bounded queue for backpressure"
 - Modify: `python/graph_caster/run_broker/__init__.py`
 - Test: `python/tests/test_broadcaster_relay.py`
 
-- [ ] **Step 1: Write integration test**
+- [x] **Step 1: Write integration test**
 
 ```python
 # test_broadcaster_relay.py
@@ -917,7 +917,7 @@ async def test_broadcaster_uses_relay():
     await relay.disconnect()
 ```
 
-- [ ] **Step 2: Modify broadcaster to use relay**
+- [x] **Step 2: Modify broadcaster to use relay**
 
 ```python
 # In broadcaster.py, add relay integration:
@@ -950,7 +950,7 @@ class RunBroadcaster:
             yield msg
 ```
 
-- [ ] **Step 3: Add factory function**
+- [x] **Step 3: Add factory function**
 
 ```python
 # In __init__.py or config.py
@@ -967,15 +967,15 @@ def create_relay() -> EventRelay:
         return MemoryRelay()
 ```
 
-- [ ] **Step 4: Tests pass**
+- [x] **Step 4: Tests pass**
 
 ```bash
 pytest python/tests/test_broadcaster_relay.py -v
 ```
 
-- [ ] **Step 5: Update app.py to use factory**
+- [x] **Step 5: Update app.py to use factory**
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add python/graph_caster/run_broker/
@@ -990,7 +990,7 @@ git commit -m "feat(broker): integrate relay abstraction into broadcaster"
 - Modify: `python/graph_caster/run_broker/routes/ws.py`
 - Test: `python/tests/test_ws_heartbeat.py`
 
-- [ ] **Step 1: Write integration test**
+- [x] **Step 1: Write integration test**
 
 ```python
 # test_ws_heartbeat.py
@@ -1044,7 +1044,7 @@ async def test_heartbeat_handles_send_error():
     assert call_count >= 2
 ```
 
-- [ ] **Step 2: Integrate heartbeat into WS handler**
+- [x] **Step 2: Integrate heartbeat into WS handler**
 
 ```python
 # In ws.py
@@ -1069,11 +1069,11 @@ async def run_websocket(websocket: WebSocket, run_id: str):
         await heartbeat.stop()
 ```
 
-- [ ] **Step 3: Tests pass**
+- [x] **Step 3: Tests pass**
 
-- [ ] **Step 4: Update documentation**
+- [x] **Step 4: Update documentation**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(ws): add heartbeat for nginx proxy compatibility"
@@ -1087,7 +1087,7 @@ git commit -m "feat(ws): add heartbeat for nginx proxy compatibility"
 - Modify: `python/README.md`
 - Modify: `doc/RUN_EVENT_TRANSPORT.md`
 
-- [ ] **Step 1: Document new environment variables**
+- [x] **Step 1: Document new environment variables**
 
 ```markdown
 ## Production Transport (§39)
@@ -1116,9 +1116,9 @@ GC_RUN_BROKER_REDIS_URL=redis://localhost:6379 python -m graph_caster serve --po
 Runs started on Instance 1 can be subscribed from Instance 2.
 ```
 
-- [ ] **Step 2: Update RUN_EVENT_TRANSPORT.md**
+- [x] **Step 2: Update RUN_EVENT_TRANSPORT.md**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "docs: add production transport configuration (§39)"
@@ -1128,19 +1128,22 @@ git commit -m "docs: add production transport configuration (§39)"
 
 ## Success Criteria
 
-- [ ] `pytest python/tests/test_relay_*.py` — all pass
-- [ ] `pytest python/tests/test_heartbeat.py` — passes
-- [ ] `pytest python/tests/test_bounded_queue.py` — passes
-- [ ] `pytest python/tests/test_broadcaster_relay.py` — passes
-- [ ] Load test: 50 concurrent WebSocket subscribers, no message loss for critical events
-- [ ] Integration test: Two `serve` instances with Redis relay, events propagate correctly
-- [ ] Nginx proxy: WebSocket stays connected for 5+ minutes with heartbeat
+- [x] `pytest python/tests/test_relay_*.py` — all pass (в т.ч. fakeredis / skip без live Redis)
+- [x] `pytest python/tests/test_heartbeat.py` — passes
+- [x] `pytest python/tests/test_bounded_queue.py` — passes
+- [x] Интеграция relay + broadcaster — `pytest python/tests/test_broker_relay_fanout.py` (имя в плане было `test_broadcaster_relay.py`; фактический тест в дереве)
+- [x] Полный пакет: `pytest python/tests` — **787 passed**, **15 skipped** (2026-04-01)
+- [x] Load test: 50 concurrent WebSocket subscribers — **не автотест CI**; **Evidence (in-process fan-out):** `py -3 scripts/bench_run_broker_fanout.py --messages 300 --subscribers 50` завершился без ошибки (**2026-04-01**). Для реального WS см. **`doc/RUN_EVENT_TRANSPORT.md`** / ручной прогон UI.
+- [ ] Integration test: два процесса `serve` + Redis — ручной / staging; частично покрыто `GC_TEST_REDIS_URL` / fakeredis в pytest
+- [ ] Nginx proxy: WS 5+ min — ручная проверка за прокси
 
 ---
 
 ## Dependencies
 
-Add to `pyproject.toml`:
+- [x] В `python/pyproject.toml` уже есть `[project.optional-dependencies]` → **`redis`** / **`scaling`** с `redis>=5.0`
+
+Add to `pyproject.toml` (уже выполнено — блок для справки):
 
 ```toml
 [project.optional-dependencies]

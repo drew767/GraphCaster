@@ -5,12 +5,16 @@
 from __future__ import annotations
 
 import ast
+import os
 import operator
 import re
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Callable
 
 from .errors import (
     ExpressionEvaluationError,
+    ExpressionTimeoutError,
     ForbiddenOperationError,
     UndefinedVariableError,
 )
@@ -66,6 +70,25 @@ ALLOWED_BUILTINS: dict[str, Callable[..., Any]] = {
     "map": lambda f, x: list(map(f, x)),
     **EXPRESSION_FUNCTIONS,
 }
+
+_DEFAULT_EVAL_TIMEOUT_SEC = 5.0
+
+_EVAL_TIMEOUT_USE_ENV = object()
+
+
+def _eval_timeout_sec_from_env() -> float | None:
+    """Wall-clock cap for expression evaluation; None = unlimited."""
+    raw = os.environ.get("GC_EXPRESSION_EVAL_TIMEOUT_SEC", "").strip()
+    if raw == "":
+        return _DEFAULT_EVAL_TIMEOUT_SEC
+    lowered = raw.lower()
+    if lowered in ("0", "off", "none", "disable", "inf", "infinity"):
+        return None
+    try:
+        v = float(raw)
+        return None if v <= 0 else v
+    except ValueError:
+        return _DEFAULT_EVAL_TIMEOUT_SEC
 
 BINARY_OPS: dict[type, Callable[[Any, Any], Any]] = {
     ast.Add: operator.add,
@@ -307,7 +330,33 @@ class SafeEvalVisitor(ast.NodeVisitor):
 class ExpressionEvaluator:
     """Evaluate expressions safely in a context."""
 
+    def __init__(self, *, eval_timeout_sec: float | object = _EVAL_TIMEOUT_USE_ENV) -> None:
+        """eval_timeout_sec: >0 = wall-clock limit (seconds); <=0 = unlimited.
+
+        When omitted, uses env ``GC_EXPRESSION_EVAL_TIMEOUT_SEC`` (default **5** s;
+        **0** / **off** / **none** disables). Memory is not capped (would need a subprocess).
+        """
+        if eval_timeout_sec is _EVAL_TIMEOUT_USE_ENV:
+            self._eval_timeout_sec = _eval_timeout_sec_from_env()
+        else:
+            v = float(eval_timeout_sec)
+            self._eval_timeout_sec = None if v <= 0 else v
+
     def evaluate(self, expression: str, context: dict[str, Any]) -> Any:
+        ctx_copy = dict(context)
+        limit = self._eval_timeout_sec
+        if limit is None or limit <= 0:
+            return self._evaluate_core(expression, ctx_copy)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(self._evaluate_core, expression, ctx_copy)
+            try:
+                return fut.result(timeout=limit)
+            except FuturesTimeoutError as e:
+                raise ExpressionTimeoutError(
+                    f"Evaluation exceeded timeout of {limit}s", expression
+                ) from e
+
+    def _evaluate_core(self, expression: str, context: dict[str, Any]) -> Any:
         preprocessed = self._preprocess(expression)
         try:
             tree = ast.parse(preprocessed, mode="eval")

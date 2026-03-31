@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from graph_caster.document_revision import graph_document_revision
-from graph_caster.execution.pool_sizing import resolve_fork_parallel_threadpool_workers
+from graph_caster.execution.execution_coordinator import ExecutionCoordinator
 from graph_caster.fork_parallel import EDGE_SOURCE_OUT_ERROR, ForkBranchPlan, build_fork_parallel_plans
 from graph_caster.host_context import RunHostContext
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
@@ -156,6 +156,7 @@ class GraphRunner:
             raw = (os.environ.get("GC_FORK_MAX_PARALLEL") or "").strip()
             self._fork_max_parallel_cap = max(1, int(raw)) if raw.isdigit() else 1
         self._public_stream = bool(public_stream)
+        self._execution_coordinator = ExecutionCoordinator()
 
     def _ensure_secrets_provider(self) -> SecretsProvider:
         if self._secrets_provider_inst is None:
@@ -698,7 +699,7 @@ class GraphRunner:
         max_workers: int,
     ) -> None:
         self._emit_fork_parallel_frontier_events(fork_id, plans)
-        n_workers = resolve_fork_parallel_threadpool_workers(len(plans), max_workers)
+        n_workers = self._execution_coordinator.fork_threadpool_workers(len(plans), max_workers)
         with ThreadPoolExecutor(max_workers=n_workers) as ex:
             futures = [ex.submit(self._fork_parallel_branch_worker, p, ctx, step_q) for p in plans]
             for fut in as_completed(futures):

@@ -1,11 +1,24 @@
 // Copyright GraphCaster. All Rights Reserved.
 
-import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   getExpressionCompletions,
+  scanExpressionTemplateSyntax,
   type ExpressionCompletion,
 } from "../graph/expressionAutocomplete";
+
+const ExpressionMonacoField = lazy(() => import("./ExpressionMonacoField"));
 
 export type ExpressionAutocompleteInputProps = {
   id?: string;
@@ -18,6 +31,8 @@ export type ExpressionAutocompleteInputProps = {
   spellCheck?: boolean;
   nodeIds: readonly string[];
   autoComplete?: string;
+  /** Monaco: custom **graphcaster-expression** language; autocomplete palette is native-input only. */
+  editor?: "native" | "monaco";
 };
 
 type Range = { from: number; to: number; forceInsert: boolean };
@@ -33,7 +48,9 @@ export function ExpressionAutocompleteInput({
   spellCheck = false,
   nodeIds,
   autoComplete = "off",
+  editor = "native",
 }: ExpressionAutocompleteInputProps) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useRef(`gc-expr-ac-${Math.random().toString(36).slice(2, 9)}`).current;
   const rangeRef = useRef<Range>({ from: 0, to: 0, forceInsert: false });
@@ -42,6 +59,12 @@ export function ExpressionAutocompleteInput({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ExpressionCompletion[]>([]);
   const [active, setActive] = useState(0);
+
+  const templateSyntaxIssue = useMemo(() => scanExpressionTemplateSyntax(value), [value]);
+  const syntaxHint =
+    templateSyntaxIssue != null
+      ? t(`app.inspector.expressionSyntax.${templateSyntaxIssue.kind}`)
+      : undefined;
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -139,8 +162,35 @@ export function ExpressionAutocompleteInput({
     }
   };
 
+  const wrapClass = [
+    "gc-expression-ac",
+    templateSyntaxIssue != null ? "gc-expression-ac--invalid" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (editor === "monaco") {
+    return (
+      <div className={wrapClass}>
+        <Suspense
+          fallback={<div className={className}>{t("app.inspector.expressionMonacoLoading")}</div>}
+        >
+          <ExpressionMonacoField
+            className={className}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+            disabled={disabled}
+            aria-invalid={templateSyntaxIssue != null}
+            title={syntaxHint}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
-    <div className="gc-expression-ac">
+    <div className={wrapClass}>
       <input
         ref={inputRef}
         id={id}
@@ -152,6 +202,8 @@ export function ExpressionAutocompleteInput({
         spellCheck={spellCheck}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        aria-invalid={templateSyntaxIssue != null}
+        title={syntaxHint}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-autocomplete={open ? "list" : undefined}

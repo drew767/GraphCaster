@@ -81,3 +81,5 @@ python -m graph_caster serve
 Статическая сборка из **`dist/`** (**`npm run build`**) для WebView / iframe; обмен с Python-runner по плану продукта (WebSocket / `postMessage` / Tauri). Для ежедневной работы в отдельном окне используйте **`npm run dev`** (оболочка Tauri в `src-tauri/`).
 
 **Хост как BFF:** стабильный HTTP-контракт старта/статуса/отмены прогона и реплея сохранённых событий (**`GET /api/v1/runs/{runId}/events`**) — см. **`GET /api/v1/openapi.json`** на брокере (OpenAPI 3.0.3; версия документа — **`GC_API_V1_OPENAPI_DOCUMENT_VERSION`** в **`python/graph_caster/run_broker/routes/api_v1_openapi.py`**). Пакет **`graph-caster-ui`** в репозитории помечен **`private`**; для интеграции хост забирает **`dist/`** (git submodule, CI-артефакт или **`npm pack`** после **`npm run build`**).
+
+**Embed (граф JSON в хосте):** исходный вход **`graph-caster-ui/embed`** → **`src/embed/index.ts`**: **`GraphCasterEmbed.loadGraph(string | unknown)`** / **`loadGraph`** — обёртка над **`parseGraphDocumentJsonResult`** (ошибка **`invalid_json`** для битой строки). Типы для IDE: **`src/embed/graphCasterEmbed.d.ts`**.

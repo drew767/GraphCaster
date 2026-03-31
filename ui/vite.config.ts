@@ -4,7 +4,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import monacoEditorPluginMod from "vite-plugin-monaco-editor";
+import { defineConfig, loadEnv, type PluginOption } from "vite";
+
+const monacoEditorPlugin = (
+  typeof monacoEditorPluginMod === "function"
+    ? monacoEditorPluginMod
+    : (monacoEditorPluginMod as { default: typeof monacoEditorPluginMod }).default
+) as (opts?: { languageWorkers?: string[] }) => PluginOption;
 
 const uiRoot = path.dirname(fileURLToPath(import.meta.url));
 const graphCasterRoot = path.resolve(uiRoot, "..");
@@ -14,7 +21,12 @@ export default defineConfig(({ mode }) => {
   const brokerTarget = env.VITE_GC_RUN_BROKER_TARGET || "http://127.0.0.1:9847";
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      monacoEditorPlugin({
+        languageWorkers: ["editorWorkerService"],
+      }),
+    ],
     resolve: {
       alias: {
         "@schemas": path.join(graphCasterRoot, "schemas"),

@@ -1413,6 +1413,38 @@ body {
   background: color-mix(in srgb, #b7950b 12%, var(--gc-console-bg));
 }
 
+.gc-execution-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.gc-execution-timeline__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.28rem 0.35rem;
+  margin: 0 0 0.22rem;
+  border-radius: var(--gc-radius-sm);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.gc-execution-timeline__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.gc-execution-timeline__bar {
+  height: 6px;
+  max-width: 100%;
+  border-radius: 2px;
+  margin-top: 0.15rem;
+}
+
 .gc-run-banner {
   flex-shrink: 0;
   font-size: 0.7rem;
@@ -2185,6 +2217,16 @@ body {
 .gc-expression-ac {
   position: relative;
   width: 100%;
+}
+
+.gc-expression-ac--invalid > input {
+  border-color: color-mix(in srgb, #c0392b 55%, var(--gc-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #c0392b 35%, transparent);
+}
+
+.gc-expression-ac--invalid > .gc-inspector-condition-input {
+  border-radius: var(--gc-radius-sm, 6px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #c0392b 35%, transparent);
 }
 
 .gc-expression-ac > input {
