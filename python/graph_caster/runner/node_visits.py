@@ -29,6 +29,7 @@ from graph_caster.mcp_client import (
 )
 from graph_caster.http_request_exec import execute_http_request
 from graph_caster.python_code_exec import execute_python_code
+from graph_caster.rag_index_exec import execute_rag_index
 from graph_caster.rag_query_exec import execute_rag_query
 from graph_caster.delay_wait_exec import (
     execute_delay_or_debounce,
@@ -385,6 +386,61 @@ def run_llm_agent_visit(
         return "break", llm_exit_used_pin
 
     return "ok", llm_exit_used_pin
+
+
+def run_agent_visit(
+    runner: Any,
+    node: Node,
+    ctx: dict[str, Any],
+    step_q: StepQueue,
+    *,
+    fork_parallel_worker: bool = False,
+) -> tuple[Literal["ok", "continue", "break"], bool]:
+    """In-runner ``agent`` node (tool loop; no subprocess)."""
+    from graph_caster.agent.in_runner_exec import execute_in_runner_agent
+
+    agent_used_pin = False
+    outs_map = ctx.setdefault("node_outputs", {})
+    sess = ctx.get("_gc_run_session")
+
+    def _should_cancel() -> bool:
+        if fork_parallel_worker and ctx.get("_run_cancelled"):
+            return True
+        return sess is not None and sess.cancel_event.is_set()
+
+    if _should_cancel():
+        ctx["_run_cancelled"] = True
+        return "break", agent_used_pin
+
+    ok, patch = execute_in_runner_agent(
+        node=node,
+        graph_id=runner._doc.graph_id,
+        ctx=ctx,
+        emit=runner.emit,
+    )
+    for k, v in patch.items():
+        outs_map[node.id][k] = copy.deepcopy(v)
+
+    ar = patch.get("agentResult") if isinstance(patch, dict) else None
+    if isinstance(ar, dict) and ar.get("success") is True:
+        txt = ar.get("text")
+        ctx["last_result"] = txt if txt not in (None, "") else True
+    else:
+        ctx["last_result"] = False
+
+    if not ok:
+        ne_task: dict[str, Any] = {
+            "nodeId": node.id,
+            "nodeType": node.type,
+            "graphId": runner._doc.graph_id,
+        }
+        runner.emit("node_exit", **ne_task)
+        ctx["last_result"] = False
+        if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+            return "continue", agent_used_pin
+        return "break", agent_used_pin
+
+    return "ok", agent_used_pin
 
 
 def execute_mcp_tool_node(runner: Any, node: Node, ctx: dict[str, Any]) -> bool:
@@ -1295,6 +1351,51 @@ def _apply_timer_patch_to_outputs(
     if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
         return "continue", used_pin
     return "break", used_pin
+
+
+def run_rag_index_visit(
+    runner: Any,
+    node: Node,
+    ctx: dict[str, Any],
+    step_q: StepQueue,
+    *,
+    fork_parallel_worker: bool = False,
+) -> tuple[Literal["ok", "continue", "break"], bool]:
+    """Index text chunks into the in-memory vector store for this graph run."""
+    _ = fork_parallel_worker
+    outs_map = ctx.setdefault("node_outputs", {})
+    ok, patch = execute_rag_index(
+        node_id=node.id,
+        graph_id=runner._doc.graph_id,
+        data=dict(node.data),
+        ctx=ctx,
+    )
+    for k, v in patch.items():
+        outs_map[node.id][k] = v
+
+    snap_o = outs_map.get(node.id)
+    if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
+        runner.emit(
+            "node_outputs_snapshot",
+            nodeId=node.id,
+            graphId=runner._doc.graph_id,
+            snapshot=snapshot_for_pin_event(snap_o),
+        )
+
+    if ok:
+        ctx["last_result"] = True
+        return "ok", False
+
+    ne_task: dict[str, Any] = {
+        "nodeId": node.id,
+        "nodeType": node.type,
+        "graphId": runner._doc.graph_id,
+    }
+    runner.emit("node_exit", **ne_task)
+    ctx["last_result"] = False
+    if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+        return "continue", False
+    return "break", False
 
 
 def run_set_variable_visit(

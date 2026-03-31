@@ -11,12 +11,14 @@ import {
   GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_HTTP_REQUEST,
   GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_RAG_INDEX,
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
   GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
+  GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_TASK,
 } from "./nodeKinds";
 
@@ -121,6 +123,16 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         verifyTls: true,
         parseResponseBody: "auto",
       };
+    case GRAPH_NODE_TYPE_RAG_INDEX:
+      return {
+        title: "RAG index",
+        collectionId: "",
+        text: "",
+        mode: "replace",
+        chunkSize: 512,
+        chunkOverlap: 64,
+        embeddingDims: 64,
+      };
     case GRAPH_NODE_TYPE_DELAY:
       return { title: "Delay", durationSec: 1 };
     case GRAPH_NODE_TYPE_DEBOUNCE:
@@ -155,6 +167,12 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         maxAgentSteps: 0,
         envKeys: [],
         inputPayload: {},
+      };
+    case GRAPH_NODE_TYPE_AGENT:
+      return {
+        title: "Agent",
+        inputText: "",
+        maxIterations: 10,
       };
     default:
       return {};

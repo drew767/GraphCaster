@@ -51,12 +51,14 @@ from graph_caster.validate import (
     find_fork_few_outputs_warnings,
     find_http_request_structure_warnings,
     find_rag_query_structure_warnings,
+    find_rag_index_structure_warnings,
     find_delay_structure_warnings,
     find_debounce_structure_warnings,
     find_wait_for_structure_warnings,
     find_python_code_structure_warnings,
     find_set_variable_structure_warnings,
     find_llm_agent_structure_warnings,
+    find_agent_structure_warnings,
     find_mcp_tool_structure_warnings,
     merge_mode,
 )
@@ -65,12 +67,14 @@ from graph_caster.runner.node_visits import (
     execute_mcp_tool_node,
     run_http_request_visit,
     run_rag_query_visit,
+    run_rag_index_visit,
     run_delay_visit,
     run_debounce_visit,
     run_wait_for_visit,
     run_python_code_visit,
     run_set_variable_visit,
     run_llm_agent_visit,
+    run_agent_visit,
     run_subprocess_task_visit,
 )
 from graph_caster.runner.step_cache_lookup import plan_step_cache_key
@@ -78,12 +82,14 @@ from graph_caster.runner.run_helpers import (
     cache_key_prefix,
     http_request_has_url,
     rag_query_has_url_and_query,
+    rag_index_has_valid_config,
     delay_has_duration,
     debounce_has_duration,
     wait_for_has_executable_config,
     python_code_has_code,
     set_variable_has_valid_config,
     llm_agent_has_executable_command,
+    agent_has_executable_config,
     normalize_run_id_candidate,
     node_wants_step_cache,
     prepare_context,
@@ -360,9 +366,13 @@ class GraphRunner:
                 continue
             if n.type == "llm_agent" and llm_agent_has_executable_command(n):
                 continue
+            if n.type == "agent" and agent_has_executable_config(n):
+                continue
             if n.type == "http_request" and http_request_has_url(n):
                 continue
             if n.type == "rag_query" and rag_query_has_url_and_query(n):
+                continue
+            if n.type == "rag_index" and rag_index_has_valid_config(n):
                 continue
             if n.type == "python_code" and python_code_has_code(n):
                 continue
@@ -439,6 +449,18 @@ class GraphRunner:
             self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
 
+    def _run_agent_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_agent_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
     def _run_http_request_visit(
         self,
         node: Node,
@@ -460,6 +482,18 @@ class GraphRunner:
         fork_parallel_worker: bool = False,
     ) -> tuple[Literal["ok", "continue", "break"], bool]:
         return run_rag_query_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
+    def _run_rag_index_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_rag_index_visit(
             self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
 
@@ -544,12 +578,20 @@ class GraphRunner:
                     outcome, used_pin = self._run_llm_agent_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
+                elif node.type == "agent":
+                    outcome, used_pin = self._run_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
                 elif node.type == "http_request":
                     outcome, used_pin = self._run_http_request_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
                 elif node.type == "rag_query":
                     outcome, used_pin = self._run_rag_query_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "rag_index":
+                    outcome, used_pin = self._run_rag_index_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
                 elif node.type == "python_code":
@@ -1000,6 +1042,8 @@ class GraphRunner:
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_rag_query_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_rag_index_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_python_code_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_set_variable_structure_warnings(self._doc):
@@ -1011,6 +1055,8 @@ class GraphRunner:
         for w in find_wait_for_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_llm_agent_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_agent_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         # Same warnings may already appear in the editor from the graph document; NDJSON is for console parity.
         for w in find_port_data_kind_warnings(self._doc):
@@ -1051,6 +1097,10 @@ class GraphRunner:
                     red_a = redact_task_data_for_node_execute(node.data)
                     exec_data = red_a
                     stored_node_data = dict(node.data) if red_a is node.data else red_a
+                elif node.type == "agent":
+                    red_ag = redact_task_data_for_node_execute(node.data)
+                    exec_data = red_ag
+                    stored_node_data = dict(node.data) if red_ag is node.data else red_ag
                 elif node.type == "mcp_tool":
                     red_m = redact_mcp_tool_data_for_execute(node.data)
                     exec_data = red_m
@@ -1063,6 +1113,9 @@ class GraphRunner:
                     red_r = redact_rag_query_data_for_execute(dict(node.data))
                     exec_data = red_r
                     stored_node_data = dict(node.data) if red_r is node.data else red_r
+                elif node.type == "rag_index":
+                    exec_data = dict(node.data)
+                    stored_node_data = dict(node.data)
                 elif node.type == "python_code":
                     red_p = redact_python_code_data_for_execute(dict(node.data))
                     exec_data = red_p
@@ -1144,6 +1197,16 @@ class GraphRunner:
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("rag_query_break_non_ok")
                         break
+                elif node.type == "rag_index":
+                    outcome, _pin_ri = self._run_rag_index_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("rag_index_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("rag_index_break_non_ok")
+                        break
                 elif node.type == "python_code":
                     outcome, _pin_py = self._run_python_code_visit(
                         node, ctx, step_q, fork_parallel_worker=False
@@ -1203,6 +1266,16 @@ class GraphRunner:
                         continue
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("llm_agent_break_non_ok")
+                        break
+                elif node.type == "agent":
+                    outcome, _pin_agent = self._run_agent_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("agent_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("agent_break_non_ok")
                         break
                 elif node.type == "task" and task_has_process_command(node):
                     outcome, task_exit_used_pin = self._run_subprocess_task_visit(

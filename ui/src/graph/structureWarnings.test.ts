@@ -427,6 +427,20 @@ describe("findStructureIssues", () => {
       ),
     ).toBe(true);
   });
+
+  it("adds agent_missing_prompt when agent node has no user message field", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "a1", type: "agent", position: { x: 0, y: 0 }, data: { title: "A" } },
+        { id: "a2", type: "agent", position: { x: 0, y: 0 }, data: { inputText: "hello" } },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.some((i) => i.kind === "agent_missing_prompt" && i.nodeId === "a1")).toBe(true);
+    expect(issues.some((i) => i.kind === "agent_missing_prompt" && i.nodeId === "a2")).toBe(false);
+  });
 });
 
 describe("edgeIdsForStructureIssueHighlights", () => {
@@ -567,6 +581,59 @@ describe("edgeIdsForStructureIssueHighlights", () => {
       "r3",
     ]);
     expect(issues.some((i) => i.kind === "rag_query_empty_query" && i.nodeId === "r4")).toBe(false);
+  });
+
+  it("rag_query memory backend requires collectionId not url", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        {
+          id: "m1",
+          type: "rag_query",
+          position: { x: 0, y: 0 },
+          data: { vectorBackend: "memory", query: "q" },
+        },
+        {
+          id: "m2",
+          type: "rag_query",
+          position: { x: 0, y: 0 },
+          data: { vectorBackend: "memory", collectionId: "c", query: "q" },
+        },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(issues.filter((i) => i.kind === "rag_memory_empty_collection").map((i) => i.nodeId)).toEqual([
+      "m1",
+    ]);
+    expect(issues.filter((i) => i.kind === "rag_query_empty_url" && i.nodeId === "m1")).toHaveLength(0);
+    expect(issues.some((i) => i.nodeId === "m2")).toBe(false);
+  });
+
+  it("rag_index issues when collectionId or text empty", () => {
+    const g = doc({
+      nodes: [
+        { id: "s1", type: "start", position: { x: 0, y: 0 }, data: {} },
+        { id: "i1", type: "rag_index", position: { x: 0, y: 0 }, data: {} },
+        { id: "i2", type: "rag_index", position: { x: 0, y: 0 }, data: { collectionId: "c", text: "" } },
+        {
+          id: "ok",
+          type: "rag_index",
+          position: { x: 0, y: 0 },
+          data: { collectionId: "c", text: "hello" },
+        },
+      ],
+      edges: [],
+    });
+    const issues = findStructureIssues(g);
+    expect(
+      issues.filter((i) => i.kind === "rag_index_empty_collection_id").map((i) => i.nodeId).sort(),
+    ).toEqual(["i1"]);
+    expect(issues.filter((i) => i.kind === "rag_index_empty_text").map((i) => i.nodeId).sort()).toEqual([
+      "i1",
+      "i2",
+    ]);
+    expect(issues.some((i) => i.nodeId === "ok")).toBe(false);
   });
 
   it("adds timer node structure issues for delay, debounce, and wait_for", () => {

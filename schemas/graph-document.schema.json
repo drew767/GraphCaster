@@ -96,7 +96,7 @@
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), llm_agent (delegated subprocess; stdin JSON + stdout NDJSON agent protocol), ai_route (structured AI branch picker after upstream output), comment (sticky frame), group (organizational frame; n8n-style), merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI). Other values: unknown executable (task-like handles in validation)."
+          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), llm_agent (delegated subprocess; stdin JSON + stdout NDJSON agent protocol), agent (in-runner tool loop; data.inputText and optional systemPrompt), ai_route (structured AI branch picker after upstream output), comment (sticky frame), group (organizational frame; n8n-style), merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI). Other values: unknown executable (task-like handles in validation)."
         },
         "position": {
           "type": "object",

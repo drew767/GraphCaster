@@ -12,12 +12,14 @@ import {
   GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_HTTP_REQUEST,
   GRAPH_NODE_TYPE_RAG_QUERY,
+  GRAPH_NODE_TYPE_RAG_INDEX,
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
   GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
+  GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_GROUP,
   GRAPH_NODE_TYPE_TASK,
   isGraphDocumentFrameType,
@@ -69,6 +71,16 @@ type Props = {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function agentPromptFromNodeRaw(raw: Record<string, unknown>): string {
+  for (const key of ["inputText", "input", "prompt", "userMessage"] as const) {
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") {
+      return v;
+    }
+  }
+  return "";
 }
 
 const GCPIN_PAYLOAD_WARN_BYTES = 262144;
@@ -191,6 +203,14 @@ export function InspectorPanel({
   const [ragTimeoutSec, setRagTimeoutSec] = useState("60");
   const [ragVerifyTls, setRagVerifyTls] = useState(true);
   const [ragParseResponse, setRagParseResponse] = useState<"auto" | "json" | "text">("auto");
+  const [ragVectorBackend, setRagVectorBackend] = useState<"http" | "memory">("http");
+
+  const [ragIndexCollectionId, setRagIndexCollectionId] = useState("");
+  const [ragIndexText, setRagIndexText] = useState("");
+  const [ragIndexMode, setRagIndexMode] = useState<"replace" | "append">("replace");
+  const [ragIndexChunkSize, setRagIndexChunkSize] = useState("512");
+  const [ragIndexChunkOverlap, setRagIndexChunkOverlap] = useState("64");
+  const [ragIndexEmbeddingDims, setRagIndexEmbeddingDims] = useState("64");
 
   const [sleepDurationSec, setSleepDurationSec] = useState("1");
   const [waitForMode, setWaitForMode] = useState("file");
@@ -213,6 +233,10 @@ export function InspectorPanel({
   const [llmMaxSteps, setLlmMaxSteps] = useState("0");
   const [llmEnvKeysCsv, setLlmEnvKeysCsv] = useState("");
   const [llmInputPayloadJson, setLlmInputPayloadJson] = useState("{}");
+
+  const [agentInputText, setAgentInputText] = useState("");
+  const [agentSystemPrompt, setAgentSystemPrompt] = useState("");
+  const [agentMaxIter, setAgentMaxIter] = useState("10");
 
   const [graphTitle, setGraphTitle] = useState("");
   const [graphAuthor, setGraphAuthor] = useState("");
@@ -446,6 +470,8 @@ export function InspectorPanel({
     }
     if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_RAG_QUERY) {
       const r = selection.raw;
+      const vb = String((r as Record<string, unknown>).vectorBackend ?? "").trim().toLowerCase();
+      setRagVectorBackend(vb === "memory" ? "memory" : "http");
       setRagUrl(typeof r.url === "string" ? r.url : "");
       setRagQuery(typeof r.query === "string" ? r.query : "");
       setRagCollectionId(typeof r.collectionId === "string" ? r.collectionId : "");
@@ -504,6 +530,43 @@ export function InspectorPanel({
         setHttpAuthPassword("");
         setHttpAuthToken("");
       }
+    }
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_RAG_INDEX) {
+      const r = selection.raw;
+      const cid =
+        typeof r.collectionId === "string"
+          ? r.collectionId
+          : typeof r.collection_id === "string"
+            ? r.collection_id
+            : "";
+      setRagIndexCollectionId(cid);
+      setRagIndexText(typeof r.text === "string" ? r.text : "");
+      const mo = String(r.mode ?? "replace").trim().toLowerCase();
+      setRagIndexMode(mo === "append" ? "append" : "replace");
+      const cs = r.chunkSize;
+      setRagIndexChunkSize(
+        typeof cs === "number" && Number.isFinite(cs)
+          ? String(Math.trunc(cs))
+          : typeof cs === "string" && cs.trim() !== ""
+            ? cs.trim()
+            : "512",
+      );
+      const co = r.chunkOverlap;
+      setRagIndexChunkOverlap(
+        typeof co === "number" && Number.isFinite(co)
+          ? String(Math.trunc(co))
+          : typeof co === "string" && co.trim() !== ""
+            ? co.trim()
+            : "64",
+      );
+      const ed = r.embeddingDims;
+      setRagIndexEmbeddingDims(
+        typeof ed === "number" && Number.isFinite(ed)
+          ? String(Math.trunc(ed))
+          : typeof ed === "string" && ed.trim() !== ""
+            ? ed.trim()
+            : "64",
+      );
     }
     if (
       selection?.kind === "node" &&
@@ -605,6 +668,20 @@ export function InspectorPanel({
         setLlmInputPayloadJson("{}");
       }
     }
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_AGENT) {
+      const r = selection.raw;
+      const rawObj = isPlainObject(r) ? r : {};
+      setAgentInputText(agentPromptFromNodeRaw(rawObj));
+      setAgentSystemPrompt(typeof rawObj.systemPrompt === "string" ? rawObj.systemPrompt : "");
+      const mi = rawObj.maxIterations ?? rawObj.max_iterations;
+      if (typeof mi === "number" && Number.isFinite(mi)) {
+        setAgentMaxIter(String(Math.max(1, Math.min(50, Math.floor(mi)))));
+      } else if (typeof mi === "string" && mi.trim() !== "") {
+        setAgentMaxIter(mi.trim());
+      } else {
+        setAgentMaxIter("10");
+      }
+    }
     if (selection?.kind === "node") {
       setDataText(JSON.stringify(selection.raw, null, 2));
     } else if (selection?.kind === "edge") {
@@ -648,6 +725,12 @@ export function InspectorPanel({
         selection.graphNodeType !== GRAPH_NODE_TYPE_RAG_QUERY)
     ) {
       return null;
+    }
+    if (selection.graphNodeType === GRAPH_NODE_TYPE_RAG_QUERY && isPlainObject(selection.raw)) {
+      const r = selection.raw;
+      if (String(r.vectorBackend ?? "").trim().toLowerCase() === "memory") {
+        return null;
+      }
     }
     try {
       const parsed: unknown = JSON.parse(dataText);
@@ -958,6 +1041,37 @@ export function InspectorPanel({
     ) {
       return;
     }
+    const toK = Number.parseInt(ragTopK, 10);
+    const topK = Number.isFinite(toK) ? Math.min(100, Math.max(1, toK)) : 5;
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    const title =
+      typeof base.title === "string" && base.title.trim() !== "" ? base.title : "RAG query";
+    const next: Record<string, unknown> = {
+      ...base,
+      title,
+      query: ragQuery,
+      topK,
+    };
+    const cTrim = ragCollectionId.trim();
+    if (cTrim !== "") {
+      next.collectionId = ragCollectionId;
+    } else {
+      delete next.collectionId;
+    }
+    if (ragVectorBackend === "memory") {
+      next.vectorBackend = "memory";
+      delete next.url;
+      delete next.method;
+      delete next.headers;
+      delete next.body;
+      delete next.auth;
+      delete next.timeoutSec;
+      delete next.verifyTls;
+      delete next.parseResponseBody;
+      onApplyNodeData(selection.id, next);
+      return;
+    }
+    delete next.vectorBackend;
     let headersObj: Record<string, unknown>;
     try {
       const p = JSON.parse(ragHeadersJson);
@@ -974,27 +1088,12 @@ export function InspectorPanel({
     }
     const toN = Number.parseFloat(ragTimeoutSec);
     const timeoutSec = Number.isFinite(toN) ? Math.min(3600, Math.max(0.5, toN)) : 60;
-    const toK = Number.parseInt(ragTopK, 10);
-    const topK = Number.isFinite(toK) ? Math.min(100, Math.max(1, toK)) : 5;
-    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
-    const next: Record<string, unknown> = {
-      ...base,
-      title: typeof base.title === "string" && base.title.trim() !== "" ? base.title : "RAG query",
-      url: ragUrl,
-      query: ragQuery,
-      method: ragMethod.trim() !== "" ? ragMethod.trim().toUpperCase() : "POST",
-      headers: headersObj,
-      topK,
-      timeoutSec,
-      verifyTls: ragVerifyTls,
-      parseResponseBody: ragParseResponse,
-    };
-    const cTrim = ragCollectionId.trim();
-    if (cTrim !== "") {
-      next.collectionId = ragCollectionId;
-    } else {
-      delete next.collectionId;
-    }
+    next.url = ragUrl;
+    next.method = ragMethod.trim() !== "" ? ragMethod.trim().toUpperCase() : "POST";
+    next.headers = headersObj;
+    next.timeoutSec = timeoutSec;
+    next.verifyTls = ragVerifyTls;
+    next.parseResponseBody = ragParseResponse;
     const bTrim = ragBody.trim();
     if (bTrim !== "") {
       next.body = ragBody;
@@ -1009,6 +1108,34 @@ export function InspectorPanel({
       delete next.auth;
     }
     onApplyNodeData(selection.id, next);
+  };
+
+  const applyRagIndexFields = () => {
+    if (
+      runLocked ||
+      selection?.kind !== "node" ||
+      selection.graphNodeType !== GRAPH_NODE_TYPE_RAG_INDEX
+    ) {
+      return;
+    }
+    const cs = Number.parseInt(ragIndexChunkSize, 10);
+    const chunkSize = Number.isFinite(cs) ? Math.min(8192, Math.max(32, cs)) : 512;
+    const co = Number.parseInt(ragIndexChunkOverlap, 10);
+    const chunkOverlap = Number.isFinite(co) ? Math.min(chunkSize - 1, Math.max(0, co)) : 64;
+    const ed = Number.parseInt(ragIndexEmbeddingDims, 10);
+    const embeddingDims = Number.isFinite(ed) ? Math.min(1024, Math.max(8, ed)) : 64;
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    onApplyNodeData(selection.id, {
+      ...base,
+      title:
+        typeof base.title === "string" && base.title.trim() !== "" ? base.title : "RAG index",
+      collectionId: ragIndexCollectionId,
+      text: ragIndexText,
+      mode: ragIndexMode,
+      chunkSize,
+      chunkOverlap,
+      embeddingDims,
+    });
   };
 
   const applyDelayFields = () => {
@@ -1224,6 +1351,28 @@ export function InspectorPanel({
       next.envKeys = keys;
     } else {
       delete next.envKeys;
+    }
+    onApplyNodeData(selection.id, next);
+  };
+
+  const applyInRunnerAgentFields = () => {
+    if (runLocked || selection?.kind !== "node" || selection.graphNodeType !== GRAPH_NODE_TYPE_AGENT) {
+      return;
+    }
+    const miRaw = Number.parseInt(agentMaxIter.trim(), 10);
+    const maxIterations = Number.isFinite(miRaw) ? Math.min(50, Math.max(1, miRaw)) : 10;
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    const next: Record<string, unknown> = {
+      ...base,
+      title: typeof base.title === "string" && base.title.trim() !== "" ? base.title : "Agent",
+      inputText: agentInputText,
+      maxIterations,
+    };
+    const sp = agentSystemPrompt.trim();
+    if (sp !== "") {
+      next.systemPrompt = agentSystemPrompt;
+    } else {
+      delete next.systemPrompt;
     }
     onApplyNodeData(selection.id, next);
   };
@@ -1718,21 +1867,42 @@ export function InspectorPanel({
           {selection.graphNodeType === GRAPH_NODE_TYPE_RAG_QUERY ? (
             <div className="gc-inspector-mcp">
               <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-url">
-                  {t("app.inspector.ragQueryUrl")}
+                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-vb">
+                  {t("app.inspector.ragQueryVectorBackend")}
                 </label>
-                <input
-                  id="gc-inspector-rag-url"
+                <select
+                  id="gc-inspector-rag-vb"
                   className="gc-inspector-condition-input"
                   disabled={runLocked}
-                  spellCheck={false}
-                  value={ragUrl}
+                  value={ragVectorBackend}
                   onChange={(ev) => {
-                    setRagUrl(ev.target.value);
+                    const v = ev.target.value;
+                    setRagVectorBackend(v === "memory" ? "memory" : "http");
                   }}
-                />
-                <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryUrlHint")}</p>
+                >
+                  <option value="http">{t("app.inspector.ragQueryVectorBackendHttp")}</option>
+                  <option value="memory">{t("app.inspector.ragQueryVectorBackendMemory")}</option>
+                </select>
+                <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryVectorBackendHint")}</p>
               </div>
+              {ragVectorBackend !== "memory" ? (
+                <div className="gc-inspector-row gc-inspector-row--field">
+                  <label className="gc-inspector-k" htmlFor="gc-inspector-rag-url">
+                    {t("app.inspector.ragQueryUrl")}
+                  </label>
+                  <input
+                    id="gc-inspector-rag-url"
+                    className="gc-inspector-condition-input"
+                    disabled={runLocked}
+                    spellCheck={false}
+                    value={ragUrl}
+                    onChange={(ev) => {
+                      setRagUrl(ev.target.value);
+                    }}
+                  />
+                  <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryUrlHint")}</p>
+                </div>
+              ) : null}
               <div className="gc-inspector-row gc-inspector-row--field">
                 <label className="gc-inspector-k" htmlFor="gc-inspector-rag-query">
                   {t("app.inspector.ragQueryQueryText")}
@@ -1783,6 +1953,8 @@ export function InspectorPanel({
                 />
                 <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryTopKHint")}</p>
               </div>
+              {ragVectorBackend !== "memory" ? (
+                <>
               <div className="gc-inspector-row gc-inspector-row--field">
                 <label className="gc-inspector-k" htmlFor="gc-inspector-rag-method">
                   {t("app.inspector.httpRequestMethod")}
@@ -1959,6 +2131,8 @@ export function InspectorPanel({
                   />
                 </div>
               ) : null}
+                </>
+              ) : null}
               <button
                 type="button"
                 className="gc-btn gc-inspector-apply"
@@ -2010,6 +2184,139 @@ export function InspectorPanel({
                   >
                     {t("app.inspector.stepCacheMarkDirty")}
                   </button>
+                </div>
+                <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
+              </div>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_RAG_INDEX ? (
+            <div className="gc-inspector-mcp">
+              <p className="gc-inspector-edge-hint">{t("app.inspector.ragIndexHeading")}</p>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-cid">
+                  {t("app.inspector.ragIndexCollectionId")}
+                </label>
+                <input
+                  id="gc-inspector-ragix-cid"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  spellCheck={false}
+                  value={ragIndexCollectionId}
+                  onChange={(ev) => {
+                    setRagIndexCollectionId(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-text">
+                  {t("app.inspector.ragIndexText")}
+                </label>
+                <textarea
+                  id="gc-inspector-ragix-text"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  rows={4}
+                  spellCheck={false}
+                  value={ragIndexText}
+                  onChange={(ev) => {
+                    setRagIndexText(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-mode">
+                  {t("app.inspector.ragIndexMode")}
+                </label>
+                <select
+                  id="gc-inspector-ragix-mode"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={ragIndexMode}
+                  onChange={(ev) => {
+                    const v = ev.target.value;
+                    setRagIndexMode(v === "append" ? "append" : "replace");
+                  }}
+                >
+                  <option value="replace">{t("app.inspector.ragIndexModeReplace")}</option>
+                  <option value="append">{t("app.inspector.ragIndexModeAppend")}</option>
+                </select>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-cs">
+                  {t("app.inspector.ragIndexChunkSize")}
+                </label>
+                <input
+                  id="gc-inspector-ragix-cs"
+                  type="text"
+                  inputMode="numeric"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={ragIndexChunkSize}
+                  onChange={(ev) => {
+                    setRagIndexChunkSize(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-co">
+                  {t("app.inspector.ragIndexChunkOverlap")}
+                </label>
+                <input
+                  id="gc-inspector-ragix-co"
+                  type="text"
+                  inputMode="numeric"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={ragIndexChunkOverlap}
+                  onChange={(ev) => {
+                    setRagIndexChunkOverlap(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-ragix-ed">
+                  {t("app.inspector.ragIndexEmbeddingDims")}
+                </label>
+                <input
+                  id="gc-inspector-ragix-ed"
+                  type="text"
+                  inputMode="numeric"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={ragIndexEmbeddingDims}
+                  onChange={(ev) => {
+                    setRagIndexEmbeddingDims(ev.target.value);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked}
+                onClick={applyRagIndexFields}
+              >
+                {t("app.inspector.applyRagIndexSettings")}
+              </button>
+              <div className="gc-inspector-pin">
+                <div className="gc-inspector-row gc-inspector-row--field">
+                  <span className="gc-inspector-k">{t("app.inspector.stepCacheHeading")}</span>
+                  <label className="gc-inspector-pin-toggle">
+                    <input
+                      type="checkbox"
+                      disabled={runLocked}
+                      checked={isPlainObject(selection.raw) && selection.raw.stepCache === true}
+                      onChange={(ev) => {
+                        const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+                        if (ev.target.checked) {
+                          base.stepCache = true;
+                        } else {
+                          delete base.stepCache;
+                        }
+                        onApplyNodeData(selection.id, base);
+                      }}
+                    />
+                    <span>{t("app.inspector.stepCacheEnabled")}</span>
+                  </label>
                 </div>
                 <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
               </div>
@@ -2598,6 +2905,114 @@ export function InspectorPanel({
                 onClick={applyLlmAgentFields}
               >
                 {t("app.inspector.applyLlmAgentSettings")}
+              </button>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_AGENT ? (
+            <div className="gc-inspector-mcp">
+              <div className="gc-inspector-pin">
+                <div className="gc-inspector-row gc-inspector-row--field">
+                  <span className="gc-inspector-k">{t("app.inspector.stepCacheHeading")}</span>
+                  <label className="gc-inspector-pin-toggle">
+                    <input
+                      type="checkbox"
+                      disabled={runLocked}
+                      checked={isPlainObject(selection.raw) && selection.raw.stepCache === true}
+                      onChange={(ev) => {
+                        const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+                        if (ev.target.checked) {
+                          base.stepCache = true;
+                        } else {
+                          delete base.stepCache;
+                        }
+                        onApplyNodeData(selection.id, base);
+                      }}
+                    />
+                    <span>{t("app.inspector.stepCacheEnabled")}</span>
+                  </label>
+                </div>
+                <div className="gc-inspector-pin-actions">
+                  <button
+                    type="button"
+                    className="gc-btn gc-inspector-apply"
+                    disabled={runLocked}
+                    onClick={() => {
+                      const doc = getDocumentForStepCacheDirty?.() ?? graphDocument;
+                      const before = new Set(getStepCacheDirtySnapshot().ids);
+                      const mark =
+                        onMarkStepCacheDirtyTransitive ??
+                        ((d: GraphDocumentJson, s: readonly string[]) =>
+                          markStepCacheDirtyTransitive(d, s));
+                      mark(doc, [selection.id]);
+                      const snap = getStepCacheDirtySnapshot();
+                      const added = snap.ids.filter((id) => !before.has(id));
+                      runSessionAppendLine(
+                        `[host] step-cache dirty +${added.length} [${added.join(",")}] → queue ${snap.ids.length}: ${snap.ids.join(",")}`,
+                      );
+                    }}
+                  >
+                    {t("app.inspector.stepCacheMarkDirty")}
+                  </button>
+                </div>
+                <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-agent-input">
+                  {t("app.inspector.agentInputText")}
+                </label>
+                <textarea
+                  id="gc-inspector-agent-input"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  rows={4}
+                  spellCheck={false}
+                  value={agentInputText}
+                  onChange={(ev) => {
+                    setAgentInputText(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.agentInputTextHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-agent-sys">
+                  {t("app.inspector.agentSystemPrompt")}
+                </label>
+                <textarea
+                  id="gc-inspector-agent-sys"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  rows={3}
+                  spellCheck={false}
+                  value={agentSystemPrompt}
+                  onChange={(ev) => {
+                    setAgentSystemPrompt(ev.target.value);
+                  }}
+                />
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-agent-maxiter">
+                  {t("app.inspector.agentMaxIterations")}
+                </label>
+                <input
+                  id="gc-inspector-agent-maxiter"
+                  type="text"
+                  inputMode="numeric"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={agentMaxIter}
+                  onChange={(ev) => {
+                    setAgentMaxIter(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.agentMaxIterationsHint")}</p>
+              </div>
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked}
+                onClick={applyInRunnerAgentFields}
+              >
+                {t("app.inspector.applyAgentNodeSettings")}
               </button>
             </div>
           ) : null}

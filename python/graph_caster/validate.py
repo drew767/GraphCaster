@@ -8,6 +8,7 @@ from graph_caster.ai_routing import edge_route_description, usable_ai_route_out_
 from graph_caster.handle_contract import find_handle_compatibility_violations
 from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
+from graph_caster.rag_index_exec import rag_index_structure_invalid_reason
 from graph_caster.set_variable_exec import set_variable_structure_invalid_reason
 
 _OUT_ERROR_HANDLE = "out_error"
@@ -104,14 +105,16 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
         return isinstance(c, str) and bool(c.strip())
     if node.type == "rag_query":
         d = node.data or {}
-        u = d.get("url")
         q = d.get("query")
-        return (
-            isinstance(u, str)
-            and bool(u.strip())
-            and isinstance(q, str)
-            and bool(q.strip())
-        )
+        if not isinstance(q, str) or not q.strip():
+            return False
+        if str(d.get("vectorBackend") or "").strip().lower() == "memory":
+            cid = d.get("collectionId")
+            return isinstance(cid, str) and bool(cid.strip())
+        u = d.get("url")
+        return isinstance(u, str) and bool(u.strip())
+    if node.type == "rag_index":
+        return rag_index_structure_invalid_reason(node.data or {}) is None
     if node.type == "llm_agent":
         from graph_caster.process_exec import _argv_from_data
 
@@ -206,12 +209,31 @@ def find_rag_query_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]
         if n.type != "rag_query":
             continue
         d = n.data or {}
-        u = d.get("url")
-        if not isinstance(u, str) or not u.strip():
-            out.append({"kind": "rag_query_empty_url", "nodeId": n.id})
+        memory = str(d.get("vectorBackend") or "").strip().lower() == "memory"
+        if memory:
+            cid = d.get("collectionId")
+            if not isinstance(cid, str) or not cid.strip():
+                out.append({"kind": "rag_memory_empty_collection", "nodeId": n.id})
+        else:
+            u = d.get("url")
+            if not isinstance(u, str) or not u.strip():
+                out.append({"kind": "rag_query_empty_url", "nodeId": n.id})
         q = d.get("query")
         if not isinstance(q, str) or not q.strip():
             out.append({"kind": "rag_query_empty_query", "nodeId": n.id})
+    return out
+
+
+def find_rag_index_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "rag_index":
+            continue
+        r = rag_index_structure_invalid_reason(n.data or {})
+        if r == "rag_index_empty_collection_id":
+            out.append({"kind": "rag_index_empty_collection_id", "nodeId": n.id})
+        elif r == "rag_index_empty_text":
+            out.append({"kind": "rag_index_empty_text", "nodeId": n.id})
     return out
 
 
@@ -312,6 +334,18 @@ def find_llm_agent_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]
             continue
         if not _argv_from_data(n.data or {}):
             out.append({"kind": "llm_agent_empty_command", "nodeId": n.id})
+    return out
+
+
+def find_agent_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    from graph_caster.runner.run_helpers import agent_has_executable_config
+
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "agent":
+            continue
+        if not agent_has_executable_config(n):
+            out.append({"kind": "agent_missing_prompt", "nodeId": n.id})
     return out
 
 

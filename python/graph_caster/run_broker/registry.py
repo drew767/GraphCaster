@@ -20,6 +20,7 @@ from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.run_broker.broadcaster import FanOutMsg, RunBroadcaster, RunBroadcasterConfig
 from graph_caster.run_broker.errors import PendingQueueFullError
 from graph_caster.run_broker.redis_coord import release_global_run_slot, try_acquire_global_run_slot
+from graph_caster.run_broker.relay.broker_sync import relay_fanout_hook_for_run
 from graph_caster.run_broker.worker_lost import (
     build_coordinator_worker_lost_run_finished_line,
     new_run_stdout_tracker,
@@ -53,6 +54,14 @@ def _pending_max() -> int:
     except ValueError:
         n = 128
     return max(1, min(1024, n))
+
+
+def _new_run_broadcaster(run_id: str) -> RunBroadcaster:
+    return RunBroadcaster(
+        run_id=run_id,
+        config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
+        relay_fanout_hook=relay_fanout_hook_for_run(run_id),
+    )
 
 
 def _merge_pythonpath_from_env(env: dict[str, str], package_root: str | None) -> None:
@@ -375,10 +384,7 @@ class RunBrokerRegistry:
                 if len(self._pending_fifo) >= _pending_max():
                     self._cleanup_temp(temp_paths)
                     raise PendingQueueFullError()
-                broadcaster = RunBroadcaster(
-                    run_id=run_id,
-                    config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
-                )
+                broadcaster = _new_run_broadcaster(run_id)
                 viewer_token = secrets.token_urlsafe(24)
                 rr = RegisteredRun(
                     run_id,
@@ -394,10 +400,7 @@ class RunBrokerRegistry:
                 broadcaster.broadcast(FanOutMsg("out", self._build_queued_notice_line(run_id, pos)))
                 return SpawnResult(run_id, viewer_token, "queued", pos)
 
-        broadcaster = RunBroadcaster(
-            run_id=run_id,
-            config=RunBroadcasterConfig(max_sub_queue_depth=_sub_queue_max()),
-        )
+        broadcaster = _new_run_broadcaster(run_id)
         viewer_token = secrets.token_urlsafe(24)
         env = os.environ.copy()
         _merge_pythonpath_from_env(env, os.environ.get("GC_GRAPH_CASTER_PACKAGE_ROOT"))

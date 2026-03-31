@@ -1,7 +1,11 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import { analyzeTemplateCondition } from "./edgeConditionTemplates";
-import { parseTimerDurationSec, waitForHasExecutableConfig } from "./structureWarnings";
+import {
+  agentNodeDataHasPrompt,
+  parseTimerDurationSec,
+  waitForHasExecutableConfig,
+} from "./structureWarnings";
 import {
   EDGE_SOURCE_OUT_ERROR,
   normalizeEdgeHandleValue,
@@ -121,6 +125,9 @@ function nodeCanEmitFailFanout(doc: GraphDocumentJson, nodeId: string): boolean 
       }
     }
     return has;
+  }
+  if (t === "agent") {
+    return agentNodeDataHasPrompt(n.data ?? {});
   }
   return false;
 }

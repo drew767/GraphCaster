@@ -9,6 +9,7 @@ import os
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from graph_caster.run_broker.heartbeat import HeartbeatManager
 from graph_caster.run_broker.registry import RunBrokerRegistry
 from graph_caster.run_broker.routes.common import (
     WS_CLOSE_DEV_TOKEN,
@@ -20,6 +21,17 @@ from graph_caster.run_broker.routes.common import (
 from graph_caster.run_transport.ws_envelope import broker_ws_payload_from_fanout
 
 _LOG = logging.getLogger(__name__)
+
+
+def _ws_heartbeat_interval_sec() -> float | None:
+    raw = os.environ.get("GC_RUN_BROKER_WS_HEARTBEAT_SEC", "60").strip()
+    if not raw or raw.lower() in ("0", "off", "false", "no"):
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        return 60.0
+    return None if v <= 0.0 else v
 
 
 def make_ws_run_handler(reg: RunBrokerRegistry):
@@ -41,6 +53,16 @@ def make_ws_run_handler(reg: RunBrokerRegistry):
             return
         await websocket.accept()
         q = entry.broadcaster.subscribe()
+
+        hb: HeartbeatManager | None = None
+        interval = _ws_heartbeat_interval_sec()
+        if interval is not None:
+
+            async def _send_ping() -> None:
+                await websocket.send_json({"runId": run_id, "channel": "ping"})
+
+            hb = HeartbeatManager(interval_sec=interval, send_ping=_send_ping)
+            await hb.start()
 
         async def pump_out() -> None:
             try:
@@ -88,6 +110,8 @@ def make_ws_run_handler(reg: RunBrokerRegistry):
         try:
             await out_task
         finally:
+            if hb is not None:
+                await hb.stop()
             in_task.cancel()
             try:
                 await in_task

@@ -1905,63 +1905,85 @@ export function AppShell({ onLangChange }: Props) {
                                     })
                                   : issue.kind === "llm_agent_empty_command"
                                     ? t("app.structure.llmAgentEmptyCommand", { id: issue.nodeId })
+                                    : issue.kind === "agent_missing_prompt"
+                                      ? t("app.structure.agentMissingPrompt", { id: issue.nodeId })
                                     : issue.kind === "http_request_empty_url"
                                       ? t("app.structure.httpRequestEmptyUrl", { id: issue.nodeId })
                                       : issue.kind === "rag_query_empty_url"
                                         ? t("app.structure.ragQueryEmptyUrl", { id: issue.nodeId })
                                         : issue.kind === "rag_query_empty_query"
                                           ? t("app.structure.ragQueryEmptyQuery", { id: issue.nodeId })
-                                          : issue.kind === "delay_invalid_duration"
-                                            ? t("app.structure.delayInvalidDuration", { id: issue.nodeId })
-                                            : issue.kind === "debounce_invalid_duration"
-                                              ? t("app.structure.debounceInvalidDuration", {
+                                          : issue.kind === "rag_memory_empty_collection"
+                                            ? t("app.structure.ragMemoryEmptyCollection", {
+                                                id: issue.nodeId,
+                                              })
+                                            : issue.kind === "rag_index_empty_collection_id"
+                                              ? t("app.structure.ragIndexEmptyCollectionId", {
                                                   id: issue.nodeId,
                                                 })
-                                              : issue.kind === "wait_for_unknown_mode"
-                                                ? t("app.structure.waitForUnknownMode", {
+                                              : issue.kind === "rag_index_empty_text"
+                                                ? t("app.structure.ragIndexEmptyText", {
                                                     id: issue.nodeId,
                                                   })
-                                                : issue.kind === "wait_for_empty_path"
-                                                  ? t("app.structure.waitForEmptyPath", {
+                                                : issue.kind === "delay_invalid_duration"
+                                                  ? t("app.structure.delayInvalidDuration", {
                                                       id: issue.nodeId,
                                                     })
-                                                  : issue.kind === "wait_for_invalid_timeout"
-                                                    ? t("app.structure.waitForInvalidTimeout", {
+                                                  : issue.kind === "debounce_invalid_duration"
+                                                    ? t("app.structure.debounceInvalidDuration", {
                                                         id: issue.nodeId,
                                                       })
-                                                    : issue.kind === "python_code_empty_code"
-                                            ? t("app.structure.pythonCodeEmptyCode", { id: issue.nodeId })
-                                            : issue.kind === "set_variable_invalid_config"
-                                              ? t("app.structure.setVariableInvalidConfig", {
-                                                  id: issue.nodeId,
-                                                })
-                                            : issue.kind === "mcp_tool_empty_tool_name"
-                                              ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
-                                              : issue.kind === "mcp_tool_stdio_missing_command"
-                                                ? t("app.structure.mcpToolStdioMissingCommand", {
-                                                    id: issue.nodeId,
-                                                  })
-                                                : issue.kind === "mcp_tool_http_empty_url"
-                                                  ? t("app.structure.mcpToolHttpEmptyUrl", {
-                                                      id: issue.nodeId,
-                                                    })
-                                                  : issue.kind === "mcp_tool_unknown_transport"
-                                                    ? t("app.structure.mcpToolUnknownTransport", {
-                                                        id: issue.nodeId,
-                                                        transport: issue.transport,
-                                                      })
-                                                    : issue.kind === "schema_version_mismatch"
-                                                      ? t("app.structure.schemaVersionMismatch", {
-                                                          root: issue.root,
-                                                          meta: issue.meta,
+                                                    : issue.kind === "wait_for_unknown_mode"
+                                                      ? t("app.structure.waitForUnknownMode", {
+                                                          id: issue.nodeId,
                                                         })
-                                                      : issue.kind === "start_has_incoming"
-                                                        ? t("app.structure.startHasIncoming", {
-                                                            id: issue.startId,
+                                                      : issue.kind === "wait_for_empty_path"
+                                                        ? t("app.structure.waitForEmptyPath", {
+                                                            id: issue.nodeId,
                                                           })
-                                                        : t("app.structure.unknownIssue", {
-                                                            kind: String((issue as { kind: string }).kind),
-                                                          })}
+                                                        : issue.kind === "wait_for_invalid_timeout"
+                                                          ? t("app.structure.waitForInvalidTimeout", {
+                                                              id: issue.nodeId,
+                                                            })
+                                                          : issue.kind === "python_code_empty_code"
+                                                            ? t("app.structure.pythonCodeEmptyCode", {
+                                                                id: issue.nodeId,
+                                                              })
+                                                            : issue.kind === "set_variable_invalid_config"
+                                                              ? t("app.structure.setVariableInvalidConfig", {
+                                                                  id: issue.nodeId,
+                                                                })
+                                                              : issue.kind === "mcp_tool_empty_tool_name"
+                                                                ? t("app.structure.mcpToolEmptyToolName", {
+                                                                    id: issue.nodeId,
+                                                                  })
+                                                                : issue.kind === "mcp_tool_stdio_missing_command"
+                                                                  ? t("app.structure.mcpToolStdioMissingCommand", {
+                                                                      id: issue.nodeId,
+                                                                    })
+                                                                  : issue.kind === "mcp_tool_http_empty_url"
+                                                                    ? t("app.structure.mcpToolHttpEmptyUrl", {
+                                                                        id: issue.nodeId,
+                                                                      })
+                                                                    : issue.kind === "mcp_tool_unknown_transport"
+                                                                      ? t("app.structure.mcpToolUnknownTransport", {
+                                                                          id: issue.nodeId,
+                                                                          transport: issue.transport,
+                                                                        })
+                                                                      : issue.kind === "schema_version_mismatch"
+                                                                        ? t("app.structure.schemaVersionMismatch", {
+                                                                            root: issue.root,
+                                                                            meta: issue.meta,
+                                                                          })
+                                                                        : issue.kind === "start_has_incoming"
+                                                                          ? t("app.structure.startHasIncoming", {
+                                                                              id: issue.startId,
+                                                                            })
+                                                                          : t("app.structure.unknownIssue", {
+                                                                              kind: String(
+                                                                                (issue as { kind: string }).kind,
+                                                                              ),
+                                                                            })}
               </span>
               {!runSessionBlocking ? (
                 <span className="gc-branch-warnings__actions">

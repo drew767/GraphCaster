@@ -19,7 +19,16 @@ from graph_caster.nested_run_subprocess import NESTED_CONTEXT_INPUT_KEYS, write_
 from graph_caster.validate import GraphStructureError, validate_graph_structure
 
 _SUBCOMMANDS = frozenset(
-    {"run", "artifacts-size", "artifacts-clear", "catalog-rebuild", "serve", "mcp", "mcp-oauth"}
+    {
+        "run",
+        "artifacts-size",
+        "artifacts-clear",
+        "catalog-rebuild",
+        "serve",
+        "worker",
+        "mcp",
+        "mcp-oauth",
+    }
 )
 
 
@@ -173,6 +182,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     srv.add_argument("--host", default="127.0.0.1", help="Bind address")
     srv.add_argument("--port", type=int, default=9847, help="Listen port")
+
+    wrk = sub.add_parser(
+        "worker",
+        help="RQ worker for scaling queue (requires pip install -e '.[scaling]')",
+    )
+    wrk.add_argument("--redis-url", required=True, help="Redis URL for RQ")
+    wrk.add_argument("--queue", default="gc:runs", help="RQ queue name")
+    wrk.add_argument(
+        "--burst",
+        action="store_true",
+        help="Exit when the queue becomes empty",
+    )
 
     mcp = sub.add_parser(
         "mcp",
@@ -443,6 +464,20 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_worker(args: argparse.Namespace) -> int:
+    from graph_caster.scaling.worker import main as worker_main
+
+    return worker_main(
+        [
+            "--redis-url",
+            str(args.redis_url),
+            "--queue",
+            str(args.queue),
+            *([] if not args.burst else ["--burst"]),
+        ],
+    )
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -478,6 +513,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_catalog_rebuild(args)
     if args.command == "serve":
         return _cmd_serve(args)
+    if args.command == "worker":
+        return _cmd_worker(args)
     if args.command == "mcp":
         return _cmd_mcp(args)
     if args.command == "mcp-oauth":

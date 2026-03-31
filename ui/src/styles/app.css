@@ -825,6 +825,10 @@ body {
   border-color: #5ac8fa;
 }
 
+.gc-flow-node--agent {
+  border-color: #10b981;
+}
+
 .gc-flow-node--http_request {
   border-color: #06b6d4;
 }

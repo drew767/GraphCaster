@@ -28,6 +28,9 @@ export function structureIssueFocusNodeId(issue: StructureIssue): string | null 
     case "http_request_empty_url":
     case "rag_query_empty_url":
     case "rag_query_empty_query":
+    case "rag_memory_empty_collection":
+    case "rag_index_empty_collection_id":
+    case "rag_index_empty_text":
     case "delay_invalid_duration":
     case "debounce_invalid_duration":
     case "wait_for_unknown_mode":
@@ -36,6 +39,7 @@ export function structureIssueFocusNodeId(issue: StructureIssue): string | null 
     case "python_code_empty_code":
     case "set_variable_invalid_config":
     case "llm_agent_empty_command":
+    case "agent_missing_prompt":
       return issue.nodeId;
     case "barrier_merge_out_error_incoming":
       return issue.mergeNodeId;

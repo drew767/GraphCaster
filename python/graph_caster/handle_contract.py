@@ -15,12 +15,14 @@ _GRAPH_REF = "graph_ref"
 _MCP_TOOL = "mcp_tool"
 _HTTP_REQUEST = "http_request"
 _RAG_QUERY = "rag_query"
+_RAG_INDEX = "rag_index"
 _DELAY = "delay"
 _DEBOUNCE = "debounce"
 _WAIT_FOR = "wait_for"
 _SET_VARIABLE = "set_variable"
 _PYTHON_CODE = "python_code"
 _LLM_AGENT = "llm_agent"
+_AGENT = "agent"
 _COMMENT = "comment"
 _GROUP = "group"
 _MERGE = "merge"
@@ -41,12 +43,14 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         _MCP_TOOL,
         _HTTP_REQUEST,
         _RAG_QUERY,
+        _RAG_INDEX,
         _DELAY,
         _DEBOUNCE,
         _WAIT_FOR,
         _SET_VARIABLE,
         _PYTHON_CODE,
         _LLM_AGENT,
+        _AGENT,
     ):
         return frozenset({HANDLE_OUT_DEFAULT, HANDLE_OUT_ERROR})
     if node_type in (_COMMENT, _GROUP):
@@ -67,12 +71,14 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         _MCP_TOOL,
         _HTTP_REQUEST,
         _RAG_QUERY,
+        _RAG_INDEX,
         _DELAY,
         _DEBOUNCE,
         _WAIT_FOR,
         _SET_VARIABLE,
         _PYTHON_CODE,
         _LLM_AGENT,
+        _AGENT,
     ):
         return frozenset({HANDLE_IN_DEFAULT})
     if node_type in (_COMMENT, _GROUP):

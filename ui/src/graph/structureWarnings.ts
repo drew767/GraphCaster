@@ -33,6 +33,9 @@ export type StructureIssue =
   | { kind: "http_request_empty_url"; nodeId: string }
   | { kind: "rag_query_empty_url"; nodeId: string }
   | { kind: "rag_query_empty_query"; nodeId: string }
+  | { kind: "rag_memory_empty_collection"; nodeId: string }
+  | { kind: "rag_index_empty_collection_id"; nodeId: string }
+  | { kind: "rag_index_empty_text"; nodeId: string }
   | { kind: "delay_invalid_duration"; nodeId: string }
   | { kind: "debounce_invalid_duration"; nodeId: string }
   | { kind: "wait_for_unknown_mode"; nodeId: string }
@@ -41,6 +44,7 @@ export type StructureIssue =
   | { kind: "python_code_empty_code"; nodeId: string }
   | { kind: "set_variable_invalid_config"; nodeId: string }
   | { kind: "llm_agent_empty_command"; nodeId: string }
+  | { kind: "agent_missing_prompt"; nodeId: string }
   | { kind: "schema_version_mismatch"; root: number; meta: number };
 
 const MAX_TIMER_DURATION_SEC = 86400;
@@ -125,6 +129,21 @@ export function waitForHasExecutableConfig(data: unknown): boolean {
   );
 }
 
+/** True if agent node has a non-empty user message (parity with Python `in_runner_exec._user_message_from_node_data`). */
+export function agentNodeDataHasPrompt(data: unknown): boolean {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    return false;
+  }
+  const raw = data as Record<string, unknown>;
+  for (const key of ["inputText", "input", "prompt", "userMessage"] as const) {
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function mergeModeFromNodeData(data: unknown): "passthrough" | "barrier" {
   if (data == null || typeof data !== "object" || Array.isArray(data)) {
     return "passthrough";
@@ -182,6 +201,9 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "http_request_empty_url":
     case "rag_query_empty_url":
     case "rag_query_empty_query":
+    case "rag_memory_empty_collection":
+    case "rag_index_empty_collection_id":
+    case "rag_index_empty_text":
     case "delay_invalid_duration":
     case "debounce_invalid_duration":
     case "wait_for_unknown_mode":
@@ -190,6 +212,7 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "python_code_empty_code":
     case "set_variable_invalid_config":
     case "llm_agent_empty_command":
+    case "agent_missing_prompt":
     case "schema_version_mismatch":
       return false;
   }
@@ -499,13 +522,44 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
       d != null && typeof d === "object" && !Array.isArray(d)
         ? (d as Record<string, unknown>)
         : {};
-    const rurl = typeof raw.url === "string" ? raw.url.trim() : "";
-    if (rurl === "") {
-      issues.push({ kind: "rag_query_empty_url", nodeId: n.id });
+    const memory = String(raw.vectorBackend ?? "").trim().toLowerCase() === "memory";
+    if (memory) {
+      const cid = typeof raw.collectionId === "string" ? raw.collectionId.trim() : "";
+      if (cid === "") {
+        issues.push({ kind: "rag_memory_empty_collection", nodeId: n.id });
+      }
+    } else {
+      const rurl = typeof raw.url === "string" ? raw.url.trim() : "";
+      if (rurl === "") {
+        issues.push({ kind: "rag_query_empty_url", nodeId: n.id });
+      }
     }
     const rq = typeof raw.query === "string" ? raw.query.trim() : "";
     if (rq === "") {
       issues.push({ kind: "rag_query_empty_query", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "rag_index") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    const cid =
+      typeof raw.collectionId === "string"
+        ? raw.collectionId.trim()
+        : typeof raw.collection_id === "string"
+          ? raw.collection_id.trim()
+          : "";
+    if (cid === "") {
+      issues.push({ kind: "rag_index_empty_collection_id", nodeId: n.id });
+    }
+    const txt = typeof raw.text === "string" ? raw.text.trim() : "";
+    if (txt === "") {
+      issues.push({ kind: "rag_index_empty_text", nodeId: n.id });
     }
   }
   for (const n of nodes) {
@@ -529,6 +583,14 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
     }
     if (!has) {
       issues.push({ kind: "llm_agent_empty_command", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "agent") {
+      continue;
+    }
+    if (!agentNodeDataHasPrompt(n.data)) {
+      issues.push({ kind: "agent_missing_prompt", nodeId: n.id });
     }
   }
   return issues;

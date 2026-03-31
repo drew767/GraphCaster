@@ -5,12 +5,16 @@ from __future__ import annotations
 import asyncio
 import atexit
 import json
+import logging
 import queue
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, wait as futures_wait
 from dataclasses import dataclass, field
 from typing import Literal
+
+_LOG = logging.getLogger(__name__)
 
 _DELIVER_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gc_bcast")
 
@@ -78,7 +82,13 @@ def _stream_backpressure_line(run_id: str, dropped: int) -> str:
 class RunBroadcaster:
     _BACKPRESSURE_PUT_TIMEOUT_SEC = 0.35
 
-    def __init__(self, run_id: str, config: RunBroadcasterConfig | None = None) -> None:
+    def __init__(
+        self,
+        run_id: str,
+        config: RunBroadcasterConfig | None = None,
+        *,
+        relay_fanout_hook: Callable[[FanOutMsg], None] | None = None,
+    ) -> None:
         self._run_id = run_id
         cfg = config if config is not None else RunBroadcasterConfig()
         self._config = RunBroadcasterConfig(
@@ -89,6 +99,7 @@ class RunBroadcaster:
         self._lock = threading.Lock()
         self._metrics_lock = threading.Lock()
         self._droppable_output_drops = 0
+        self._relay_fanout_hook = relay_fanout_hook
 
     def subscribe(self) -> queue.Queue[FanOutMsg]:
         q: queue.Queue[FanOutMsg] = queue.Queue(maxsize=self._config.max_sub_queue_depth)
@@ -161,9 +172,19 @@ class RunBroadcaster:
         if len(subs) <= 1:
             for sub in subs:
                 self._deliver_to_sub(sub, msg, droppable)
+            if self._relay_fanout_hook is not None:
+                try:
+                    self._relay_fanout_hook(msg)
+                except Exception:
+                    _LOG.debug("relay_fanout_hook failed", exc_info=True)
             return
         futures = [_DELIVER_POOL.submit(self._deliver_to_sub, sub, msg, droppable) for sub in subs]
         futures_wait(futures)
+        if self._relay_fanout_hook is not None:
+            try:
+                self._relay_fanout_hook(msg)
+            except Exception:
+                _LOG.debug("relay_fanout_hook failed", exc_info=True)
 
     async def stream_queue(self, q: queue.Queue[FanOutMsg]):
         try:

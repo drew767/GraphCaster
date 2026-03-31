@@ -1,13 +1,20 @@
-# Copyright Aura. All Rights Reserved.
+﻿# Copyright Aura. All Rights Reserved.
 
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 import pytest
 
+pytest.importorskip("starlette")
+
+from starlette.testclient import TestClient
+
+from graph_caster.run_broker.app import create_app
 from graph_caster.run_broker.auth.api_key import APIKey, APIKeyAuthenticator
+from graph_caster.run_broker.registry import RunBrokerRegistry
 from graph_caster.run_broker.routes.api_v1 import (
     APIV1Handler,
     CancelResponse,
@@ -359,3 +366,116 @@ class TestAPIV1Handler:
                 await handler.cancel_run("run_1", auth_header="Bearer gc_test:secret")
 
         asyncio.run(run_test())
+
+
+def _minimal_valid_doc(graph_id: str) -> dict:
+    return {
+        "schemaVersion": 1,
+        "meta": {"schemaVersion": 1, "graphId": graph_id, "title": "x"},
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {"id": "x", "type": "exit", "position": {"x": 0, "y": 0}, "data": {}},
+        ],
+        "edges": [
+            {
+                "id": "e",
+                "source": "s",
+                "sourceHandle": "out_default",
+                "target": "x",
+                "targetHandle": "in_default",
+                "condition": None,
+            }
+        ],
+    }
+
+
+class TestAPIV1Http:
+    def test_post_run_returns_503_when_graphs_dir_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("GC_RUN_BROKER_GRAPHS_DIR", raising=False)
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.post(
+            "/api/v1/graphs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/run",
+            json={"inputs": {}},
+        )
+        assert r.status_code == 503
+        assert "not configured" in r.json().get("error", "")
+
+    def test_post_run_returns_404_for_missing_graph(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        graphs = tmp_path / "graphs"
+        graphs.mkdir()
+        monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(graphs))
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r = client.post(
+            "/api/v1/graphs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/run",
+            json={"inputs": {}},
+        )
+        assert r.status_code == 404
+
+    def test_post_run_starts_and_get_returns_terminal_status(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        gid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        graphs = tmp_path / "graphs"
+        graphs.mkdir()
+        art = tmp_path / "artifacts"
+        art.mkdir()
+        (graphs / "doc.json").write_text(
+            json.dumps(_minimal_valid_doc(gid)), encoding="utf-8"
+        )
+        monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(graphs))
+        monkeypatch.setenv("GC_RUN_BROKER_ARTIFACTS_BASE", str(art))
+
+        monkeypatch.delenv("GC_RUN_BROKER_V1_API_KEYS", raising=False)
+
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        start = client.post(f"/api/v1/graphs/{gid}/run", json={"inputs": {}})
+        assert start.status_code == 200, start.text
+        j0 = start.json()
+        rid = j0["runId"]
+        assert j0["graphId"] == gid
+        assert j0["status"] == "started"
+
+        status = None
+        for _ in range(200):
+            gr = client.get(f"/api/v1/runs/{rid}")
+            assert gr.status_code == 200, gr.text
+            status = gr.json().get("status")
+            if status in ("success", "failed", "cancelled", "partial"):
+                break
+        assert status == "success"
+
+    def test_post_run_with_env_api_key(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        gid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        graphs = tmp_path / "graphs"
+        graphs.mkdir()
+        art = tmp_path / "artifacts"
+        art.mkdir()
+        (graphs / "doc.json").write_text(
+            json.dumps(_minimal_valid_doc(gid)), encoding="utf-8"
+        )
+        monkeypatch.setenv("GC_RUN_BROKER_GRAPHS_DIR", str(graphs))
+        monkeypatch.setenv("GC_RUN_BROKER_ARTIFACTS_BASE", str(art))
+        monkeypatch.setenv("GC_RUN_BROKER_V1_API_KEYS", "gc_v1:secretv1")
+
+        reg = RunBrokerRegistry()
+        client = TestClient(create_app(reg))
+        r0 = client.post(f"/api/v1/graphs/{gid}/run", json={})
+        assert r0.status_code == 401
+
+        r1 = client.post(
+            f"/api/v1/graphs/{gid}/run",
+            json={},
+            headers={"Authorization": "Bearer gc_v1:secretv1"},
+        )
+        assert r1.status_code == 200, r1.text
+        assert "runId" in r1.json()

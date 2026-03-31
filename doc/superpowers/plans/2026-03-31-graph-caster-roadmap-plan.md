@@ -23,6 +23,25 @@ This plan addresses the major feature gaps identified in `COMPETITIVE_ANALYSIS.m
 | **5** | Advanced UX | CRDT co-edit preparation, advanced canvas | P2 |
 | **6** | Enterprise Features | RBAC hooks, audit, compliance (host layer) | P3 |
 
+### Plan checklist vs repository (maintenance note)
+
+Many `- [ ]` steps below were written as a greenfield checklist; the **graph-caster** tree already implements large parts of Phases 1–6 (broker scaling, RQ worker mode, RBAC/audit hooks, CRDT stub route, Yjs UI prep, RAG nodes, API v1, webhooks, optional scheduler). Treat unchecked boxes as **historical** unless they contradict `doc/IMPLEMENTED_FEATURES.md` or failing tests.
+
+**Recently wired in code (not necessarily reflected in every older checkbox):**
+
+- **Redis event relay:** `python/graph_caster/run_broker/relay/redis_relay.py` (async API) plus **sync fan-out** from `RunBroadcaster` when `GC_RUN_BROKER_REDIS_URL` is set (`GC_RUN_BROKER_EVENT_RELAY=0` to disable). See `python/graph_caster/run_broker/relay/broker_sync.py`, tests in `python/tests/test_broker_relay_fanout.py`.
+- **Run WebSocket keepalive:** `HeartbeatManager` integrated in `python/graph_caster/run_broker/routes/ws.py` — interval from `GC_RUN_BROKER_WS_HEARTBEAT_SEC` (default `60`, or `0` / empty to disable). Payload: `{"runId", "channel": "ping"}`. Unit tests: `python/tests/test_heartbeat.py`.
+
+**Verification (working tree — re-run after substantive changes):**
+
+| Scope | Command (from repo root `third_party/graph-caster/`) | Success criteria |
+|-------|------------------------------------------------------|------------------|
+| Python | `cd python && py -3 -m pytest tests -q` | Exit 0; expect on the order of **700+ passed**, a few skipped (optional Redis/RQ/croniter). |
+| UI unit | `cd ui && npm test -- --run` | Exit 0; **450** tests passed (Vitest). |
+| UI build | `cd ui && npm run build` | `tsc -b && vite build` completes without error. |
+
+Heartbeat tests use relaxed wall-clock sleeps so they stay stable under a full `pytest tests` run (see `python/tests/test_heartbeat.py`).
+
 ---
 
 ## Phase 1: Production Transport (§39 Closure)

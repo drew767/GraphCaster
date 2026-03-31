@@ -23,12 +23,14 @@ function GcFlowNodeInner(props: NodeProps) {
       kind === "mcp_tool" ||
       kind === "http_request" ||
       kind === "rag_query" ||
+      kind === "rag_index" ||
       kind === "delay" ||
       kind === "debounce" ||
       kind === "wait_for" ||
       kind === "set_variable" ||
       kind === "python_code" ||
-      kind === "llm_agent");
+      kind === "llm_agent" ||
+      kind === "agent");
   const compactHandles = tier === "compact" || tier === "ghost";
   const cls = `gc-flow-node gc-flow-node--${kind}${props.selected ? " gc-flow-node--selected" : ""}${tier === "compact" ? " gc-flow-node--lod-compact" : ""}${tier === "ghost" ? " gc-flow-node--ghost" : ""}`;
   const raw = data?.raw;
@@ -45,12 +47,14 @@ function GcFlowNodeInner(props: NodeProps) {
       kind === "mcp_tool" ||
       kind === "http_request" ||
       kind === "rag_query" ||
+      kind === "rag_index" ||
       kind === "delay" ||
       kind === "debounce" ||
       kind === "wait_for" ||
       kind === "set_variable" ||
       kind === "python_code" ||
       kind === "llm_agent" ||
+      kind === "agent" ||
       kind === "ai_route") &&
     raw != null &&
     typeof raw === "object" &&

@@ -8,6 +8,7 @@ from typing import Any
 
 from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Node
+from graph_caster.rag_index_exec import rag_index_has_valid_config
 from graph_caster.set_variable_exec import set_variable_has_valid_config
 
 _RUN_MODE_MAX_LEN = 128
@@ -33,19 +34,29 @@ def http_request_has_url(node: Node) -> bool:
 
 def rag_query_has_url_and_query(node: Node) -> bool:
     d = node.data or {}
-    u = d.get("url")
     q = d.get("query")
-    return (
-        isinstance(u, str)
-        and bool(u.strip())
-        and isinstance(q, str)
-        and bool(q.strip())
-    )
+    if not isinstance(q, str) or not q.strip():
+        return False
+    if str(d.get("vectorBackend") or "").strip().lower() == "memory":
+        cid = d.get("collectionId")
+        return isinstance(cid, str) and bool(cid.strip())
+    u = d.get("url")
+    return isinstance(u, str) and bool(u.strip())
 
 
 def python_code_has_code(node: Node) -> bool:
     c = (node.data or {}).get("code")
     return isinstance(c, str) and bool(c.strip())
+
+
+def agent_has_executable_config(node: Node) -> bool:
+    """In-runner ``agent`` node requires a non-empty user/prompt field."""
+    d = node.data or {}
+    for key in ("inputText", "input", "prompt", "userMessage"):
+        v = d.get(key)
+        if isinstance(v, str) and v.strip():
+            return True
+    return False
 
 
 def delay_has_duration(node: Node) -> bool:
