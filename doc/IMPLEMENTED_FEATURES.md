@@ -710,6 +710,8 @@
 
 Файл **`doc/superpowers/plans/2026-03-30-graphcaster-development-roadmap.md`** удалён после выполнения всех фаз; факты по темам — в таблице ниже и в **`python/README.md`**. Пакет раннера: **`python/graph_caster/`**. Новые планы при необходимости снова кладите в **`doc/superpowers/plans/`** и удаляйте после мержа поведения в код (см. сноску в конце этого файла).
 
+План **`2026-03-31-graphcaster-advanced-features-roadmap.md`** удалён после выполнения исполняемых фаз (P0–P3; **P4** marketplace / versioning — не была развернута в шаги этого плана). Кратко по нодам и инфраструктуре: **`http_request`** (`http_request_exec.py`, `test_http_request_exec.py`), **`rag_query`**, **`timer`/delay** (`delay_wait_exec.py`), **`python_code`**, **`set_variable`**; run variables — `test_run_variables.py`; опционально **S3** после прогона — `artifacts_s3.py` + env **`GC_RUN_ARTIFACTS_S3_*`**, тесты **`python/tests/test_artifacts_s3.py`** (при отсутствии **boto3** часть тестов пропускается); **Redis** лимит параллельных прогонов — `run_broker/redis_coord.py`, **`test_run_broker_redis_coord.py`**; **GitHub device OAuth** (CLI) — `mcp_oauth/`, **`test_mcp_oauth_github_device.py`**, подсказка в инспекторе **`mcp_tool`** (HTTP) — **`mcpOauthGithubHint`** (en/ru).
+
 | Тема | Факты в репозитории |
 |------|---------------------|
 | **Expression engine v2** | `python/graph_caster/expression/`; маршрутизация строковых условий рёбер — `edge_conditions.py`, `runner/expression_conditions.py`; тесты `python/tests/expression/`, `python/tests/test_expression_edge_conditions_integration.py`. |

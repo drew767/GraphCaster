@@ -55,6 +55,7 @@ from graph_caster.validate import (
     find_debounce_structure_warnings,
     find_wait_for_structure_warnings,
     find_python_code_structure_warnings,
+    find_set_variable_structure_warnings,
     find_llm_agent_structure_warnings,
     find_mcp_tool_structure_warnings,
     merge_mode,
@@ -68,6 +69,7 @@ from graph_caster.runner.node_visits import (
     run_debounce_visit,
     run_wait_for_visit,
     run_python_code_visit,
+    run_set_variable_visit,
     run_llm_agent_visit,
     run_subprocess_task_visit,
 )
@@ -80,6 +82,7 @@ from graph_caster.runner.run_helpers import (
     debounce_has_duration,
     wait_for_has_executable_config,
     python_code_has_code,
+    set_variable_has_valid_config,
     llm_agent_has_executable_command,
     normalize_run_id_candidate,
     node_wants_step_cache,
@@ -363,6 +366,8 @@ class GraphRunner:
                 continue
             if n.type == "python_code" and python_code_has_code(n):
                 continue
+            if n.type == "set_variable" and set_variable_has_valid_config(n):
+                continue
             if n.type == "delay" and delay_has_duration(n):
                 continue
             if n.type == "debounce" and debounce_has_duration(n):
@@ -470,6 +475,18 @@ class GraphRunner:
             self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
         )
 
+    def _run_set_variable_visit(
+        self,
+        node: Node,
+        ctx: dict[str, Any],
+        step_q: StepQueue,
+        *,
+        fork_parallel_worker: bool = False,
+    ) -> tuple[Literal["ok", "continue", "break"], bool]:
+        return run_set_variable_visit(
+            self, node, ctx, step_q, fork_parallel_worker=fork_parallel_worker
+        )
+
     def _run_delay_visit(
         self,
         node: Node,
@@ -537,6 +554,10 @@ class GraphRunner:
                     )
                 elif node.type == "python_code":
                     outcome, used_pin = self._run_python_code_visit(
+                        node, ctx, step_q, fork_parallel_worker=True
+                    )
+                elif node.type == "set_variable":
+                    outcome, used_pin = self._run_set_variable_visit(
                         node, ctx, step_q, fork_parallel_worker=True
                     )
                 elif node.type == "delay":
@@ -981,6 +1002,8 @@ class GraphRunner:
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_python_code_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
+        for w in find_set_variable_structure_warnings(self._doc):
+            self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_delay_structure_warnings(self._doc):
             self.emit("structure_warning", graphId=self._doc.graph_id, **w)
         for w in find_debounce_structure_warnings(self._doc):
@@ -1044,6 +1067,9 @@ class GraphRunner:
                     red_p = redact_python_code_data_for_execute(dict(node.data))
                     exec_data = red_p
                     stored_node_data = dict(node.data) if red_p is node.data else red_p
+                elif node.type == "set_variable":
+                    exec_data = dict(node.data)
+                    stored_node_data = dict(node.data)
                 elif node.type in ("delay", "debounce", "wait_for"):
                     red_t = redact_timer_node_data_for_execute(dict(node.data))
                     exec_data = red_t
@@ -1127,6 +1153,16 @@ class GraphRunner:
                         continue
                     if outcome == "break":
                         otel_tracing.mark_current_span_error("python_code_break_non_ok")
+                        break
+                elif node.type == "set_variable":
+                    outcome, _pin_sv = self._run_set_variable_visit(
+                        node, ctx, step_q, fork_parallel_worker=False
+                    )
+                    if outcome == "continue":
+                        otel_tracing.mark_current_span_error("set_variable_continue_non_ok")
+                        continue
+                    if outcome == "break":
+                        otel_tracing.mark_current_span_error("set_variable_break_non_ok")
                         break
                 elif node.type == "delay":
                     outcome, _pin_d = self._run_delay_visit(
@@ -1442,16 +1478,26 @@ class GraphRunner:
         raw = outs.get(node_id)
         if not isinstance(raw, dict):
             return
+        remove = raw.get("runVariablesRemove")
+        if remove is None:
+            remove = raw.get("run_variables_remove")
+        if isinstance(remove, list):
+            pool0 = ctx.setdefault("run_variables", {})
+            if not isinstance(pool0, dict):
+                pool0 = {}
+                ctx["run_variables"] = pool0
+            for k in remove:
+                if isinstance(k, str) and k:
+                    pool0.pop(k, None)
         rv = raw.get("runVariables")
         if rv is None:
             rv = raw.get("run_variables")
-        if not isinstance(rv, dict) or not rv:
-            return
-        pool = ctx.setdefault("run_variables", {})
-        if not isinstance(pool, dict):
-            pool = {}
-            ctx["run_variables"] = pool
-        pool.update(rv)
+        if isinstance(rv, dict) and rv:
+            pool = ctx.setdefault("run_variables", {})
+            if not isinstance(pool, dict):
+                pool = {}
+                ctx["run_variables"] = pool
+            pool.update(rv)
 
     def _execute_graph_ref(self, node: Node, ctx: dict[str, Any]) -> bool:
         from graph_caster.validate import GraphStructureError, validate_graph_structure

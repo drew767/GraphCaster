@@ -39,6 +39,7 @@ export type StructureIssue =
   | { kind: "wait_for_empty_path"; nodeId: string }
   | { kind: "wait_for_invalid_timeout"; nodeId: string }
   | { kind: "python_code_empty_code"; nodeId: string }
+  | { kind: "set_variable_invalid_config"; nodeId: string }
   | { kind: "llm_agent_empty_command"; nodeId: string }
   | { kind: "schema_version_mismatch"; root: number; meta: number };
 
@@ -91,6 +92,20 @@ export function parseWaitForFileParamsFromData(data: unknown): { timeoutSec: num
   }
   poll = Math.min(MAX_POLL_SEC, Math.max(MIN_POLL_SEC, poll));
   return { timeoutSec: timeout, pollSec: poll };
+}
+
+/** True when `name` / `operation` fail static checks (parity with Python `set_variable_structure_invalid_reason`). */
+export function setVariableConfigInvalid(raw: Record<string, unknown>): boolean {
+  const nameRaw = raw.name ?? raw.variableName;
+  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+  if (!name || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    return true;
+  }
+  const op = String(raw.operation ?? "").trim().toLowerCase();
+  if (!["set", "increment", "append", "delete"].includes(op)) {
+    return true;
+  }
+  return false;
 }
 
 export function waitForHasExecutableConfig(data: unknown): boolean {
@@ -173,6 +188,7 @@ function isBlockingStructureIssue(issue: StructureIssue): boolean {
     case "wait_for_empty_path":
     case "wait_for_invalid_timeout":
     case "python_code_empty_code":
+    case "set_variable_invalid_config":
     case "llm_agent_empty_command":
     case "schema_version_mismatch":
       return false;
@@ -411,6 +427,19 @@ export function findStructureIssues(doc: GraphDocumentJson): StructureIssue[] {
     const code = typeof raw.code === "string" ? raw.code.trim() : "";
     if (code === "") {
       issues.push({ kind: "python_code_empty_code", nodeId: n.id });
+    }
+  }
+  for (const n of nodes) {
+    if (n.type !== "set_variable") {
+      continue;
+    }
+    const d = n.data;
+    const raw =
+      d != null && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    if (setVariableConfigInvalid(raw)) {
+      issues.push({ kind: "set_variable_invalid_config", nodeId: n.id });
     }
   }
   for (const n of nodes) {

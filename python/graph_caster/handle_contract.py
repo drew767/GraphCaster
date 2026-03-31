@@ -18,6 +18,7 @@ _RAG_QUERY = "rag_query"
 _DELAY = "delay"
 _DEBOUNCE = "debounce"
 _WAIT_FOR = "wait_for"
+_SET_VARIABLE = "set_variable"
 _PYTHON_CODE = "python_code"
 _LLM_AGENT = "llm_agent"
 _COMMENT = "comment"
@@ -43,6 +44,7 @@ def _allowed_source_handles(node_type: str) -> frozenset[str]:
         _DELAY,
         _DEBOUNCE,
         _WAIT_FOR,
+        _SET_VARIABLE,
         _PYTHON_CODE,
         _LLM_AGENT,
     ):
@@ -68,6 +70,7 @@ def _allowed_target_handles(node_type: str) -> frozenset[str]:
         _DELAY,
         _DEBOUNCE,
         _WAIT_FOR,
+        _SET_VARIABLE,
         _PYTHON_CODE,
         _LLM_AGENT,
     ):

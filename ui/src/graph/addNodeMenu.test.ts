@@ -23,6 +23,7 @@ import {
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_START,
@@ -47,7 +48,7 @@ describe("primitivesForAddNodeCategory", () => {
     expect(got.size).toBe(4);
   });
 
-  it("steps is task, ai_route, mcp_tool, http_request, rag_query, timer nodes, python_code, and llm_agent", () => {
+  it("steps is task, ai_route, mcp_tool, http_request, rag_query, timer nodes, set_variable, python_code, and llm_agent", () => {
     expect(primitivesForAddNodeCategory("steps")).toEqual([
       GRAPH_NODE_TYPE_TASK,
       GRAPH_NODE_TYPE_AI_ROUTE,
@@ -57,6 +58,7 @@ describe("primitivesForAddNodeCategory", () => {
       GRAPH_NODE_TYPE_DELAY,
       GRAPH_NODE_TYPE_DEBOUNCE,
       GRAPH_NODE_TYPE_WAIT_FOR,
+      GRAPH_NODE_TYPE_SET_VARIABLE,
       GRAPH_NODE_TYPE_PYTHON_CODE,
       GRAPH_NODE_TYPE_LLM_AGENT,
     ]);

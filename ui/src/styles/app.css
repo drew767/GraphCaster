@@ -845,6 +845,10 @@ body {
   border-color: #14b8a6;
 }
 
+.gc-flow-node--set_variable {
+  border-color: #d946ef;
+}
+
 .gc-flow-node--python_code {
   border-color: #84cc16;
 }

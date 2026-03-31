@@ -26,6 +26,7 @@ function GcFlowNodeInner(props: NodeProps) {
       kind === "delay" ||
       kind === "debounce" ||
       kind === "wait_for" ||
+      kind === "set_variable" ||
       kind === "python_code" ||
       kind === "llm_agent");
   const compactHandles = tier === "compact" || tier === "ghost";
@@ -47,6 +48,7 @@ function GcFlowNodeInner(props: NodeProps) {
       kind === "delay" ||
       kind === "debounce" ||
       kind === "wait_for" ||
+      kind === "set_variable" ||
       kind === "python_code" ||
       kind === "llm_agent" ||
       kind === "ai_route") &&

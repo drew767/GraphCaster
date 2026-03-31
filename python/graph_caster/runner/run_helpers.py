@@ -8,6 +8,7 @@ from typing import Any
 
 from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Node
+from graph_caster.set_variable_exec import set_variable_has_valid_config
 
 _RUN_MODE_MAX_LEN = 128
 

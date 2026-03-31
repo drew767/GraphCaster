@@ -1931,6 +1931,10 @@ export function AppShell({ onLangChange }: Props) {
                                                       })
                                                     : issue.kind === "python_code_empty_code"
                                             ? t("app.structure.pythonCodeEmptyCode", { id: issue.nodeId })
+                                            : issue.kind === "set_variable_invalid_config"
+                                              ? t("app.structure.setVariableInvalidConfig", {
+                                                  id: issue.nodeId,
+                                                })
                                             : issue.kind === "mcp_tool_empty_tool_name"
                                               ? t("app.structure.mcpToolEmptyToolName", { id: issue.nodeId })
                                               : issue.kind === "mcp_tool_stdio_missing_command"

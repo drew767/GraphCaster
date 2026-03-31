@@ -34,6 +34,7 @@ from graph_caster.delay_wait_exec import (
     execute_delay_or_debounce,
     execute_wait_for_file,
 )
+from graph_caster.set_variable_exec import execute_set_variable
 from graph_caster.models import Node
 from graph_caster.step_queue import StepQueue
 
@@ -1294,6 +1295,55 @@ def _apply_timer_patch_to_outputs(
     if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
         return "continue", used_pin
     return "break", used_pin
+
+
+def run_set_variable_visit(
+    runner: Any,
+    node: Node,
+    ctx: dict[str, Any],
+    step_q: StepQueue,
+    *,
+    fork_parallel_worker: bool = False,
+) -> tuple[Literal["ok", "continue", "break"], bool]:
+    """Update run variables from node data (synchronous)."""
+    _ = fork_parallel_worker
+    outs_map = ctx.setdefault("node_outputs", {})
+    ok, patch = execute_set_variable(
+        node_id=node.id,
+        graph_id=runner._doc.graph_id,
+        data=dict(node.data),
+        ctx=ctx,
+    )
+    for k, v in patch.items():
+        outs_map[node.id][k] = v
+
+    snap_o = outs_map.get(node.id)
+    if isinstance(snap_o, dict) and isinstance(snap_o.get("processResult"), dict):
+        runner.emit(
+            "node_outputs_snapshot",
+            nodeId=node.id,
+            graphId=runner._doc.graph_id,
+            snapshot=snapshot_for_pin_event(snap_o),
+        )
+
+    if ok:
+        svr = patch.get("setVariableResult")
+        if isinstance(svr, dict) and svr.get("success") is True and "value" in svr:
+            ctx["last_result"] = svr.get("value")
+        else:
+            ctx["last_result"] = True
+        return "ok", False
+
+    ne_task: dict[str, Any] = {
+        "nodeId": node.id,
+        "nodeType": node.type,
+        "graphId": runner._doc.graph_id,
+    }
+    runner.emit("node_exit", **ne_task)
+    ctx["last_result"] = False
+    if runner._follow_edges_from(node.id, ctx, error_route=True, step_q=step_q):
+        return "continue", False
+    return "break", False
 
 
 def run_delay_visit(

@@ -14,6 +14,7 @@ import {
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_TASK,
@@ -131,6 +132,13 @@ export function defaultDataForNodeType(type: string): Record<string, unknown> {
         path: "",
         timeoutSec: 300,
         pollIntervalSec: 0.25,
+      };
+    case GRAPH_NODE_TYPE_SET_VARIABLE:
+      return {
+        title: "Set variable",
+        name: "myVar",
+        operation: "set",
+        value: null,
       };
     case GRAPH_NODE_TYPE_PYTHON_CODE:
       return {

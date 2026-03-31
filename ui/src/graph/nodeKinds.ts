@@ -16,6 +16,7 @@ export const GRAPH_NODE_TYPE_RAG_QUERY = "rag_query" as const;
 export const GRAPH_NODE_TYPE_DELAY = "delay" as const;
 export const GRAPH_NODE_TYPE_DEBOUNCE = "debounce" as const;
 export const GRAPH_NODE_TYPE_WAIT_FOR = "wait_for" as const;
+export const GRAPH_NODE_TYPE_SET_VARIABLE = "set_variable" as const;
 export const GRAPH_NODE_TYPE_PYTHON_CODE = "python_code" as const;
 export const GRAPH_NODE_TYPE_LLM_AGENT = "llm_agent" as const;
 

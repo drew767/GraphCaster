@@ -98,6 +98,16 @@ function nodeCanEmitFailFanout(doc: GraphDocumentJson, nodeId: string): boolean 
   if (t === "wait_for") {
     return waitForHasExecutableConfig(n.data ?? {});
   }
+  if (t === "set_variable") {
+    const d = (n.data ?? {}) as Record<string, unknown>;
+    const nameRaw = d.name ?? d.variableName;
+    const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+    if (!name || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      return false;
+    }
+    const op = String(d.operation ?? "").trim().toLowerCase();
+    return ["set", "increment", "append", "delete"].includes(op);
+  }
   if (t === "llm_agent") {
     const d = (n.data ?? {}) as Record<string, unknown>;
     const cmd = d.command;

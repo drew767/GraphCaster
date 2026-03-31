@@ -15,6 +15,7 @@ import {
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_GROUP,
@@ -199,6 +200,12 @@ export function InspectorPanel({
 
   const [pyCode, setPyCode] = useState("");
   const [pyTimeoutSec, setPyTimeoutSec] = useState("30");
+
+  const [setVarName, setSetVarName] = useState("");
+  const [setVarOperation, setSetVarOperation] = useState<"set" | "increment" | "append" | "delete">(
+    "set",
+  );
+  const [setVarValueJson, setSetVarValueJson] = useState("null");
 
   const [llmCommand, setLlmCommand] = useState("");
   const [llmCwd, setLlmCwd] = useState("");
@@ -536,6 +543,22 @@ export function InspectorPanel({
             ? pi.trim()
             : "0.25",
       );
+    }
+    if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_SET_VARIABLE) {
+      const r = selection.raw;
+      const n = (r as Record<string, unknown>).name ?? (r as Record<string, unknown>).variableName;
+      setSetVarName(typeof n === "string" ? n : "");
+      const op = String((r as Record<string, unknown>).operation ?? "set")
+        .trim()
+        .toLowerCase();
+      setSetVarOperation(
+        op === "increment" || op === "append" || op === "delete" ? op : "set",
+      );
+      try {
+        setSetVarValueJson(JSON.stringify((r as Record<string, unknown>).value ?? null, null, 2));
+      } catch {
+        setSetVarValueJson("null");
+      }
     }
     if (selection?.kind === "node" && selection.graphNodeType === GRAPH_NODE_TYPE_PYTHON_CODE) {
       const r = selection.raw;
@@ -1083,6 +1106,53 @@ export function InspectorPanel({
     });
   };
 
+  const applySetVariableFields = () => {
+    if (runLocked || selection?.kind !== "node" || selection.graphNodeType !== GRAPH_NODE_TYPE_SET_VARIABLE) {
+      return;
+    }
+    const nameTrim = setVarName.trim();
+    if (nameTrim === "") {
+      showInspectorError(
+        presentationForInspectorSimple(t, "app.inspector.setVariableNameRequired"),
+        "app.inspector.setVariableNameRequired",
+      );
+      return;
+    }
+    const rawJson = setVarValueJson.trim();
+    let parsedValue: unknown = null;
+    if (setVarOperation !== "delete") {
+      const shouldParse = !(setVarOperation === "increment" && (rawJson === "" || rawJson === "null"));
+      if (shouldParse) {
+        try {
+          parsedValue = JSON.parse(setVarValueJson);
+        } catch {
+          showInspectorError(
+            presentationForInspectorSimple(t, "app.inspector.setVariableValueInvalidJson"),
+            "app.inspector.setVariableValueInvalidJson",
+          );
+          return;
+        }
+      }
+    }
+    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
+    const next: Record<string, unknown> = {
+      ...base,
+      title:
+        typeof base.title === "string" && base.title.trim() !== "" ? base.title : "Set variable",
+      name: nameTrim,
+      operation: setVarOperation,
+    };
+    delete next.variableName;
+    if (setVarOperation === "delete") {
+      delete next.value;
+    } else if (setVarOperation === "increment" && (rawJson === "" || rawJson === "null")) {
+      delete next.value;
+    } else {
+      next.value = parsedValue;
+    }
+    onApplyNodeData(selection.id, next);
+  };
+
   const applyPythonCodeFields = () => {
     if (
       runLocked ||
@@ -1304,6 +1374,7 @@ export function InspectorPanel({
                       }}
                     />
                     <p className="gc-inspector-edge-hint">{t("app.inspector.mcpBearerEnvKeyHint")}</p>
+                    <p className="gc-inspector-edge-hint">{t("app.inspector.mcpOauthGithubHint")}</p>
                   </div>
                   <div className="gc-inspector-row gc-inspector-row--field">
                     <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-insecure">
@@ -2216,6 +2287,74 @@ export function InspectorPanel({
                 </div>
                 <p className="gc-inspector-edge-hint">{t("app.inspector.stepCacheHint")}</p>
               </div>
+            </div>
+          ) : null}
+          {selection.graphNodeType === GRAPH_NODE_TYPE_SET_VARIABLE ? (
+            <div className="gc-inspector-mcp">
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-setvar-name">
+                  {t("app.inspector.setVariableName")}
+                </label>
+                <input
+                  id="gc-inspector-setvar-name"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={setVarName}
+                  onChange={(ev) => {
+                    setSetVarName(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.setVariableNameHint")}</p>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-setvar-op">
+                  {t("app.inspector.setVariableOperation")}
+                </label>
+                <select
+                  id="gc-inspector-setvar-op"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked}
+                  value={setVarOperation}
+                  onChange={(ev) => {
+                    const v = ev.target.value;
+                    if (v === "increment" || v === "append" || v === "delete" || v === "set") {
+                      setSetVarOperation(v);
+                    }
+                  }}
+                >
+                  <option value="set">{t("app.inspector.setVariableOpSet")}</option>
+                  <option value="increment">{t("app.inspector.setVariableOpIncrement")}</option>
+                  <option value="append">{t("app.inspector.setVariableOpAppend")}</option>
+                  <option value="delete">{t("app.inspector.setVariableOpDelete")}</option>
+                </select>
+              </div>
+              <div className="gc-inspector-row gc-inspector-row--field">
+                <label className="gc-inspector-k" htmlFor="gc-inspector-setvar-val">
+                  {t("app.inspector.setVariableValueJson")}
+                </label>
+                <textarea
+                  id="gc-inspector-setvar-val"
+                  className="gc-inspector-condition-input"
+                  disabled={runLocked || setVarOperation === "delete"}
+                  rows={4}
+                  spellCheck={false}
+                  value={setVarValueJson}
+                  onChange={(ev) => {
+                    setSetVarValueJson(ev.target.value);
+                  }}
+                />
+                <p className="gc-inspector-edge-hint">{t("app.inspector.setVariableValueHint")}</p>
+              </div>
+              <button
+                type="button"
+                className="gc-btn gc-inspector-apply"
+                disabled={runLocked}
+                onClick={applySetVariableFields}
+              >
+                {t("app.inspector.applySetVariableSettings")}
+              </button>
             </div>
           ) : null}
           {selection.graphNodeType === GRAPH_NODE_TYPE_PYTHON_CODE ? (

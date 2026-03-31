@@ -20,6 +20,7 @@ import {
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_MERGE,
   GRAPH_NODE_TYPE_START,
   GRAPH_NODE_TYPE_TASK,
@@ -51,6 +52,7 @@ describe("minimapNodeColors", () => {
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_DELAY)).toBe("#64748b");
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_DEBOUNCE)).toBe("#f59e0b");
     expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_WAIT_FOR)).toBe("#14b8a6");
+    expect(minimapBaseFillForGraphNodeType(GRAPH_NODE_TYPE_SET_VARIABLE)).toBe("#d946ef");
     expect(minimapBaseFillForGraphNodeType("weird")).toBe("#e2e2e2");
   });
 

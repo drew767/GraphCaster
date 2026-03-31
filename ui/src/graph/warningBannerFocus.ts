@@ -34,6 +34,7 @@ export function structureIssueFocusNodeId(issue: StructureIssue): string | null 
     case "wait_for_empty_path":
     case "wait_for_invalid_timeout":
     case "python_code_empty_code":
+    case "set_variable_invalid_config":
     case "llm_agent_empty_command":
       return issue.nodeId;
     case "barrier_merge_out_error_incoming":

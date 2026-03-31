@@ -30,6 +30,7 @@ function getNodeColor(kind: string): string {
     delay: "#e2e8f0",
     debounce: "#fef3c7",
     wait_for: "#ccfbf1",
+    set_variable: "#fae8ff",
     python_code: "#ecfccb",
     fork: "#cffafe",
     merge: "#cffafe",

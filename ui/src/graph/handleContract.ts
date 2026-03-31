@@ -19,6 +19,7 @@ import {
   GRAPH_NODE_TYPE_DELAY,
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
+  GRAPH_NODE_TYPE_SET_VARIABLE,
   GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_START,
@@ -56,6 +57,7 @@ export function allowedSourceHandles(nodeType: string): ReadonlySet<string> {
     case GRAPH_NODE_TYPE_DELAY:
     case GRAPH_NODE_TYPE_DEBOUNCE:
     case GRAPH_NODE_TYPE_WAIT_FOR:
+    case GRAPH_NODE_TYPE_SET_VARIABLE:
     case GRAPH_NODE_TYPE_PYTHON_CODE:
     case GRAPH_NODE_TYPE_LLM_AGENT:
       return SET_TASK_IO;
@@ -85,6 +87,7 @@ export function allowedTargetHandles(nodeType: string): ReadonlySet<string> {
     case GRAPH_NODE_TYPE_DELAY:
     case GRAPH_NODE_TYPE_DEBOUNCE:
     case GRAPH_NODE_TYPE_WAIT_FOR:
+    case GRAPH_NODE_TYPE_SET_VARIABLE:
     case GRAPH_NODE_TYPE_PYTHON_CODE:
     case GRAPH_NODE_TYPE_LLM_AGENT:
       return SET_TASK_IN;

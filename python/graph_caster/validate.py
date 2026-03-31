@@ -8,6 +8,7 @@ from graph_caster.ai_routing import edge_route_description, usable_ai_route_out_
 from graph_caster.handle_contract import find_handle_compatibility_violations
 from graph_caster.delay_wait_exec import parse_duration_sec, parse_wait_for_file_params
 from graph_caster.models import Edge, GraphDocument, Node, is_editor_frame_node_type
+from graph_caster.set_variable_exec import set_variable_structure_invalid_reason
 
 _OUT_ERROR_HANDLE = "out_error"
 
@@ -124,6 +125,8 @@ def _node_can_emit_fail_branch(node: Node | None) -> bool:
             return False
         p = d.get("path")
         return isinstance(p, str) and bool(p.strip()) and parse_wait_for_file_params(d) is not None
+    if node.type == "set_variable":
+        return set_variable_structure_invalid_reason(node.data or {}) is None
     return False
 
 
@@ -146,6 +149,16 @@ def find_python_code_structure_warnings(doc: GraphDocument) -> list[dict[str, An
         c = (n.data or {}).get("code")
         if not isinstance(c, str) or not c.strip():
             out.append({"kind": "python_code_empty_code", "nodeId": n.id})
+    return out
+
+
+def find_set_variable_structure_warnings(doc: GraphDocument) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in doc.nodes:
+        if n.type != "set_variable":
+            continue
+        if set_variable_structure_invalid_reason(n.data or {}) is not None:
+            out.append({"kind": "set_variable_invalid_config", "nodeId": n.id})
     return out
 
 
