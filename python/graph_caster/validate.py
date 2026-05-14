@@ -462,7 +462,7 @@ def validate_graph_structure(doc: GraphDocument) -> str:
         if e.target == start_id:
             raise GraphStructureError(f"start node '{start_id}' must not have incoming edges (edge '{e.id}' targets it)")
     for n in doc.nodes:
-        if n.type not in ("trigger_webhook", "trigger_schedule"):
+        if n.type not in ("trigger_webhook", "trigger_schedule", "trigger_error"):
             continue
         for e in doc.edges:
             if e.target == n.id:

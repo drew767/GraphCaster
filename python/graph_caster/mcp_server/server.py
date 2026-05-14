@@ -19,7 +19,7 @@ from graph_caster.mcp_server.handlers import (
 )
 
 
-def build_fastmcp(host: RunHostContext):
+def build_fastmcp(host: RunHostContext, *, per_graph_tools: bool = False, watch: bool = False):
     """Return a configured ``FastMCP`` instance (tools registered)."""
     from mcp.server.fastmcp import FastMCP
 
@@ -79,6 +79,13 @@ def build_fastmcp(host: RunHostContext):
             return cancel_run_handler(run_id)
 
         return await anyio.to_thread.run_sync(_call)
+
+    if per_graph_tools:
+        try:
+            from graph_caster.mcp_server.per_graph_tools import register_per_graph_tools
+            register_per_graph_tools(mcp, host, watch=watch)
+        except Exception:
+            pass
 
     return mcp
 

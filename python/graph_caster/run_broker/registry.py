@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -14,7 +15,9 @@ import uuid
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal
+
+_LOG = logging.getLogger(__name__)
 
 from graph_caster.cli_run_args import run_start_body_to_argv_paths
 from graph_caster.execution.pool_sizing import (
@@ -115,6 +118,15 @@ class RunBrokerRegistry:
         self._pending_fifo: deque[str] = deque()
         self._run_graph_ids: dict[str, str] = {}
         self._lock = threading.Lock()
+        self._run_finished_hook: Callable[[dict[str, Any]], None] | None = None
+
+    def set_run_finished_hook(self, hook: Callable[[dict[str, Any]], None] | None) -> None:
+        """Register a callback invoked (in background thread) on each run_finished event.
+
+        The callback receives the parsed run_finished JSON dict.  It must never raise
+        into the caller — exceptions are swallowed after logging.
+        """
+        self._run_finished_hook = hook
 
     def bind_run_graph_id(self, run_id: str, graph_id: str) -> None:
         """Remember **meta.graphId** for a **run_id** (for status/events after the worker exits)."""
@@ -237,6 +249,7 @@ class RunBrokerRegistry:
                 text = line.rstrip("\r\n")
                 broadcaster.broadcast(FanOutMsg("out", text))
                 track_stdout_line_for_worker_terminal(text, expected_run_id=run_id, tracker=tracker)
+                self._maybe_dispatch_run_finished_hook(text)
             try:
                 proc.stdout.close()
             except OSError:
@@ -282,6 +295,24 @@ class RunBrokerRegistry:
                 self._promote_fill()
 
         threading.Thread(target=waiter, daemon=True).start()
+
+    def _maybe_dispatch_run_finished_hook(self, text: str) -> None:
+        hook = self._run_finished_hook
+        if hook is None:
+            return
+        s = text.strip()
+        if not s.startswith("{"):
+            return
+        try:
+            obj = json.loads(s)
+        except json.JSONDecodeError:
+            return
+        if not isinstance(obj, dict) or obj.get("type") != "run_finished":
+            return
+        try:
+            hook(obj)
+        except Exception:
+            _LOG.debug("run_finished hook raised", exc_info=True)
 
     def _promote_fill(self) -> None:
         while True:

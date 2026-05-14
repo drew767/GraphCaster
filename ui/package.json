@@ -24,6 +24,7 @@
     "@tauri-apps/api": "^2.10.1",
     "@xyflow/react": "12.8.2",
     "i18next": "^24.2.0",
+    "lucide-react": "^1.14.0",
     "monaco-editor": "0.52.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -43,6 +44,7 @@
     "typescript": "~5.6.3",
     "vite": "^6.0.6",
     "vite-plugin-monaco-editor": "1.1.0",
+    "vite-plugin-svgr": "^5.2.0",
     "vitest": "^3.0.0"
   }
 }

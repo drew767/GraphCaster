@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 
 import react from "@vitejs/plugin-react";
 import monacoEditorPluginMod from "vite-plugin-monaco-editor";
+import svgr from "vite-plugin-svgr";
 import { defineConfig, loadEnv, type PluginOption } from "vite";
 
 const monacoEditorPlugin = (
@@ -22,6 +23,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      svgr({ include: "**/*.svg?react" }),
       react(),
       monacoEditorPlugin({
         languageWorkers: ["editorWorkerService"],
