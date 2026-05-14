@@ -82,6 +82,8 @@ class Node:
     data: dict[str, Any] = field(default_factory=dict)
     #: Execution mode. See :data:`NODE_MODES`. Default ``"normal"``.
     mode: str = "normal"
+    #: Optional parent node id for group/frame membership (UX122).
+    parentId: str | None = None
 
 
 @dataclass
@@ -162,6 +164,8 @@ class GraphDocument:
                     mode_value = "normal"
             else:
                 mode_value = _normalize_node_mode(mode_raw)
+            parent_id_raw = n.get("parentId") or n.get("parent_id")
+            parent_id = str(parent_id_raw).strip() if parent_id_raw else None
             nodes.append(
                 Node(
                     id=nid.strip(),
@@ -169,6 +173,7 @@ class GraphDocument:
                     position={"x": float(pos.get("x", 0)), "y": float(pos.get("y", 0))},
                     data=data_obj,
                     mode=mode_value,
+                    parentId=parent_id,
                 )
             )
         edges: list[Edge] = []

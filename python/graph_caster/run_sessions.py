@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import threading
 from dataclasses import dataclass, field
 import os
@@ -10,6 +11,16 @@ from typing import Literal
 
 RunTerminalStatus = Literal["success", "failed", "cancelled", "partial"]
 RunSessionStatus = Literal["running"] | RunTerminalStatus
+
+
+def _default_worker_id() -> str:
+    env_id = os.environ.get("GC_RUN_BROKER_INSTANCE_ID", "").strip()
+    if env_id:
+        return env_id
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
 
 
 @dataclass(slots=True)
@@ -21,6 +32,7 @@ class RunSession:
     status: RunSessionStatus = "running"
     cancel_event: threading.Event = field(default_factory=threading.Event)
     last_heartbeat: datetime = field(default_factory=lambda: datetime.now(UTC))
+    worker_id: str = field(default_factory=_default_worker_id)
 
     def touch_heartbeat(self) -> None:
         """Update :attr:`last_heartbeat` to ``now()`` — call from the runner thread."""

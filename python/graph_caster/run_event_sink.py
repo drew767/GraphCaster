@@ -139,3 +139,24 @@ def normalize_run_event_sink(sink: RunEventSink | Callable[[RunEventDict], None]
     if isinstance(sink, RunEventSink):
         return sink
     return CallableRunEventSink(sink)
+
+
+def build_trace_wrapped_sink(
+    inner: RunEventSink | Callable[[RunEventDict], None] | None,
+) -> RunEventSink:
+    """Return a sink optionally wrapped with tracing based on ``GC_TRACE_BACKEND``.
+
+    If no trace backend is configured, returns the normalized inner sink (or
+    ``NullRunEventSink`` when inner is None). When a backend is configured,
+    wraps with ``TraceAdapterSink`` so each run is traced.
+    """
+    base = normalize_run_event_sink(inner)
+    try:
+        from graph_caster.observability.adapters.registry import get_adapter
+        from graph_caster.observability.adapters.sink import TraceAdapterSink
+        adapter = get_adapter()
+        if adapter is not None:
+            return TraceAdapterSink(base, adapter)
+    except Exception:
+        pass
+    return base

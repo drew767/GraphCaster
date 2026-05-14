@@ -36,6 +36,7 @@ def _positive_int_ge1(v: Any) -> bool:
 class StepCachePolicy:
     enabled: bool
     dirty_nodes: frozenset[str] = frozenset()
+    cache_strategy: Any = None
 
 
 def stable_json(obj: Any) -> str:

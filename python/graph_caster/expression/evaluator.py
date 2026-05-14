@@ -227,6 +227,12 @@ class SafeEvalVisitor(ast.NodeVisitor):
             self.context["iteration"] = 0
         if "vars" not in self.context:
             self.context["vars"] = {}
+        if "sys" not in self.context:
+            self.context["sys"] = {}
+        if "session" not in self.context:
+            self.context["session"] = {}
+        if "tenant" not in self.context:
+            self.context["tenant"] = {}
 
     def visit(self, node: ast.AST) -> Any:
         if isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
@@ -250,6 +256,8 @@ class SafeEvalVisitor(ast.NodeVisitor):
             return ALLOWED_BUILTINS[name]
         if name in FORBIDDEN_NAMES:
             raise ForbiddenOperationError(f"Access to '{name}' is forbidden")
+        if name in self.context:
+            return self.context[name]
         raise UndefinedVariableError(f"Undefined variable: {name}", "")
 
     def visit_BinOp(self, node: ast.BinOp) -> Any:
