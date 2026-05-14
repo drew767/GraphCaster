@@ -1,0 +1,4 @@
+name,description
+GraphCaster,A graph execution engine
+RAG Loader,Document loading layer
+Vector Store,Embedding storage backend

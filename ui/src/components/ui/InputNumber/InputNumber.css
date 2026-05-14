@@ -1,0 +1,140 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-input-number-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.gc-input-number {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color--text, #1c1c1e);
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius--3xs, 6px);
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.gc-input-number::-webkit-outer-spin-button,
+.gc-input-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Sizes */
+.gc-input-number--xsmall {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  height: 24px;
+}
+
+.gc-input-number--small {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  height: 30px;
+}
+
+.gc-input-number--medium {
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  height: 36px;
+}
+
+.gc-input-number--large {
+  padding: 9px 14px;
+  font-size: 1rem;
+  height: 44px;
+}
+
+/* With steppers — reserve right space */
+.gc-input-number--with-buttons {
+  padding-right: 28px;
+}
+
+/* Focus */
+.gc-input-number:focus {
+  border-color: var(--color--primary, #007aff);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+/* Variants */
+.gc-input-number--error {
+  border-color: var(--color--danger, #ff3b30);
+}
+
+.gc-input-number--error:focus {
+  border-color: var(--color--danger, #ff3b30);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.15);
+}
+
+.gc-input-number--success {
+  border-color: var(--color--success, #34c759);
+}
+
+.gc-input-number--success:focus {
+  border-color: var(--color--success, #34c759);
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.15);
+}
+
+/* Disabled */
+.gc-input-number:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+/* Stepper buttons */
+.gc-input-number-steppers {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: 0 var(--radius--3xs, 6px) var(--radius--3xs, 6px) 0;
+  overflow: hidden;
+}
+
+.gc-input-number-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color--background--light-2, #ffffff);
+  border: none;
+  cursor: pointer;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  padding: 0 5px;
+  line-height: 1;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.gc-input-number-step:first-child {
+  border-bottom: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+}
+
+.gc-input-number-step:hover {
+  background: var(--color--background--light-3, #eaeaef);
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-input-number-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gc-input-number-step:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: -2px;
+}

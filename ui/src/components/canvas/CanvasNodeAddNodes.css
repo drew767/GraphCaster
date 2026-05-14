@@ -1,0 +1,52 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+/* UX73 — big "+" for empty canvas */
+
+.gc-canvas-add-nodes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: all;
+  user-select: none;
+}
+
+.gc-canvas-add-nodes__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px dashed var(--color--foreground, #cbd5e1);
+  background: transparent;
+  color: var(--gc-text-2, #64748b);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    border-color 150ms,
+    color 150ms,
+    background 150ms;
+}
+
+.gc-canvas-add-nodes__btn:hover,
+.gc-canvas-add-nodes__btn:focus-visible {
+  border-color: var(--color--primary, #6366f1);
+  color: var(--color--primary, #6366f1);
+  background: color-mix(in srgb, var(--color--primary, #6366f1) 6%, transparent);
+  outline: none;
+}
+
+.gc-canvas-add-nodes__btn:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color--primary, #6366f1) 25%, transparent);
+}
+
+.gc-canvas-add-nodes__icon {
+  width: 36px;
+  height: 36px;
+}
+
+.gc-canvas-add-nodes__label {
+  font-size: 0.85rem;
+  color: var(--gc-text-2, #64748b);
+  text-align: center;
+}

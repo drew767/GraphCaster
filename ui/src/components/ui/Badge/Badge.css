@@ -1,0 +1,85 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 999px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Sizes */
+.gc-badge--small {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 0.625rem;
+}
+
+.gc-badge--medium {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+}
+
+/* Dot mode */
+.gc-badge--dot {
+  min-width: unset;
+  padding: 0;
+  font-size: 0;
+}
+
+.gc-badge--dot.gc-badge--small {
+  width: 6px;
+  height: 6px;
+}
+
+.gc-badge--dot.gc-badge--medium {
+  width: 8px;
+  height: 8px;
+}
+
+/* Variants */
+.gc-badge--primary {
+  background: var(--color--primary, #007aff);
+  color: var(--color--text--on-accent, #ffffff);
+}
+
+.gc-badge--danger {
+  background: #ff3b30;
+  color: var(--color--text--on-accent, #ffffff);
+}
+
+.gc-badge--success {
+  background: #34c759;
+  color: var(--color--text--on-accent, #ffffff);
+}
+
+.gc-badge--neutral {
+  background: var(--color--background--light-3, #eaeaef);
+  color: var(--color--text, #1c1c1e);
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-badge--primary {
+    background: var(--color--primary, #0a84ff);
+  }
+
+  .gc-badge--danger {
+    background: #ff453a;
+  }
+
+  .gc-badge--success {
+    background: #30d158;
+  }
+
+  .gc-badge--neutral {
+    background: var(--color--background--light-3, #242428);
+    color: var(--color--text, #f5f5f7);
+  }
+}

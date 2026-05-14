@@ -1,0 +1,95 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gc-breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gc-breadcrumbs__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  text-decoration: none;
+  border-radius: 3px;
+  transition: color 0.12s ease;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+}
+
+.gc-breadcrumbs__link:hover {
+  color: var(--color--text, #1c1c1e);
+  text-decoration: underline;
+}
+
+.gc-breadcrumbs__link:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 2px;
+}
+
+.gc-breadcrumbs__current {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color--text, #1c1c1e);
+  font-weight: 500;
+}
+
+.gc-breadcrumbs__separator {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 4px;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  flex-shrink: 0;
+}
+
+.gc-breadcrumbs__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  font-size: 1rem;
+  line-height: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-breadcrumbs {
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+
+  .gc-breadcrumbs__link {
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+
+  .gc-breadcrumbs__link:hover {
+    color: var(--color--text, #f5f5f7);
+  }
+
+  .gc-breadcrumbs__current {
+    color: var(--color--text, #f5f5f7);
+  }
+
+  .gc-breadcrumbs__separator {
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+
+  .gc-breadcrumbs__ellipsis {
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+}

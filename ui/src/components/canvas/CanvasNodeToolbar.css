@@ -1,0 +1,72 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+/* UX72 — Node hover toolbar */
+
+.gc-node-toolbar {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px;
+  background: var(--color--background--light-2, #fff);
+  border: 1px solid var(--color--foreground, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,.12));
+  pointer-events: all;
+  z-index: 10;
+
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.gc-node-toolbar--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gc-node-toolbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gc-text-2, #64748b);
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms, color 120ms;
+}
+
+.gc-node-toolbar__btn:hover,
+.gc-node-toolbar__btn:focus-visible {
+  background: var(--color--background--light-3, #f1f5f9);
+  color: var(--gc-text-1, #1e293b);
+  outline: none;
+}
+
+.gc-node-toolbar__btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--color--primary, #6366f1);
+}
+
+.gc-node-toolbar__btn--active {
+  color: var(--color--primary, #6366f1);
+  background: color-mix(in srgb, var(--color--primary, #6366f1) 10%, transparent);
+}
+
+.gc-node-toolbar__btn--danger:hover,
+.gc-node-toolbar__btn--danger:focus-visible {
+  background: color-mix(in srgb, var(--gc-danger, #dc2626) 10%, transparent);
+  color: var(--gc-danger, #dc2626);
+}
+
+.gc-node-toolbar__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--color--foreground, #e2e8f0);
+  margin: 0 2px;
+}

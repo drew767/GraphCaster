@@ -1,0 +1,109 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-workflow-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gc-space-3, 12px);
+}
+
+.gc-workflow-header__name {
+  min-width: 0;
+  max-width: 280px;
+}
+
+.gc-workflow-header__active {
+  display: inline-flex;
+  align-items: center;
+}
+
+.gc-workflow-header__tags-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-1, 4px);
+  background: transparent;
+  border: 1px dashed var(--gc-color-border, #d0d4dc);
+  border-radius: var(--gc-radius-pill, 999px);
+  padding: 2px 8px;
+  cursor: pointer;
+  color: var(--gc-color-text-secondary, #6b7280);
+  font-size: var(--gc-font-size-xs, 12px);
+}
+
+.gc-workflow-header__tags-trigger:hover {
+  color: var(--gc-color-text-primary, #1f2937);
+  background-color: var(--gc-color-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.gc-workflow-header__tags-trigger--empty {
+  border-style: dashed;
+}
+
+.gc-workflow-header__tags-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-2, 8px);
+}
+
+.gc-workflow-header__tags-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-1, 4px);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.gc-workflow-header__tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gc-space-2, 8px);
+  padding: 4px 6px;
+  border-radius: var(--gc-radius-sm, 4px);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gc-workflow-header__tag-row:hover {
+  background-color: var(--gc-color-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.gc-workflow-header__tags-empty {
+  font-size: var(--gc-font-size-xs, 12px);
+  color: var(--gc-color-text-secondary, #6b7280);
+  padding: 4px 6px;
+}
+
+.gc-workflow-header__tags-create {
+  border-top: 1px solid var(--gc-color-border, #e5e7eb);
+  padding-top: var(--gc-space-2, 8px);
+}
+
+.gc-workflow-header__execute {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.gc-workflow-header__execute-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.gc-workflow-header__execute-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--gc-color-success-bg, #16a34a);
+  color: var(--gc-color-success-fg, #ffffff);
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-top-right-radius: var(--gc-radius-sm, 4px);
+  border-bottom-right-radius: var(--gc-radius-sm, 4px);
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.gc-workflow-header__execute-chevron:hover {
+  filter: brightness(0.95);
+}

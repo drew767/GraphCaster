@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 14,
+  "meta": {
+    "schemaVersion": 14,
+    "graphId": "iter-0000-0000-0000-000000000001",
+    "title": "iteration example — double each item"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "start1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "iter1",
+      "type": "iteration",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Double each number",
+        "items": [1, 2, 3],
+        "parallel": false
+      }
+    },
+    {
+      "id": "body_task",
+      "type": "task",
+      "parentId": "iter1",
+      "position": { "x": 400, "y": 0 },
+      "data": {
+        "title": "Double item",
+        "command": ["python", "-c", "import json,sys; item=json.loads(sys.stdin.read()); print(json.dumps({'value': item['index'] * 2}))"]
+      }
+    },
+    {
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 600, "y": 0 },
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "iter1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "iter1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

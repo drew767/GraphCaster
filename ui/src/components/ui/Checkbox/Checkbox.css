@@ -1,0 +1,91 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-checkbox-root {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gc-checkbox-root[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The box itself */
+.gc-checkbox-box {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color--foreground, rgba(0, 0, 0, 0.25));
+  border-radius: 4px;
+  background: var(--color--background--light-2, #ffffff);
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  outline: none;
+}
+
+/* Sizes */
+.gc-checkbox-box--small {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.gc-checkbox-box--medium {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.gc-checkbox-box--large {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+/* Checked / indeterminate state */
+.gc-checkbox-box[data-state="checked"],
+.gc-checkbox-box[data-state="indeterminate"] {
+  background: var(--color--primary, #007aff);
+  border-color: var(--color--primary, #007aff);
+}
+
+/* Focus ring */
+.gc-checkbox-box:focus-visible {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.22);
+}
+
+/* Indicator (checkmark/dash) */
+.gc-checkbox-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color--text--on-accent, #ffffff);
+  line-height: 1;
+}
+
+/* Labels */
+.gc-checkbox-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gc-checkbox-label {
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-checkbox-description {
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}

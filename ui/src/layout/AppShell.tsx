@@ -19,14 +19,10 @@ import { KeyboardShortcutsModal } from "../components/KeyboardShortcutsModal";
 import { OnboardingTips } from "../components/OnboardingTips";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
-import {
-  clearHistory,
-  createEmptyHistory,
-  documentJsonSignature,
-  redoDocument,
-  snapshotBeforeChange,
-  undoDocument,
-} from "../graph/documentHistory";
+import { useCanvasSelection } from "./hooks/useCanvasSelection";
+import { useGraphDocumentHistory } from "./hooks/useGraphDocumentHistory";
+import { useModalsController } from "./hooks/useModalsController";
+import { useRunSessionController } from "./hooks/useRunSessionController";
 import type {
   GraphDocumentJson,
   GraphDocumentSettingsPatch,
@@ -95,7 +91,6 @@ import { findHandleCompatibilityIssues } from "../graph/handleCompatibility";
 import { nodeTypeTriggersStepCacheDirtyOnDataEdit } from "../graph/stepCacheDirtyGraph";
 import {
   findStructureIssues,
-  structureIssuesBlockRun,
   workspaceGraphRefCycleIssues,
 } from "../graph/structureWarnings";
 import { builtInNodeTemplateById } from "../graph/nodeTemplates";
@@ -128,42 +123,20 @@ import {
 import { useConsoleHeight } from "../hooks/useConsoleHeight";
 import { NodePaletteSidebar } from "../components/NodePaletteSidebar";
 import {
-  gcCancelRun,
-  getRunEnvironmentInfo,
-  launchGcStartJob,
-} from "../run/runCommands";
-import type { GcStartRunJob } from "../run/runSessionStore";
-import {
-  getRunSessionSnapshot,
   runSessionAppendLine,
-  runSessionCanStartAnotherLive,
-  runSessionClearReplay,
   runSessionClearSettledVisualForCurrentGraph,
-  runSessionEnqueuePending,
   runSessionHasBlockingActivity,
   runSessionSetCurrentRootGraphId,
   runSessionSetFocusedRunId,
-  runSessionSetPythonBanner,
   useRunSession,
 } from "../run/runSessionStore";
 import {
   markStepCacheDirtyWithNestedBubble,
   type NestedGraphRefFrame,
 } from "../run/nestedStepCacheDirtyBubble";
-import {
-  clearStepCacheDirtyIds,
-  getStepCacheDirtySnapshot,
-  useStepCacheDirtyCount,
-} from "../run/stepCacheDirtyStore";
-import { isTauriRuntime } from "../run/tauriEnv";
+import { useStepCacheDirtyCount } from "../run/stepCacheDirtyStore";
 import { useRunBridge } from "../run/useRunBridge";
 import { useToast } from "../toast/ToastProvider";
-
-const LS_RUN_GRAPHS = "gc.run.graphsDir";
-const LS_RUN_ARTIFACTS = "gc.run.artifactsBase";
-const LS_RUN_STEP_CACHE = "gc.run.stepCacheEnabled";
-
-const DOCUMENT_HISTORY_CAP = 80;
 
 function formatGraphRefCycleForUi(cycle: string[]): string {
   if (cycle.length === 0) {
@@ -225,11 +198,11 @@ export function AppShell({ onLangChange }: Props) {
     runSession.liveRunIds.length > 0 || runSession.pendingRunCount > 0;
   const hasLiveGraphRun = runSession.liveRunIds.length > 0;
   const { height, startDrag } = useConsoleHeight(168);
-  const [selection, setSelection] = useState<GraphCanvasSelection | null>(null);
   const [graphDocument, setGraphDocument] = useState<GraphDocumentJson>(() => {
     const parsed = parseGraphDocumentJson(exampleDocument as unknown);
     return parsed ?? createMinimalGraphDocument();
   });
+  const { selection, selectionRef, setSelection } = useCanvasSelection({ graphDocument });
   const nodeSearchRows = useMemo(() => buildCanvasNodeSearchRows(graphDocument), [graphDocument]);
   const branchIssues = useMemo(() => findBranchAmbiguities(graphDocument), [graphDocument]);
   const resolvedGraphId = useMemo(() => graphIdFromDocument(graphDocument) ?? "", [graphDocument]);
@@ -269,12 +242,25 @@ export function AppShell({ onLangChange }: Props) {
   const [layoutDirtyEpoch, setLayoutDirtyEpoch] = useState(0);
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const [saveModalSuggestedName, setSaveModalSuggestedName] = useState("graph.json");
-  const [appMessageModal, setAppMessageModal] = useState<AppMessagePresentation | null>(null);
-  const [nodeSearchOpen, setNodeSearchOpen] = useState(false);
-  const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
-  const [runHistoryOpen, setRunHistoryOpen] = useState(false);
+  const {
+    saveModalOpen,
+    saveModalSuggestedName,
+    openSaveModal: openSaveModalInternal,
+    closeSaveModal,
+    appMessageModal,
+    setAppMessageModal,
+    closeAppMessageModal,
+    nodeSearchOpen,
+    nodeSearchOpenRef,
+    openNodeSearch,
+    closeNodeSearch,
+    keyboardShortcutsOpen,
+    openKeyboardShortcuts,
+    closeKeyboardShortcuts,
+    runHistoryOpen,
+    openRunHistory,
+    closeRunHistory,
+  } = useModalsController();
   const [nodePaletteSidebarOpen, setNodePaletteSidebarOpen] = useState(true);
   const hasStartNode = useMemo(
     () => (graphDocument.nodes ?? []).some((n) => n.type === "start"),
@@ -282,13 +268,6 @@ export function AppShell({ onLangChange }: Props) {
   );
   const [autosaveFailed, setAutosaveFailed] = useState(false);
   const lastAutosaveFailConsoleMsRef = useRef(0);
-  const [runGraphsDir, setRunGraphsDir] = useState(() => localStorage.getItem(LS_RUN_GRAPHS) ?? "");
-  const [runArtifactsBase, setRunArtifactsBase] = useState(
-    () => localStorage.getItem(LS_RUN_ARTIFACTS) ?? "",
-  );
-  const [stepCacheRunEnabled, setStepCacheRunEnabled] = useState(
-    () => localStorage.getItem(LS_RUN_STEP_CACHE) === "1",
-  );
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
   const [edgeLabelsEnabled, setEdgeLabelsEnabled] = useState(() => readEdgeLabelsEnabled());
   const [ghostOffViewportEnabled, setGhostOffViewportEnabled] = useState(() =>
@@ -299,111 +278,60 @@ export function AppShell({ onLangChange }: Props) {
   );
   const [followRunEnabled, setFollowRunEnabled] = useState(() => readFollowRunPreference());
   const stepCacheDirtyCount = useStepCacheDirtyCount();
-  const [pyProbe, setPyProbe] = useState<{ ok: boolean; path: string } | null>(null);
-  const historyRef = useRef(createEmptyHistory(DOCUMENT_HISTORY_CAP));
-  const preDragDocumentRef = useRef<GraphDocumentJson | null>(null);
   const graphDocumentRef = useRef(graphDocument);
   graphDocumentRef.current = graphDocument;
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
-  const nodeSearchOpenRef = useRef(nodeSearchOpen);
-  nodeSearchOpenRef.current = nodeSearchOpen;
   const nestedGraphRefStackRef = useRef<NestedGraphRefFrame[]>([]);
   const graphRefSnapshotCacheRef = useRef(new Map<string, GraphRefSnapshotLoadResult>());
   const graphRefSnapshotInflightRef = useRef(
     new Map<string, Promise<GraphRefSnapshotLoadResult>>(),
   );
   const stepCacheDirtyBubbleChainRef = useRef<Promise<unknown>>(Promise.resolve());
-  const [historyTick, setHistoryTick] = useState(0);
 
-  const bumpHistoryUi = useCallback(() => {
-    setHistoryTick((n) => n + 1);
+  const bumpLayoutDirtyEpoch = useCallback(() => {
+    setLayoutDirtyEpoch((n) => n + 1);
   }, []);
 
-  const commitHistorySnapshot = useCallback(() => {
-    preDragDocumentRef.current = null;
-    if (runSessionHasBlockingActivity()) {
-      return;
-    }
-    const current =
-      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
-      graphDocumentRef.current;
-    historyRef.current = snapshotBeforeChange(historyRef.current, current);
-    bumpHistoryUi();
-  }, [bumpHistoryUi]);
+  const {
+    historyRef,
+    historyTick,
+    bumpHistoryUi,
+    commitHistorySnapshot,
+    beginNodeDragCapture,
+    commitNodeDragHistoryIfChanged,
+    performUndo,
+    performRedo,
+    resetHistory,
+    clearPreDragCapture,
+  } = useGraphDocumentHistory({
+    canvasRef,
+    graphDocumentRef,
+    setGraphDocument,
+    setDanglingEdgesExportIds,
+    bumpLayoutDirtyEpoch,
+    isRunBlocking: runSessionHasBlockingActivity,
+  });
 
-  const beginNodeDragCapture = useCallback(() => {
-    if (runSessionHasBlockingActivity()) {
-      return;
-    }
-    const api = canvasRef.current;
-    if (!api) {
-      return;
-    }
-    preDragDocumentRef.current = structuredClone(
-      api.exportDocument({ notifyRemovedDanglingEdges: false }),
-    ) as GraphDocumentJson;
-  }, []);
-
-  const commitNodeDragHistoryIfChanged = useCallback(() => {
-    if (runSessionHasBlockingActivity()) {
-      preDragDocumentRef.current = null;
-      return;
-    }
-    const pre = preDragDocumentRef.current;
-    preDragDocumentRef.current = null;
-    if (pre == null) {
-      return;
-    }
-    const api = canvasRef.current;
-    if (!api) {
-      return;
-    }
-    const after = api.exportDocument({ notifyRemovedDanglingEdges: false });
-    if (documentJsonSignature(pre) === documentJsonSignature(after)) {
-      return;
-    }
-    historyRef.current = snapshotBeforeChange(historyRef.current, pre);
-    bumpHistoryUi();
-  }, [bumpHistoryUi]);
-
-  const performUndo = useCallback(() => {
-    preDragDocumentRef.current = null;
-    if (runSessionHasBlockingActivity()) {
-      return;
-    }
-    const current =
-      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
-      graphDocumentRef.current;
-    const r = undoDocument(historyRef.current, current);
-    if (!r) {
-      return;
-    }
-    historyRef.current = r.nextHistory;
-    setDanglingEdgesExportIds(null);
-    setGraphDocument(r.document);
-    setLayoutDirtyEpoch((n) => n + 1);
-    bumpHistoryUi();
-  }, [bumpHistoryUi]);
-
-  const performRedo = useCallback(() => {
-    preDragDocumentRef.current = null;
-    if (runSessionHasBlockingActivity()) {
-      return;
-    }
-    const current =
-      canvasRef.current?.exportDocument({ notifyRemovedDanglingEdges: false }) ??
-      graphDocumentRef.current;
-    const r = redoDocument(historyRef.current, current);
-    if (!r) {
-      return;
-    }
-    historyRef.current = r.nextHistory;
-    setDanglingEdgesExportIds(null);
-    setGraphDocument(r.document);
-    setLayoutDirtyEpoch((n) => n + 1);
-    bumpHistoryUi();
-  }, [bumpHistoryUi]);
+  const {
+    runGraphsDir,
+    setRunGraphsDir,
+    runArtifactsBase,
+    setRunArtifactsBase,
+    stepCacheRunEnabled,
+    setStepCacheRunEnabled,
+    pyProbe,
+    runStartDisabled,
+    runUntilSelectionEnabled,
+    onRunGraph,
+    onRunUntilSelectedNode,
+    onStopRunGraph,
+  } = useRunSessionController({
+    canvasRef,
+    selectionRef,
+    structureIssues,
+    runSessionBlocking,
+    selection,
+    pushToast,
+  });
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -441,30 +369,6 @@ export function AppShell({ onLangChange }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (nodeSearchOpen) {
-        return;
-      }
-      if (isTextEditingTarget(e.target)) {
-        return;
-      }
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod) {
-        return;
-      }
-      const k = e.key.toLowerCase();
-      if (k === "f" || k === "k") {
-        e.preventDefault();
-        setNodeSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [nodeSearchOpen]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
       if (isTextEditingTarget(e.target)) {
         return;
       }
@@ -483,56 +387,6 @@ export function AppShell({ onLangChange }: Props) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "F1") {
-        return;
-      }
-      if (isTextEditingTarget(e.target)) {
-        return;
-      }
-      e.preventDefault();
-      setKeyboardShortcutsOpen(true);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(LS_RUN_GRAPHS, runGraphsDir);
-  }, [runGraphsDir]);
-  useEffect(() => {
-    localStorage.setItem(LS_RUN_ARTIFACTS, runArtifactsBase);
-  }, [runArtifactsBase]);
-  useEffect(() => {
-    if (runArtifactsBase.trim() === "") {
-      setStepCacheRunEnabled(false);
-    }
-  }, [runArtifactsBase]);
-  useEffect(() => {
-    localStorage.setItem(LS_RUN_STEP_CACHE, stepCacheRunEnabled ? "1" : "0");
-  }, [stepCacheRunEnabled]);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) {
-      void getRunEnvironmentInfo().then((info) => {
-        setPyProbe({ ok: info.moduleAvailable, path: info.pythonPath });
-        runSessionSetPythonBanner(
-          info.moduleAvailable ? null : t("app.run.brokerMissing", { path: info.pythonPath }),
-        );
-      });
-      return;
-    }
-    void getRunEnvironmentInfo().then((info) => {
-      setPyProbe({ ok: info.moduleAvailable, path: info.pythonPath });
-      runSessionSetPythonBanner(
-        info.moduleAvailable ? null : t("app.run.pythonMissing", { path: info.pythonPath }),
-      );
-    });
-  }, [t]);
 
   const bumpLayoutEpoch = useCallback(() => {
     setLayoutEpoch((n) => n + 1);
@@ -559,18 +413,17 @@ export function AppShell({ onLangChange }: Props) {
 
   const onNewGraph = useCallback(() => {
     nestedGraphRefStackRef.current = [];
-    preDragDocumentRef.current = null;
+    clearPreDragCapture();
     setDanglingEdgesExportIds(null);
     setGraphDocument(createMinimalGraphDocument());
-    historyRef.current = clearHistory(historyRef.current);
-    bumpHistoryUi();
+    resetHistory();
     workspaceDiskBaselineRef.current = null;
     setActiveWorkspaceFile(null);
     setWorkspaceAutosaveConflictOpen(false);
     setAutosaveDiskConflictPaused(false);
     bumpLayoutEpoch();
     setSelection(null);
-  }, [bumpHistoryUi, bumpLayoutEpoch]);
+  }, [bumpLayoutEpoch, clearPreDragCapture, resetHistory, setSelection]);
 
   const onOpenPick = useCallback(() => {
     fileInputRef.current?.click();
@@ -607,15 +460,14 @@ export function AppShell({ onLangChange }: Props) {
       setActiveWorkspaceFile(null);
       setWorkspaceAutosaveConflictOpen(false);
       setAutosaveDiskConflictPaused(false);
-      preDragDocumentRef.current = null;
+      clearPreDragCapture();
       setDanglingEdgesExportIds(null);
       setGraphDocument(res.doc);
-      historyRef.current = clearHistory(historyRef.current);
-      bumpHistoryUi();
+      resetHistory();
       bumpLayoutEpoch();
       setSelection(null);
     },
-    [bumpHistoryUi, bumpLayoutEpoch, t],
+    [bumpLayoutEpoch, clearPreDragCapture, resetHistory, setAppMessageModal, setSelection, t],
   );
 
   const onLinkWorkspace = useCallback(async () => {
@@ -673,11 +525,10 @@ export function AppShell({ onLangChange }: Props) {
         setAppMessageModal(presentationForParseError(t, res.error, { fileName }));
         return false;
       }
-      preDragDocumentRef.current = null;
+      clearPreDragCapture();
       setDanglingEdgesExportIds(null);
       setGraphDocument(res.doc);
-      historyRef.current = clearHistory(historyRef.current);
-      bumpHistoryUi();
+      resetHistory();
       setActiveWorkspaceFile(fileName);
       workspaceDiskBaselineRef.current = {
         fileName,
@@ -694,7 +545,7 @@ export function AppShell({ onLangChange }: Props) {
       }
       return true;
     },
-    [bumpHistoryUi, bumpLayoutEpoch, workspaceGraphsDir, t],
+    [bumpLayoutEpoch, clearPreDragCapture, resetHistory, setAppMessageModal, setSelection, workspaceGraphsDir, t],
   );
 
   const readParentGraphDocument = useCallback(
@@ -1017,129 +868,12 @@ export function AppShell({ onLangChange }: Props) {
       return;
     }
     const doc = api.exportDocument();
-    setSaveModalSuggestedName(activeWorkspaceFile ?? defaultWorkspaceFileName(doc));
-    setSaveModalOpen(true);
-  }, [activeWorkspaceFile, t]);
+    openSaveModalInternal(activeWorkspaceFile ?? defaultWorkspaceFileName(doc));
+  }, [activeWorkspaceFile, openSaveModalInternal, t]);
 
   const onSaveGraph = useCallback(() => {
     openSaveModal();
   }, [openSaveModal]);
-
-  const startDesktopRun = useCallback(
-    async (untilNodeId?: string) => {
-      if (structureIssuesBlockRun(structureIssues)) {
-        window.alert(t("app.run.fixStructureFirst"));
-        return;
-      }
-      if (pyProbe != null && !pyProbe.ok) {
-        window.alert(
-          isTauriRuntime()
-            ? t("app.run.pythonMissing", { path: pyProbe.path })
-            : t("app.run.brokerMissing", { path: pyProbe.path }),
-        );
-        return;
-      }
-      const api = canvasRef.current;
-      if (!api) {
-        return;
-      }
-      const doc = api.exportDocument();
-      const runId = crypto.randomUUID();
-      const art = runArtifactsBase.trim();
-      const dirtyCsv = getStepCacheDirtySnapshot().ids.join(",");
-      const useStepCache = stepCacheRunEnabled && art !== "";
-      const job: GcStartRunJob = {
-        documentJson: JSON.stringify(doc),
-        runId,
-        graphsDir: runGraphsDir.trim() || undefined,
-        artifactsBase: art === "" ? undefined : art,
-        untilNodeId: untilNodeId?.trim() || undefined,
-        stepCache: useStepCache ? true : undefined,
-        stepCacheDirty: useStepCache && dirtyCsv !== "" ? dirtyCsv : undefined,
-      };
-      runSessionClearReplay();
-      if (!runSessionCanStartAnotherLive()) {
-        runSessionEnqueuePending(job);
-        const pos = getRunSessionSnapshot().pendingRunCount;
-        runSessionAppendLine(
-          t("app.run.queuedHost", { runId, position: pos }),
-        );
-        pushToast(t("app.toast.runQueued"), "info");
-        return;
-      }
-      try {
-        await launchGcStartJob(job, {
-          afterSuccessfulStart: () => {
-            if (useStepCache && dirtyCsv !== "") {
-              clearStepCacheDirtyIds();
-            }
-          },
-        });
-        pushToast(t("app.toast.runStarted"), "success");
-      } catch {
-        /* host lines emitted in launchGcStartJob */
-      }
-    },
-    [
-      pyProbe,
-      pushToast,
-      runArtifactsBase,
-      runGraphsDir,
-      stepCacheRunEnabled,
-      structureIssues,
-      t,
-    ],
-  );
-
-  const onRunGraph = useCallback(() => {
-    void startDesktopRun(undefined);
-  }, [startDesktopRun]);
-
-  const onRunUntilSelectedNode = useCallback(() => {
-    const sel = selectionRef.current;
-    if (sel?.kind === "node") {
-      if (sel.graphNodeType === "start") {
-        return;
-      }
-      void startDesktopRun(sel.id);
-      return;
-    }
-    if (sel?.kind === "multiNode" && sel.ids.length === 1) {
-      const row = sel.nodes[0];
-      if (row == null || row.graphNodeType === "start") {
-        return;
-      }
-      void startDesktopRun(row.id);
-    }
-  }, [startDesktopRun]);
-
-  const runUntilSelectionEnabled = useMemo(() => {
-    if (runSessionBlocking) {
-      return false;
-    }
-    if (pyProbe != null && !pyProbe.ok) {
-      return false;
-    }
-    if (selection?.kind === "node") {
-      return selection.graphNodeType !== "start";
-    }
-    if (selection?.kind === "multiNode" && selection.ids.length === 1) {
-      return selection.nodes[0]?.graphNodeType !== "start";
-    }
-    return false;
-  }, [runSessionBlocking, pyProbe, selection]);
-
-  const onStopRunGraph = useCallback(async () => {
-    const id = getRunSessionSnapshot().focusedRunId;
-    if (!id) {
-      return;
-    }
-    try {
-      await gcCancelRun(id);
-    } catch (e) {
-      runSessionAppendLine(`[host] cancel: ${String(e)}`);
-    }
-  }, []);
 
   useEffect(() => {
     if (!workspaceGraphsDir || !activeWorkspaceFile) {
@@ -1631,9 +1365,6 @@ export function AppShell({ onLangChange }: Props) {
     [commitHistorySnapshot, runSessionBlocking, t],
   );
 
-  const runStartDisabled =
-    pyProbe != null && !pyProbe.ok;
-
   const onRemoveCanvasNodes = useCallback((ids: readonly string[]) => {
     if (runSessionBlocking) {
       return;
@@ -1669,69 +1400,6 @@ export function AppShell({ onLangChange }: Props) {
     },
     [activeWorkspaceFile, onOpenWorkspaceGraph, t, workspaceGraphsDir, workspaceIndex],
   );
-
-  useEffect(() => {
-    setSelection((sel) => {
-      if (!sel) {
-        return sel;
-      }
-      const nodes = graphDocument.nodes ?? [];
-      const edges = graphDocument.edges ?? [];
-      if (sel.kind === "node") {
-        if (!nodes.some((n) => n.id === sel.id)) {
-          return null;
-        }
-        return sel;
-      }
-      if (sel.kind === "multiNode") {
-        const alive = sel.ids.filter((id) => nodes.some((n) => n.id === id));
-        if (alive.length === 0) {
-          return null;
-        }
-        if (alive.length === 1) {
-          const n = nodes.find((x) => x.id === alive[0]);
-          if (!n) {
-            return null;
-          }
-          const raw = n.data ?? {};
-          return {
-            kind: "node",
-            id: n.id,
-            graphNodeType: n.type,
-            label: nodeLabel(raw, n.id),
-            raw,
-          };
-        }
-        const rows = alive.map((id) => {
-          const n = nodes.find((x) => x.id === id);
-          if (!n) {
-            return { id, graphNodeType: "unknown", label: id };
-          }
-          const raw = n.data ?? {};
-          return {
-            id,
-            graphNodeType: n.type,
-            label: nodeLabel(raw, id),
-          };
-        });
-        return { kind: "multiNode", ids: alive, nodes: rows };
-      }
-      if (sel.kind === "edge") {
-        const ej = edges.find((e) => e.id === sel.id);
-        if (!ej) {
-          return null;
-        }
-        const d = ej.data;
-        const rd =
-          d != null && typeof d === "object" && !Array.isArray(d) && typeof d.routeDescription === "string"
-            ? d.routeDescription
-            : "";
-        const cond = ej.condition != null && String(ej.condition).trim() !== "" ? String(ej.condition) : null;
-        return { ...sel, condition: cond, routeDescription: rd };
-      }
-      return sel;
-    });
-  }, [graphDocument]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1950,12 +1618,8 @@ export function AppShell({ onLangChange }: Props) {
         onOpenWorkspaceGraph={(name) => {
           void onOpenWorkspaceGraph(name);
         }}
-        onOpenFindNode={() => {
-          setNodeSearchOpen(true);
-        }}
-        onOpenKeyboardShortcuts={() => {
-          setKeyboardShortcutsOpen(true);
-        }}
+        onOpenFindNode={openNodeSearch}
+        onOpenKeyboardShortcuts={openKeyboardShortcuts}
         showRunControls
         runGraphsDir={runGraphsDir}
         runArtifactsBase={runArtifactsBase}
@@ -1968,9 +1632,7 @@ export function AppShell({ onLangChange }: Props) {
         onRun={() => {
           void onRunGraph();
         }}
-        onRunHistory={() => {
-          setRunHistoryOpen(true);
-        }}
+        onRunHistory={openRunHistory}
         canClearSettledRunVisual={runSession.canClearSettledRunVisual}
         onClearSettledRunVisual={() => {
           runSessionClearSettledVisualForCurrentGraph();
@@ -2411,15 +2073,11 @@ export function AppShell({ onLangChange }: Props) {
         onSuccessfulSave={() => {
           pushToast(t("app.toast.saved"), "success");
         }}
-        onClose={() => {
-          setSaveModalOpen(false);
-        }}
+        onClose={closeSaveModal}
       />
       <KeyboardShortcutsModal
         open={keyboardShortcutsOpen}
-        onClose={() => {
-          setKeyboardShortcutsOpen(false);
-        }}
+        onClose={closeKeyboardShortcuts}
       />
       <WorkspaceFileConflictModal
         open={workspaceAutosaveConflictOpen}
@@ -2431,26 +2089,20 @@ export function AppShell({ onLangChange }: Props) {
       <OpenGraphErrorModal
         open={appMessageModal != null}
         presentation={appMessageModal}
-        onClose={() => {
-          setAppMessageModal(null);
-        }}
+        onClose={closeAppMessageModal}
       />
       <RunHistoryModal
         open={runHistoryOpen}
-        onClose={() => {
-          setRunHistoryOpen(false);
-        }}
+        onClose={closeRunHistory}
         artifactsBase={runArtifactsBase}
         graphId={resolvedGraphId}
       />
       <NodeSearchPalette
         open={nodeSearchOpen}
         allRows={nodeSearchRows}
-        onClose={() => {
-          setNodeSearchOpen(false);
-        }}
+        onClose={closeNodeSearch}
         onPick={(nodeId) => {
-          setNodeSearchOpen(false);
+          closeNodeSearch();
           onConsoleNavigateToNode(nodeId);
         }}
       />

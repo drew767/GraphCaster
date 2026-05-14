@@ -1,0 +1,22 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+/* UXP6 — labeled edge badge for ai_* connection types. */
+
+.gc-ai-edge__label {
+  position: absolute;
+  pointer-events: all;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  font-size: 0.7rem;
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.gc-ai-edge__label-text {
+  display: inline-block;
+}

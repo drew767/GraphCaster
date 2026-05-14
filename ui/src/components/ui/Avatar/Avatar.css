@@ -1,0 +1,112 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-weight: 600;
+  user-select: none;
+}
+
+/* Shapes */
+.gc-avatar--circle {
+  border-radius: 50%;
+}
+
+.gc-avatar--square {
+  border-radius: var(--radius--3xs, 6px);
+}
+
+/* Sizes */
+.gc-avatar--xsmall {
+  width: 20px;
+  height: 20px;
+  font-size: 0.5625rem;
+}
+
+.gc-avatar--small {
+  width: 28px;
+  height: 28px;
+  font-size: 0.6875rem;
+}
+
+.gc-avatar--medium {
+  width: 36px;
+  height: 36px;
+  font-size: 0.875rem;
+}
+
+.gc-avatar--large {
+  width: 48px;
+  height: 48px;
+  font-size: 1rem;
+}
+
+.gc-avatar--xlarge {
+  width: 64px;
+  height: 64px;
+  font-size: 1.25rem;
+}
+
+/* Image */
+.gc-avatar__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fallback */
+.gc-avatar__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color--text--on-accent, #ffffff);
+  text-transform: uppercase;
+}
+
+/* AvatarStack */
+.gc-avatar-stack {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+}
+
+.gc-avatar-stack__item {
+  border: 2px solid var(--color--background--light-2, #ffffff);
+  border-radius: 50%;
+}
+
+.gc-avatar-stack__item + .gc-avatar-stack__item {
+  /* spacing handled via margin-right inline */
+}
+
+.gc-avatar-stack__overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color--background--light-2, #ffffff);
+  background: var(--color--background--light-3, #eaeaef);
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 0.6875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-avatar-stack__item {
+    border-color: var(--color--background--light-2, #161618);
+  }
+
+  .gc-avatar-stack__overflow {
+    border-color: var(--color--background--light-2, #161618);
+    background: var(--color--background--light-3, #242428);
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+}

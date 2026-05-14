@@ -1,0 +1,111 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-radio-group {
+  display: flex;
+  gap: 8px;
+}
+
+.gc-radio-group--vertical {
+  flex-direction: column;
+}
+
+.gc-radio-group--horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* Individual item row */
+.gc-radio-item {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gc-radio-item[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The radio button itself */
+.gc-radio-btn {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color--foreground, rgba(0, 0, 0, 0.25));
+  background: var(--color--background--light-2, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  cursor: inherit;
+}
+
+.gc-radio-btn--small {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.gc-radio-btn--medium {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.gc-radio-btn[data-state="checked"] {
+  border-color: var(--color--primary, #007aff);
+}
+
+.gc-radio-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.22);
+}
+
+/* Dot indicator */
+.gc-radio-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gc-radio-dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--color--primary, #007aff);
+}
+
+.gc-radio-btn--small .gc-radio-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.gc-radio-btn--medium .gc-radio-dot {
+  width: 8px;
+  height: 8px;
+}
+
+/* Labels */
+.gc-radio-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gc-radio-label {
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-radio-description {
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}

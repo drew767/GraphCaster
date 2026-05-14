@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 14,
+  "meta": {
+    "schemaVersion": 14,
+    "graphId": "loop-0000-0000-0000-000000000001",
+    "title": "loop example — accumulate counter"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "start1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "loop1",
+      "type": "loop",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Count to 5",
+        "initialState": { "counter": 0 },
+        "maxIterations": 5,
+        "breakCondition": null
+      }
+    },
+    {
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 400, "y": 0 },
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "loop1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "loop1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

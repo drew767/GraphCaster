@@ -1,0 +1,78 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-community-nodes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.gc-community-nodes__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gc-community-nodes__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.gc-community-nodes__card {
+  display: flex;
+  flex-direction: column;
+}
+
+.gc-community-nodes__card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.gc-community-nodes__plugin-name {
+  font-weight: 600;
+  font-size: 14px;
+  display: block;
+}
+
+.gc-community-nodes__plugin-meta {
+  font-size: 12px;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  display: block;
+  margin-top: 2px;
+}
+
+.gc-community-nodes__perms {
+  display: flex;
+  gap: 6px;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.gc-community-nodes__card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gc-community-nodes__empty {
+  padding: 40px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.gc-community-nodes__browse-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.gc-community-nodes__categories {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

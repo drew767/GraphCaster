@@ -1,0 +1,107 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-node-search-popover {
+  position: fixed;
+  width: 360px;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background: var(--gc-surface-1);
+  color: var(--gc-text-primary);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-md);
+  box-shadow: var(--gc-shadow-raise);
+  font-family: var(--gc-font-sans);
+  font-size: 13px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.gc-node-search-popover__input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--gc-border);
+  background: transparent;
+  color: var(--gc-text-primary);
+  outline: none;
+  font: inherit;
+}
+
+.gc-node-search-popover__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gc-node-search-popover__group-heading {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gc-text-secondary);
+  pointer-events: none;
+}
+
+.gc-node-search-popover__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+
+.gc-node-search-popover__item--active {
+  background: var(--gc-surface-2);
+}
+
+.gc-node-search-popover__icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gc-text-secondary);
+  flex: 0 0 auto;
+}
+
+.gc-node-search-popover__label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-node-search-popover__badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gc-text-secondary);
+  background: var(--gc-surface-2);
+  padding: 2px 6px;
+  border-radius: var(--gc-radius-sm);
+  flex: 0 0 auto;
+}
+
+.gc-node-search-popover__item--active .gc-node-search-popover__badge {
+  background: var(--gc-surface-1);
+}
+
+.gc-node-search-popover__empty {
+  padding: 12px;
+  color: var(--gc-text-secondary);
+  text-align: center;
+}

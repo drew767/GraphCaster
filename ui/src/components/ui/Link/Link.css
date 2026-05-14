@@ -1,0 +1,92 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: color 0.12s ease, opacity 0.12s ease;
+  border-radius: 2px;
+}
+
+.gc-link:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 2px;
+}
+
+/* Variants */
+.gc-link--default {
+  color: var(--color--primary, #007aff);
+}
+
+.gc-link--default:hover {
+  color: var(--color--primary--tint-1, #0066d6);
+}
+
+.gc-link--subtle {
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+.gc-link--subtle:hover {
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-link--danger {
+  color: #c0392b;
+}
+
+.gc-link--danger:hover {
+  color: #962d22;
+}
+
+/* Underline modes */
+.gc-link--underline-always {
+  text-decoration: underline;
+}
+
+.gc-link--underline-hover {
+  text-decoration: none;
+}
+
+.gc-link--underline-hover:hover {
+  text-decoration: underline;
+}
+
+.gc-link--underline-none {
+  text-decoration: none;
+}
+
+.gc-link__external-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-link--default {
+    color: var(--color--primary, #0a84ff);
+  }
+
+  .gc-link--default:hover {
+    color: var(--color--primary--tint-1, #409cff);
+  }
+
+  .gc-link--subtle {
+    color: var(--color--text--tint-2, rgba(245, 245, 247, 0.55));
+  }
+
+  .gc-link--subtle:hover {
+    color: var(--color--text, #f5f5f7);
+  }
+
+  .gc-link--danger {
+    color: #ff453a;
+  }
+
+  .gc-link--danger:hover {
+    color: #ff6961;
+  }
+}

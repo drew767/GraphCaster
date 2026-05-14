@@ -1,0 +1,625 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+/* UX64+65+66+67 — Node visual redesign (n8n-style). */
+
+/* ──────────────────────────────────────────────────
+   CSS custom property for conic-gradient animation
+   ────────────────────────────────────────────────── */
+@property --node--gradient-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes gc-border-rotate {
+  to {
+    --node--gradient-angle: 360deg;
+  }
+}
+
+/* ──────────────────────────────────────────────────
+   Node shell
+   ────────────────────────────────────────────────── */
+.gc-flow-node {
+  position: relative;
+  width: var(--gc-node-width, 180px);
+  min-height: 80px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color--foreground, rgba(0,0,0,0.08));
+  background: var(--color--background--light-2, #ffffff);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing--sm, 0.5rem);
+  gap: 0.15rem;
+  overflow: visible;
+}
+
+/* Trigger nodes get curved top-left corner (n8n style). */
+.gc-flow-node--trigger_webhook,
+.gc-flow-node--trigger_schedule {
+  border-radius: 36px 10px 10px 10px;
+}
+
+/* ──────────────────────────────────────────────────
+   State borders — UX64
+   ────────────────────────────────────────────────── */
+.gc-flow-node--selected {
+  border: 1.5px solid var(--color--primary, #007aff);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--color--primary, #007aff) 18%, transparent),
+    var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
+}
+
+.gc-flow-node--run-success {
+  border: 2px solid var(--gc-success, #16a34a);
+}
+
+.gc-flow-node--run-error {
+  border: 1.5px solid var(--gc-danger, #dc2626);
+}
+
+.gc-flow-node--pinned {
+  border: 2px solid var(--gc-warning, #d97706);
+}
+
+.gc-flow-node--disabled {
+  border: 1.5px dashed var(--color--foreground, rgba(0,0,0,0.08));
+  opacity: 0.5;
+}
+
+/* Existing muted/bypassed states (F73) */
+.gc-flow-node--muted {
+  opacity: 0.45;
+  filter: grayscale(0.55);
+}
+
+.gc-node--muted {
+  opacity: 0.55;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 8px,
+      var(--color--background-light, var(--color--background--light-3, #eaeaef)) 8px 16px
+    ),
+    var(--color--background--light-2, #ffffff);
+}
+
+.gc-flow-node--bypassed {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+/* ──────────────────────────────────────────────────
+   UX65 — conic-gradient rotating border for running
+   ────────────────────────────────────────────────── */
+.gc-flow-node--running::before,
+.gc-flow-node--waiting::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--node--gradient-angle),
+    rgba(255, 109, 90, 1) 0%,
+    rgba(255, 109, 90, 0.2) 35%,
+    rgba(255, 109, 90, 0.2) 65%,
+    rgba(255, 109, 90, 1) 90%,
+    rgba(255, 109, 90, 1) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 2px;
+  animation: gc-border-rotate 1.5s linear infinite;
+}
+
+.gc-flow-node--waiting::before {
+  animation-duration: 4.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-flow-node--running::before,
+  .gc-flow-node--waiting::before {
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
+/* ──────────────────────────────────────────────────
+   Icon area (top-center, 40x40)
+   ────────────────────────────────────────────────── */
+.gc-flow-node__icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color--primary, #007aff) 12%, var(--color--background--light-3, #eaeaef));
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+/* ──────────────────────────────────────────────────
+   Label / subtitle
+   ────────────────────────────────────────────────── */
+.gc-flow-node__label {
+  color: var(--color--text, #1c1c1e);
+  font-weight: 600;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.gc-flow-node__subtitle {
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Disabled strike-through (UX87 partial) */
+.gc-flow-node--disabled .gc-flow-node__label {
+  text-decoration: line-through;
+}
+
+/* ──────────────────────────────────────────────────
+   Settings icons — UX67 (top-right corner)
+   ────────────────────────────────────────────────── */
+.gc-flow-node__settings-icons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  align-items: center;
+}
+
+.gc-flow-node__settings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  line-height: 1;
+}
+
+/* ──────────────────────────────────────────────────
+   Status badges — UX66 (bottom-right corner)
+   ────────────────────────────────────────────────── */
+.gc-flow-node__status-icons {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  align-items: center;
+}
+
+.gc-flow-node__status-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color--background--light-2, #ffffff);
+  border: 1.5px solid var(--color--foreground, rgba(0,0,0,0.08));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: default;
+}
+
+.gc-flow-node__status-badge--error {
+  background: color-mix(in srgb, var(--gc-danger, #dc2626) 12%, var(--color--background--light-2, #ffffff));
+  border-color: var(--gc-danger, #dc2626);
+  color: var(--gc-danger, #dc2626);
+}
+
+.gc-flow-node__status-badge--warning {
+  background: color-mix(in srgb, var(--gc-warning, #d97706) 12%, var(--color--background--light-2, #ffffff));
+  border-color: var(--gc-warning, #d97706);
+  color: var(--gc-warning, #d97706);
+}
+
+.gc-flow-node__status-badge--success {
+  background: color-mix(in srgb, var(--gc-success, #16a34a) 12%, var(--color--background--light-2, #ffffff));
+  border-color: var(--gc-success, #16a34a);
+  color: var(--gc-success, #16a34a);
+}
+
+.gc-flow-node__status-badge--pinned {
+  background: color-mix(in srgb, var(--gc-warning, #d97706) 12%, var(--color--background--light-2, #ffffff));
+  border-color: var(--gc-warning, #d97706);
+  color: var(--gc-warning, #d97706);
+}
+
+.gc-flow-node__status-badge--muted,
+.gc-flow-node__status-badge--disabled {
+  background: var(--color--background--light-3, #eaeaef);
+  border-color: var(--color--foreground, rgba(0,0,0,0.08));
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+}
+
+.gc-flow-node__status-badge--dirty {
+  background: color-mix(in srgb, var(--color--primary, #007aff) 10%, var(--color--background--light-2, #ffffff));
+  border-color: color-mix(in srgb, var(--color--primary, #007aff) 50%, var(--color--foreground, rgba(0,0,0,0.08)));
+  color: var(--color--primary, #007aff);
+}
+
+.gc-flow-node__iter-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--gc-success, #16a34a);
+  color: var(--color--text--on-accent, #ffffff);
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ──────────────────────────────────────────────────
+   Legacy F73 badges (bypass / lock)
+   ────────────────────────────────────────────────── */
+.gc-flow-node__bypass-badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color--background--light-3, #eaeaef);
+  border: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  white-space: nowrap;
+}
+
+.gc-flow-node__state-lock {
+  position: absolute;
+  top: -8px;
+  right: 6px;
+  font-size: 0.6rem;
+  color: var(--gc-warning, #d97706);
+  line-height: 1;
+}
+
+/* ──────────────────────────────────────────────────
+   Legacy pill / stepcache row (kept for full tier)
+   ────────────────────────────────────────────────── */
+.gc-flow-node__pillrow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+}
+
+.gc-flow-node__pill {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+}
+
+.gc-flow-node__pin {
+  font-size: 0.55rem;
+  color: #ffcc00;
+  line-height: 1;
+  text-shadow: 0 0 0.12rem color-mix(in srgb, #ffcc00 55%, transparent);
+}
+
+.gc-flow-node__stepcache {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: color-mix(in srgb, #5ac8fa 85%, var(--color--text--tint-2, rgba(28,28,30,0.55)));
+  line-height: 1;
+}
+
+/* ──────────────────────────────────────────────────
+   Handles
+   ────────────────────────────────────────────────── */
+.gc-flow-node .gc-flow-node__handle--error {
+  background: #ff3b30;
+  border-color: color-mix(in srgb, #ff3b30 75%, var(--color--foreground, rgba(0,0,0,0.08)));
+}
+
+.gc-flow-node .react-flow__handle.gc-handle--drop-allowed {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color--primary, #007aff) 65%, var(--color--background, #f5f5f7)),
+    0 0 0 4px color-mix(in srgb, var(--color--primary, #007aff) 35%, transparent);
+  border-color: var(--color--primary--tint-1, #0066d6);
+}
+
+.gc-flow-node .react-flow__handle.gc-handle--drop-rejected {
+  opacity: 0.38;
+  filter: grayscale(0.35);
+}
+
+/* ──────────────────────────────────────────────────
+   LOD: compact tier
+   ────────────────────────────────────────────────── */
+.gc-flow-node--lod-compact {
+  font-size: 0.72rem;
+  min-height: 56px;
+  padding: 0.32rem 0.45rem;
+  gap: 0.08rem;
+}
+
+.gc-flow-node--lod-compact .gc-flow-node__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.gc-flow-node--lod-compact .gc-flow-node__label {
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.gc-flow-node--lod-compact .gc-flow-node__subtitle,
+.gc-flow-node--lod-compact .gc-flow-node__settings-icons,
+.gc-flow-node--lod-compact .gc-flow-node__status-icons {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────
+   LOD: ghost tier
+   ────────────────────────────────────────────────── */
+.gc-flow-node--ghost {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow, rgba(0,0,0,0.06)) 45%, transparent);
+  opacity: 0.9;
+  min-height: 48px;
+  padding: 0.22rem 0.32rem;
+  gap: 0.06rem;
+}
+
+.gc-flow-node--ghost .gc-flow-node__icon {
+  width: 22px;
+  height: 22px;
+}
+
+.gc-flow-node--ghost .gc-flow-node__label {
+  font-size: 0.66rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.gc-flow-node--ghost .gc-flow-node__subtitle,
+.gc-flow-node--ghost .gc-flow-node__settings-icons,
+.gc-flow-node--ghost .gc-flow-node__status-icons,
+.gc-flow-node--ghost .gc-flow-node__bypass-badge,
+.gc-flow-node--ghost .gc-flow-node__state-lock {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────
+   Node-type accent colors (preserved from previous)
+   ────────────────────────────────────────────────── */
+.gc-flow-node--start {
+  border-color: #34c759;
+}
+.gc-flow-node--start .gc-flow-node__icon {
+  background: color-mix(in srgb, #34c759 15%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--trigger_webhook .gc-flow-node__icon {
+  background: color-mix(in srgb, #0ea5e9 15%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--trigger_schedule .gc-flow-node__icon {
+  background: color-mix(in srgb, #f97316 15%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--exit {
+  border-color: #ff3b30;
+}
+.gc-flow-node--exit .gc-flow-node__icon {
+  background: color-mix(in srgb, #ff3b30 12%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--task .gc-flow-node__icon {
+  background: color-mix(in srgb, var(--color--primary, #007aff) 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--llm_agent .gc-flow-node__icon {
+  background: color-mix(in srgb, #5ac8fa 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--agent .gc-flow-node__icon {
+  background: color-mix(in srgb, #10b981 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--http_request .gc-flow-node__icon {
+  background: color-mix(in srgb, #06b6d4 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--rag_query .gc-flow-node__icon {
+  background: color-mix(in srgb, #8b5cf6 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--delay .gc-flow-node__icon {
+  background: color-mix(in srgb, #64748b 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--debounce .gc-flow-node__icon {
+  background: color-mix(in srgb, #f59e0b 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--wait_for .gc-flow-node__icon {
+  background: color-mix(in srgb, #14b8a6 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--set_variable .gc-flow-node__icon {
+  background: color-mix(in srgb, #d946ef 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--python_code .gc-flow-node__icon {
+  background: color-mix(in srgb, #84cc16 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--graph_ref .gc-flow-node__icon {
+  background: color-mix(in srgb, #af52de 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--merge .gc-flow-node__icon {
+  background: color-mix(in srgb, #0a84ff 14%, var(--color--background--light-3, #eaeaef));
+}
+
+.gc-flow-node--fork .gc-flow-node__icon {
+  background: color-mix(in srgb, #34c759 14%, var(--color--background--light-3, #eaeaef));
+}
+
+/* ──────────────────────────────────────────────────
+   UX86 — Pin-data inline preview
+   ────────────────────────────────────────────────── */
+.gc-flow-node__pin-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--gc-warning, #d97706);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  text-align: center;
+}
+
+.gc-flow-node__pin-tooltip-content {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+  font-size: 0.7rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow: auto;
+  line-height: 1.4;
+}
+
+/* ──────────────────────────────────────────────────
+   UX87 — Disabled node strike-through (single-io muted)
+   ────────────────────────────────────────────────── */
+.gc-flow-node--muted-single-io::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* ──────────────────────────────────────────────────
+   UX127a — Bypass mode (pass-through; non-destructive)
+   Diagonal stripe overlay + dimmed body. Borders stay
+   visible so connections remain readable.
+   ────────────────────────────────────────────────── */
+.gc-node--bypass .gc-flow-node {
+  opacity: 0.72;
+  background-image:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 8px,
+      rgba(120, 120, 120, 0.12) 8px,
+      rgba(120, 120, 120, 0.12) 12px
+    );
+}
+
+.gc-node--bypass .gc-flow-node::after {
+  content: "BYPASS";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color--text--tint-1, rgba(28,28,30,0.55));
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ──────────────────────────────────────────────────
+   UX128a — Mute mode (skip downstream)
+   Stronger dimming + grayscale + dashed border
+   ────────────────────────────────────────────────── */
+.gc-node--mute .gc-flow-node {
+  opacity: 0.45;
+  filter: grayscale(0.85);
+  border-style: dashed !important;
+}
+
+.gc-node--mute .gc-flow-node::after {
+  content: "MUTE";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color--text--tint-1, rgba(28,28,30,0.55));
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ──────────────────────────────────────────────────
+   UX129 — Collapsed visual (one-line)
+   Reuses LOD-ghost intent: hide body, keep label + handles
+   ────────────────────────────────────────────────── */
+.gc-node--collapsed .gc-flow-node {
+  min-height: 32px;
+}
+
+.gc-node--collapsed .gc-flow-node > *:not(.react-flow__handle):not(.gc-flow-node__title):not(.gc-flow-node__header) {
+  display: none !important;
+}
+
+/* ──────────────────────────────────────────────────
+   UX130 — Pinned (locked position)
+   Subtle outline ring + lock badge in corner via pseudo-element
+   ────────────────────────────────────────────────── */
+.gc-node--pinned .gc-flow-node {
+  box-shadow:
+    var(--shadow, 0 1px 3px rgba(0,0,0,0.06)),
+    inset 0 0 0 1px var(--color--primary, #4f46e5);
+}
+
+.gc-node--pinned .gc-flow-node::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  width: 10px;
+  height: 12px;
+  background:
+    linear-gradient(180deg, transparent 0 4px, var(--color--primary, #4f46e5) 4px 100%);
+  border: 1.2px solid var(--color--primary, #4f46e5);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.85;
+}

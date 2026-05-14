@@ -1,0 +1,122 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-param-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--3xs, 4px);
+  width: 100%;
+  min-width: 0;
+}
+
+.gc-param-input {
+  position: relative;
+  width: 100%;
+}
+
+.gc-param-input--fixed,
+.gc-param-input--expression {
+  display: block;
+}
+
+.gc-param-input .gc-input,
+.gc-param-input .gc-input-field-wrap,
+.gc-param-input .gc-inline-expr {
+  width: 100%;
+}
+
+.gc-param-input--fixed .gc-input {
+  padding-right: 26px;
+}
+
+.gc-param--drop-target {
+  outline: 2px dashed var(--color--primary, #2c6ecf);
+  outline-offset: 1px;
+  border-radius: var(--radius--xs, 4px);
+}
+
+/* Draggable schema key */
+.gc-draggable-key {
+  cursor: grab;
+  user-select: none;
+}
+
+.gc-draggable-key:hover {
+  background: var(--color--background--light-3, rgba(0, 0, 0, 0.05));
+  border-radius: var(--radius--xs, 3px);
+}
+
+.gc-draggable-key:active {
+  cursor: grabbing;
+}
+
+/* Mode toggle (ƒ / =) */
+.gc-field-mode-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius--xs, 3px);
+  background: transparent;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  font-family: var(--font-family--mono, monospace);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.gc-field-mode-toggle:hover {
+  background: var(--color--background--light-3, rgba(0, 0, 0, 0.05));
+  color: var(--color--text, rgba(28, 28, 30, 0.85));
+}
+
+.gc-field-mode-toggle:focus-visible {
+  outline: 2px solid var(--color--primary, #2c6ecf);
+  outline-offset: 1px;
+}
+
+.gc-field-mode-toggle--expression {
+  color: var(--color--primary, #2c6ecf);
+  border-color: var(--color--primary, #2c6ecf);
+  font-style: italic;
+}
+
+/* Expression result strip */
+.gc-expr-result {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing--3xs, 4px);
+  padding: 2px 6px;
+  background: var(--color--background-light, rgba(0, 0, 0, 0.03));
+  border-radius: var(--radius--xs, 3px);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gc-expr-result .gc-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gc-expr-result--error {
+  background: var(--color--danger--bg, rgba(220, 38, 38, 0.08));
+}
+
+/* Hover tooltip — resolved */
+.gc-expr-tooltip--resolved {
+  background: var(--color--background--dark, #1e293b);
+  color: var(--color--text--inverse, #f1f5f9);
+}
+
+.gc-expr-tooltip--error {
+  background: var(--color--danger, #b91c1c);
+  color: var(--color--text--inverse, #fff);
+}

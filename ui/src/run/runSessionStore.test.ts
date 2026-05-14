@@ -4,8 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   getMaxConcurrentRuns,
+  getRunLineCount,
   getRunSessionSnapshot,
+  isRunBufferTruncated,
+  MAX_LINES_PER_RUN,
   runSessionAbortRegisteredRun,
+  runSessionAppendLineForRun,
   runSessionApplyParsedRunEventToOverlay,
   runSessionCanStartAnotherLive,
   runSessionClearSettledVisualForCurrentGraph,
@@ -229,5 +233,50 @@ describe("runSessionStore settled post-run canvas overlay", () => {
 
     runSessionSetCurrentRootGraphId("g-b");
     expect(getRunSessionSnapshot().nodeRunOverlayByNodeId.n2?.phase).toBe("success");
+  });
+});
+
+describe("runSessionStore line cap (MAX_LINES_PER_RUN)", () => {
+  afterEach(() => {
+    runSessionResetForTest();
+    vi.unstubAllGlobals();
+  });
+
+  it("MAX_LINES_PER_RUN is the documented 2000", () => {
+    expect(MAX_LINES_PER_RUN).toBe(2000);
+  });
+
+  it("drops oldest entries FIFO when 3000 lines are appended", () => {
+    runSessionResetForTest();
+    runSessionRegisterLiveRun("r-cap");
+    expect(isRunBufferTruncated("r-cap")).toBe(false);
+
+    for (let i = 0; i < 3000; i++) {
+      runSessionAppendLineForRun("r-cap", `line-${i}`);
+    }
+
+    expect(getRunLineCount("r-cap")).toBe(2000);
+    expect(isRunBufferTruncated("r-cap")).toBe(true);
+    const lines = getRunSessionSnapshot().consoleLines;
+    expect(lines.length).toBe(2000);
+    // Oldest retained line is index 1000; the first 1000 (0..999) were dropped.
+    expect(lines[0]).toBe("line-1000");
+    expect(lines[lines.length - 1]).toBe("line-2999");
+  });
+
+  it("isRunBufferTruncated stays false at exactly MAX_LINES_PER_RUN", () => {
+    runSessionResetForTest();
+    runSessionRegisterLiveRun("r-edge");
+    for (let i = 0; i < MAX_LINES_PER_RUN; i++) {
+      runSessionAppendLineForRun("r-edge", `x-${i}`);
+    }
+    expect(getRunLineCount("r-edge")).toBe(MAX_LINES_PER_RUN);
+    expect(isRunBufferTruncated("r-edge")).toBe(false);
+  });
+
+  it("getRunLineCount returns 0 for unknown run id", () => {
+    runSessionResetForTest();
+    expect(getRunLineCount("does-not-exist")).toBe(0);
+    expect(isRunBufferTruncated("does-not-exist")).toBe(false);
   });
 });

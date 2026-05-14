@@ -9,7 +9,10 @@ import {
 } from "./runEdgeOverlay";
 import { applyParsedRunEventToOverlayState, type NodeRunOverlayEntry } from "./nodeRunOverlay";
 
-const MAX_LINES_PER_RUN = 2000;
+export const MAX_LINES_PER_RUN = 2000;
+
+/** Per-run flag set when `trimBuffer` had to drop the oldest entries. */
+const truncatedRunIds = new Set<string>();
 
 const EMPTY_NODE_RUN_OVERLAY: Record<string, NodeRunOverlayEntry> = Object.freeze(
   {},
@@ -122,11 +125,32 @@ function captureSettledVisualForRunId(
   };
 }
 
-function trimBuffer(lines: string[]): string[] {
+function trimBuffer(lines: string[], runId?: string): string[] {
   if (lines.length <= MAX_LINES_PER_RUN) {
     return lines;
   }
+  if (runId != null && runId !== "") {
+    truncatedRunIds.add(runId);
+  }
   return lines.slice(-MAX_LINES_PER_RUN);
+}
+
+/** Number of buffered console lines retained for `runId`. */
+export function getRunLineCount(runId: string): number {
+  const rid = runId.trim();
+  if (rid === "") {
+    return 0;
+  }
+  return internal.consoleByRunId[rid]?.length ?? 0;
+}
+
+/** True once `trimBuffer` has dropped at least one line for `runId`. */
+export function isRunBufferTruncated(runId: string): boolean {
+  const rid = runId.trim();
+  if (rid === "") {
+    return false;
+  }
+  return truncatedRunIds.has(rid);
 }
 
 function publicNodeRunOverlay(s: InternalState): Record<string, NodeRunOverlayEntry> {
@@ -392,6 +416,7 @@ export function runSessionAbortRegisteredRun(runId: string): GcStartRunJob | nul
   if (rid === "" || !internal.liveRunOrder.includes(rid)) {
     return null;
   }
+  truncatedRunIds.delete(rid);
   const captured = captureSettledVisualForRunId(internal, rid);
   let settledVisualByRootGraphId = internal.settledVisualByRootGraphId;
   if (captured != null) {
@@ -439,6 +464,7 @@ export function runSessionOnRunProcessExited(
   if (rid === "" || !internal.liveRunOrder.includes(rid)) {
     return null;
   }
+  truncatedRunIds.delete(rid);
   const captured = captureSettledVisualForRunId(internal, rid);
   let settledVisualByRootGraphId = internal.settledVisualByRootGraphId;
   if (captured != null) {
@@ -489,7 +515,7 @@ export function runSessionAppendLineForRun(runId: string, text: string): void {
   if (internal.replaySourceLabel != null) {
     internal = {
       ...internal,
-      replayLines: trimBuffer([...internal.replayLines, text]),
+      replayLines: trimBuffer([...internal.replayLines, text], RUN_SESSION_REPLAY_SNAPSHOT_KEY),
     };
     emit();
     return;
@@ -497,7 +523,7 @@ export function runSessionAppendLineForRun(runId: string, text: string): void {
   const prev = internal.consoleByRunId[rid] ?? [];
   const consoleByRunId = {
     ...internal.consoleByRunId,
-    [rid]: trimBuffer([...prev, text]),
+    [rid]: trimBuffer([...prev, text], rid),
   };
   internal = { ...internal, consoleByRunId };
   emit();
@@ -507,7 +533,7 @@ export function runSessionAppendLine(text: string): void {
   if (internal.replaySourceLabel != null) {
     internal = {
       ...internal,
-      replayLines: trimBuffer([...internal.replayLines, text]),
+      replayLines: trimBuffer([...internal.replayLines, text], RUN_SESSION_REPLAY_SNAPSHOT_KEY),
     };
     emit();
     return;
@@ -653,6 +679,7 @@ export function useRunSession(): RunSessionSnapshot {
 }
 
 export function runSessionResetForTest(): void {
+  truncatedRunIds.clear();
   internal = {
     liveRunOrder: [],
     focusedRunId: null,

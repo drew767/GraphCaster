@@ -1,0 +1,402 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+/* ---------- Design token definitions (n8n primitives, local scope) ---------- */
+:root {
+  --btn--font-family: var(--font-family, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --btn--font-weight--medium: 500;
+  --btn--font-size--2xs: 0.75rem;
+  --btn--font-size--xs:  0.8125rem;
+  --btn--font-size--sm:  0.875rem;
+  --btn--font-size--md:  1rem;
+
+  --btn--height--xmini:  1rem;     /* 16px */
+  --btn--height--mini:   1.25rem;  /* 20px */
+  --btn--height--xsmall: 1.5rem;   /* 24px */
+  --btn--height--small:  1.75rem;  /* 28px */
+  --btn--height--medium: 2rem;     /* 32px */
+  --btn--height--large:  2.5rem;   /* 40px */
+  --btn--height--xlarge: 3rem;     /* 48px */
+
+  --btn--spacing--5xs: 0.125rem;
+  --btn--spacing--4xs: 0.25rem;
+  --btn--spacing--3xs: 0.375rem;
+  --btn--spacing--2xs: 0.5rem;
+  --btn--spacing--xs:  0.75rem;
+  --btn--spacing--sm:  1rem;
+  --btn--spacing--md:  1.25rem;
+
+  --btn--radius--3xs: 0.25rem;
+  --btn--radius--2xs: 0.375rem;
+  --btn--radius--xs:  0.5rem;
+
+  --btn--duration--snappy: 0.15s;
+  --btn--easing--ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+  /* Color primitives */
+  --btn--color--neutral-white: hsl(0, 0%, 100%);
+  --btn--color--neutral-100:   hsl(0, 0%, 97.5%);
+  --btn--color--neutral-150:   hsl(0, 0%, 93%);
+  --btn--color--neutral-200:   hsl(0, 0%, 88%);
+  --btn--color--neutral-600:   hsl(0, 0%, 46%);
+  --btn--color--neutral-700:   hsl(0, 0%, 30%);
+  --btn--color--neutral-800:   hsl(0, 0%, 24%);
+  --btn--color--neutral-900:   hsl(0, 0%, 13%);
+
+  --btn--color--black-alpha-100: hsl(220, 1%, 0%, 0.05);
+  --btn--color--black-alpha-200: hsl(220, 1%, 0%, 0.1);
+  --btn--color--black-alpha-300: hsl(220, 1%, 0%, 0.2);
+
+  --btn--color--white-alpha-100: hsla(220, 1%, 100%, 0.1);
+  --btn--color--white-alpha-200: hsla(220, 1%, 100%, 0.15);
+  --btn--color--white-alpha-300: hsla(220, 1%, 100%, 0.2);
+
+  --btn--color--orange-400: hsl(7, 100%, 60%);
+  --btn--color--orange-500: hsl(7, 100%, 50%);
+  --btn--color--orange-600: hsl(7, 100%, 40%);
+
+  --btn--color--red-500: hsl(355, 83%, 60%);
+  --btn--color--red-600: hsl(355, 83%, 52%);
+  --btn--color--red-400: hsl(355, 83%, 68%);
+
+  --btn--color--green-600: hsl(147, 60%, 40%);
+  --btn--color--green-700: hsl(147, 60%, 30%);
+  --btn--color--green-500: hsl(147, 60%, 50%);
+
+  --btn--focus--border-width: 2px;
+  --btn--focus--border-color: hsl(0, 0%, 13%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --btn--focus--border-color: hsl(0, 0%, 87%);
+    --btn--color--neutral-150: hsl(0, 0%, 24%);
+    --btn--color--neutral-200: hsl(0, 0%, 30%);
+    --btn--color--neutral-600: hsl(0, 0%, 70%);
+    --btn--color--neutral-700: hsl(0, 0%, 75%);
+    --btn--color--neutral-800: hsl(0, 0%, 80%);
+    --btn--color--neutral-900: hsl(0, 0%, 87%);
+  }
+}
+
+/* ---------- Base button ---------- */
+.btn {
+  appearance: none;
+  display: inline-grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  font-family: var(--btn--font-family);
+  font-weight: var(--btn--font-weight--medium);
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  user-select: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+
+  height: var(--btn--computed-height);
+  padding: var(--btn--computed-padding);
+  border-radius: var(--btn--computed-radius);
+  font-size: var(--btn--computed-font-size);
+
+  --btn--computed-bg:        transparent;
+  --btn--computed-bg-hover:  transparent;
+  --btn--computed-bg-active: transparent;
+  --btn--computed-color:     var(--btn--color--neutral-900);
+  --btn--computed-shadow:    0 0 0 0 transparent;
+  --btn--computed-shadow-hover:  0 0 0 0 transparent;
+  --btn--computed-shadow-active: 0 0 0 0 transparent;
+  --btn--computed-border-shadow:        0 0 0 0 transparent;
+  --btn--computed-border-shadow-hover:  0 0 0 0 transparent;
+  --btn--computed-border-shadow-active: 0 0 0 0 transparent;
+
+  background-color: var(--btn--computed-bg);
+  color: var(--btn--computed-color);
+  box-shadow:
+    inset var(--btn--computed-border-shadow),
+    var(--btn--computed-shadow);
+
+  transition:
+    background-color var(--btn--duration--snappy) var(--btn--easing--ease-out),
+    box-shadow var(--btn--duration--snappy) var(--btn--easing--ease-out),
+    opacity var(--btn--duration--snappy) var(--btn--easing--ease-out);
+}
+
+.btn > * {
+  grid-area: 1 / 1;
+}
+
+.btn:hover {
+  background-color: var(--btn--computed-bg-hover);
+  box-shadow:
+    inset var(--btn--computed-border-shadow-hover),
+    var(--btn--computed-shadow-hover);
+}
+
+.btn:active {
+  background-color: var(--btn--computed-bg-active);
+  box-shadow:
+    inset var(--btn--computed-border-shadow-active),
+    var(--btn--computed-shadow-active);
+}
+
+.btn:focus {
+  outline: none;
+}
+
+.btn:focus-visible {
+  outline: var(--btn--focus--border-width) solid var(--btn--focus--border-color);
+  outline-offset: 2px;
+  transition: outline 0.15s ease-out;
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--loading {
+  pointer-events: none;
+}
+
+.btn--full-width {
+  width: 100%;
+}
+
+/* ---------- Sizes ---------- */
+.btn--xmini {
+  --btn--computed-height:    var(--btn--height--xmini);
+  --btn--computed-padding:   0 var(--btn--spacing--4xs);
+  --btn--computed-radius:    var(--btn--radius--3xs);
+  --btn--computed-font-size: var(--btn--font-size--2xs);
+}
+
+.btn--mini {
+  --btn--computed-height:    var(--btn--height--mini);
+  --btn--computed-padding:   0 var(--btn--spacing--3xs);
+  --btn--computed-radius:    var(--btn--radius--3xs);
+  --btn--computed-font-size: var(--btn--font-size--2xs);
+}
+
+.btn--xsmall {
+  --btn--computed-height:    var(--btn--height--xsmall);
+  --btn--computed-padding:   0 var(--btn--spacing--2xs);
+  --btn--computed-radius:    var(--btn--radius--3xs);
+  --btn--computed-font-size: var(--btn--font-size--2xs);
+}
+
+.btn--small {
+  --btn--computed-height:    var(--btn--height--small);
+  --btn--computed-padding:   0 var(--btn--spacing--xs);
+  --btn--computed-radius:    var(--btn--radius--3xs);
+  --btn--computed-font-size: var(--btn--font-size--xs);
+}
+
+.btn--medium {
+  --btn--computed-height:    var(--btn--height--medium);
+  --btn--computed-padding:   0 var(--btn--spacing--xs);
+  --btn--computed-radius:    var(--btn--radius--3xs);
+  --btn--computed-font-size: var(--btn--font-size--sm);
+}
+
+.btn--large {
+  --btn--computed-height:    var(--btn--height--large);
+  --btn--computed-padding:   0 var(--btn--spacing--sm);
+  --btn--computed-radius:    var(--btn--radius--2xs);
+  --btn--computed-font-size: var(--btn--font-size--sm);
+}
+
+.btn--xlarge {
+  --btn--computed-height:    var(--btn--height--xlarge);
+  --btn--computed-padding:   0 var(--btn--spacing--sm);
+  --btn--computed-radius:    var(--btn--radius--xs);
+  --btn--computed-font-size: var(--btn--font-size--md);
+}
+
+/* ---------- Variant: solid ---------- */
+.btn--solid {
+  --btn--computed-bg:        var(--btn--color--orange-400);
+  --btn--computed-bg-hover:  var(--btn--color--orange-500);
+  --btn--computed-bg-active: var(--btn--color--orange-600);
+  --btn--computed-color:     var(--btn--color--neutral-white);
+  --btn--computed-shadow:        0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-hover:  0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-active: 0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-border-color:        var(--btn--color--orange-400);
+  --btn--computed-border-color-hover:  var(--btn--color--orange-500);
+  --btn--computed-border-color-active: var(--btn--color--orange-600);
+  --btn--computed-border-shadow:        0 0 0 1px var(--btn--computed-border-color);
+  --btn--computed-border-shadow-hover:  0 0 0 1px var(--btn--computed-border-color-hover);
+  --btn--computed-border-shadow-active: 0 0 0 1px var(--btn--computed-border-color-active);
+}
+
+/* ---------- Variant: subtle ---------- */
+.btn--subtle {
+  --btn--computed-bg:        var(--btn--color--neutral-white);
+  --btn--computed-bg-hover:  var(--btn--color--neutral-150);
+  --btn--computed-bg-active: var(--btn--color--neutral-200);
+  --btn--computed-shadow:
+    0 1px 3px var(--btn--color--black-alpha-100),
+    0 0 0 1.5px transparent;
+  --btn--computed-shadow-hover:
+    0 1px 3px 0 var(--btn--color--black-alpha-200),
+    0 0 0 1px transparent;
+  --btn--computed-shadow-active:
+    0 1px 3px 0 var(--btn--color--black-alpha-200),
+    0 0 0 1px transparent;
+  --btn--computed-border-color:        var(--btn--color--black-alpha-200);
+  --btn--computed-border-color-hover:  var(--btn--color--black-alpha-200);
+  --btn--computed-border-color-active: var(--btn--color--black-alpha-300);
+  --btn--computed-border-shadow:        0 0 0 1px var(--btn--computed-border-color);
+  --btn--computed-border-shadow-hover:  0 0 0 1px var(--btn--computed-border-color-hover);
+  --btn--computed-border-shadow-active: 0 0 0 1px var(--btn--computed-border-color-active);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn--subtle {
+    --btn--computed-bg:        var(--btn--color--neutral-800);
+    --btn--computed-bg-hover:  var(--btn--color--neutral-700);
+    --btn--computed-bg-active: var(--btn--color--neutral-600);
+    --btn--computed-border-color:        var(--btn--color--white-alpha-100);
+    --btn--computed-border-color-hover:  var(--btn--color--white-alpha-300);
+    --btn--computed-border-color-active: var(--btn--color--white-alpha-300);
+  }
+}
+
+/* ---------- Variant: outline ---------- */
+.btn--outline {
+  --btn--computed-bg:        transparent;
+  --btn--computed-bg-hover:  var(--btn--color--neutral-150);
+  --btn--computed-bg-active: var(--btn--color--black-alpha-200);
+  --btn--computed-border-color:        var(--btn--color--black-alpha-200);
+  --btn--computed-border-color-hover:  var(--btn--color--black-alpha-200);
+  --btn--computed-border-color-active: var(--btn--color--black-alpha-300);
+  --btn--computed-border-shadow:        0 0 0 1px var(--btn--computed-border-color);
+  --btn--computed-border-shadow-hover:  0 0 0 1px var(--btn--computed-border-color-hover);
+  --btn--computed-border-shadow-active: 0 0 0 1px var(--btn--computed-border-color-active);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn--outline {
+    --btn--computed-bg-hover:  var(--btn--color--white-alpha-100);
+    --btn--computed-bg-active: var(--btn--color--white-alpha-200);
+    --btn--computed-border-color:        var(--btn--color--white-alpha-100);
+    --btn--computed-border-color-hover:  var(--btn--color--white-alpha-200);
+    --btn--computed-border-color-active: var(--btn--color--white-alpha-300);
+  }
+}
+
+/* ---------- Variant: ghost ---------- */
+.btn--ghost {
+  --btn--computed-bg:        transparent;
+  --btn--computed-bg-hover:  var(--btn--color--black-alpha-100);
+  --btn--computed-bg-active: var(--btn--color--black-alpha-200);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn--ghost {
+    --btn--computed-bg-hover:  var(--btn--color--white-alpha-100);
+    --btn--computed-bg-active: var(--btn--color--white-alpha-200);
+  }
+}
+
+/* ---------- Variant: destructive ---------- */
+.btn--destructive {
+  --btn--computed-bg:        var(--btn--color--red-500);
+  --btn--computed-bg-hover:  var(--btn--color--red-600);
+  --btn--computed-bg-active: var(--btn--color--red-600);
+  --btn--computed-color:     var(--btn--color--neutral-white);
+  --btn--computed-shadow:        0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-hover:  0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-active: 0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-border-color:        var(--btn--color--red-500);
+  --btn--computed-border-color-hover:  var(--btn--color--red-600);
+  --btn--computed-border-color-active: var(--btn--color--red-600);
+  --btn--computed-border-shadow:        0 0 0 1px var(--btn--computed-border-color);
+  --btn--computed-border-shadow-hover:  0 0 0 1px var(--btn--computed-border-color-hover);
+  --btn--computed-border-shadow-active: 0 0 0 1px var(--btn--computed-border-color-active);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn--destructive {
+    --btn--computed-bg:        var(--btn--color--red-600);
+    --btn--computed-bg-hover:  var(--btn--color--red-500);
+    --btn--computed-bg-active: var(--btn--color--red-400);
+    --btn--computed-border-color:        var(--btn--color--red-600);
+    --btn--computed-border-color-hover:  var(--btn--color--red-500);
+    --btn--computed-border-color-active: var(--btn--color--red-400);
+  }
+}
+
+/* ---------- Variant: success ---------- */
+.btn--success {
+  --btn--computed-bg:        var(--btn--color--green-600);
+  --btn--computed-bg-hover:  var(--btn--color--green-700);
+  --btn--computed-bg-active: var(--btn--color--green-700);
+  --btn--computed-color:     var(--btn--color--neutral-white);
+  --btn--computed-shadow:        0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-hover:  0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-shadow-active: 0 1px 3px 0 var(--btn--color--black-alpha-100);
+  --btn--computed-border-color:        var(--btn--color--green-600);
+  --btn--computed-border-color-hover:  var(--btn--color--green-700);
+  --btn--computed-border-color-active: var(--btn--color--green-700);
+  --btn--computed-border-shadow:        0 0 0 1px var(--btn--computed-border-color);
+  --btn--computed-border-shadow-hover:  0 0 0 1px var(--btn--computed-border-color-hover);
+  --btn--computed-border-shadow-active: 0 0 0 1px var(--btn--computed-border-color-active);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn--success {
+    --btn--computed-bg:        var(--btn--color--green-700);
+    --btn--computed-bg-hover:  var(--btn--color--green-600);
+    --btn--computed-bg-active: var(--btn--color--green-500);
+    --btn--computed-border-color:        var(--btn--color--green-700);
+    --btn--computed-border-color-hover:  var(--btn--color--green-600);
+    --btn--computed-border-color-active: var(--btn--color--green-500);
+  }
+}
+
+/* ---------- Inner layout ---------- */
+.btn__spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  grid-area: 1 / 1;
+}
+
+.btn__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn--spacing--3xs);
+  white-space: nowrap;
+  grid-area: 1 / 1;
+}
+
+.btn__inner--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- Spinner animation ---------- */
+.btn__spinner {
+  animation: btn-spin 0.8s linear infinite;
+}
+
+@keyframes btn-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn__spinner {
+    animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+}

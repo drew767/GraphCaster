@@ -1,0 +1,3 @@
+GraphCaster is a lightweight graph execution engine.
+It supports nodes, edges, and conditional branching.
+Documents can be loaded from text, PDF, CSV, JSON, and the web.

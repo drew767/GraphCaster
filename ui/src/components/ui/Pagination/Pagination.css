@@ -1,0 +1,43 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.gc-pagination--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.gc-pagination__btn {
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gc-pagination__btn--active {
+  background: var(--color--background--light-3, #eaeaef) !important;
+  font-weight: 600;
+}
+
+.gc-pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  font-size: 0.875rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.gc-pagination--small .gc-pagination__ellipsis {
+  font-size: 0.8125rem;
+  min-width: 24px;
+}
+
+.gc-pagination--small .gc-pagination__btn {
+  min-width: 24px;
+}

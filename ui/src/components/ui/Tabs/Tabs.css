@@ -1,0 +1,189 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-tabs {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family, system-ui, sans-serif);
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-tabs--vertical {
+  flex-direction: row;
+}
+
+/* List */
+.gc-tabs__list {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.gc-tabs--vertical .gc-tabs__list {
+  flex-direction: column;
+  border-right: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  border-bottom: none;
+}
+
+/* Underline variant list border */
+.gc-tabs--underline .gc-tabs__list {
+  border-bottom: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+}
+
+/* Full width */
+.gc-tabs--full-width .gc-tabs__list {
+  width: 100%;
+}
+
+.gc-tabs--full-width .gc-tabs__trigger {
+  flex: 1;
+}
+
+/* Trigger base */
+.gc-tabs__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.2s ease-out, background-color 0.2s ease-out;
+  position: relative;
+  outline: none;
+}
+
+.gc-tabs__trigger:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: -2px;
+  border-radius: var(--radius--3xs, 6px);
+}
+
+/* Disabled */
+.gc-tabs__trigger:disabled,
+.gc-tabs__trigger[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Hover (inactive) */
+.gc-tabs__trigger:not([data-state="active"]):not(:disabled):hover {
+  background-color: var(--color--background--light-3, #eaeaef);
+  color: var(--color--text, #1c1c1e);
+}
+
+/* Sizes */
+.gc-tabs--small .gc-tabs__trigger {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+}
+
+.gc-tabs--medium .gc-tabs__trigger {
+  font-size: 0.875rem;
+  padding: 0.5rem 0.875rem;
+}
+
+.gc-tabs--large .gc-tabs__trigger {
+  font-size: 1rem;
+  padding: 0.625rem 1.125rem;
+}
+
+/* --- Underline variant --- */
+.gc-tabs--underline .gc-tabs__trigger {
+  border-radius: 0;
+}
+
+.gc-tabs--underline .gc-tabs__trigger[data-state="active"] {
+  color: var(--color--primary, #007aff);
+}
+
+.gc-tabs--underline .gc-tabs__trigger[data-state="active"]::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color--primary, #007aff);
+  border-radius: 1px 1px 0 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.gc-tabs--vertical.gc-tabs--underline .gc-tabs__trigger[data-state="active"]::after {
+  bottom: auto;
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: -1px;
+  width: 2px;
+  height: auto;
+  border-radius: 0 1px 1px 0;
+}
+
+/* --- Pills variant --- */
+.gc-tabs--pills .gc-tabs__list {
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--color--background--light-3, #eaeaef);
+  border-radius: var(--radius--xs, 10px);
+  border: none;
+}
+
+.gc-tabs--pills .gc-tabs__trigger {
+  border-radius: var(--radius--3xs, 6px);
+}
+
+.gc-tabs--pills .gc-tabs__trigger[data-state="active"] {
+  background-color: var(--color--background--light-2, #ffffff);
+  color: var(--color--text, #1c1c1e);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
+}
+
+.gc-tabs--pills .gc-tabs__trigger:not([data-state="active"]):not(:disabled):hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Content */
+.gc-tabs__content {
+  flex: 1;
+  outline: none;
+}
+
+.gc-tabs__content:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: -2px;
+  border-radius: var(--radius--3xs, 6px);
+}
+
+/* Icon and badge */
+.gc-tabs__trigger-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.gc-tabs__trigger-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1em;
+  height: 1.1em;
+  padding: 0 0.3em;
+  background-color: var(--color--primary, #007aff);
+  color: var(--color--text--on-accent, #ffffff);
+  border-radius: 999px;
+  font-size: 0.7em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-tabs__trigger,
+  .gc-tabs__trigger::after {
+    transition: none;
+  }
+}

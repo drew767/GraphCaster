@@ -1,0 +1,106 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-ite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: text;
+  max-width: 100%;
+  border-radius: var(--radius--3xs, 6px);
+  padding: 1px 2px;
+  transition: background 120ms ease;
+}
+
+.gc-ite:not(.gc-ite--disabled):hover {
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-ite--disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Display text */
+.gc-ite__display {
+  font-family: var(--font-family, system-ui, sans-serif);
+  color: var(--color--text, #1c1c1e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.gc-ite__placeholder {
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+/* Sizes — display */
+.gc-ite--small .gc-ite__display {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.gc-ite--medium .gc-ite__display {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.gc-ite--large .gc-ite__display {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+/* Input */
+.gc-ite__input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-family, system-ui, sans-serif);
+  color: var(--color--text, #1c1c1e);
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--primary, #007aff);
+  border-radius: var(--radius--3xs, 6px);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  appearance: none;
+  box-sizing: border-box;
+}
+
+.gc-ite__input--small {
+  font-size: 0.8125rem;
+  padding: 2px 6px;
+  height: 26px;
+}
+
+.gc-ite__input--medium {
+  font-size: 0.875rem;
+  padding: 4px 8px;
+  height: 32px;
+}
+
+.gc-ite__input--large {
+  font-size: 1rem;
+  padding: 6px 10px;
+  height: 40px;
+}
+
+.gc-ite__input--error {
+  border-color: var(--color--danger, #ff3b30);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.15);
+}
+
+/* Icon */
+.gc-ite__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+/* End adornment */
+.gc-ite__end-adornment {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}

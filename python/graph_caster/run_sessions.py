@@ -20,6 +20,11 @@ class RunSession:
     finished_at: datetime | None = None
     status: RunSessionStatus = "running"
     cancel_event: threading.Event = field(default_factory=threading.Event)
+    last_heartbeat: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def touch_heartbeat(self) -> None:
+        """Update :attr:`last_heartbeat` to ``now()`` — call from the runner thread."""
+        self.last_heartbeat = datetime.now(UTC)
 
 
 class RunSessionRegistry:
@@ -28,11 +33,29 @@ class RunSessionRegistry:
         self._sessions: dict[str, RunSession] = {}
 
     def register(self, session: RunSession) -> None:
+        # Auto-reap sessions whose heartbeat has gone silent for longer than
+        # ``GC_RUN_SESSION_HEARTBEAT_STALE_SEC`` seconds (default 300). This
+        # cleans up sessions left behind by a crashed runner so a fresh
+        # ``register`` for the same / sibling run_id can succeed.
+        self._auto_reap_stale_heartbeats()
         with self._lock:
             existing = self._sessions.get(session.run_id)
             if existing is not None and existing.status == "running":
                 raise ValueError(f"run_id already has an active session: {session.run_id!r}")
             self._sessions[session.run_id] = session
+
+    def _auto_reap_stale_heartbeats(self) -> None:
+        raw = os.environ.get("GC_RUN_SESSION_HEARTBEAT_STALE_SEC", "300").strip()
+        try:
+            threshold = float(raw)
+        except ValueError:
+            threshold = 300.0
+        if threshold <= 0:
+            return
+        self.reap_stale_running_sessions(
+            max_age_sec=threshold,
+            use_heartbeat=True,
+        )
 
     def complete(self, run_id: str, status: RunTerminalStatus) -> None:
         with self._lock:
@@ -63,10 +86,16 @@ class RunSessionRegistry:
         *,
         max_age_sec: float | None = None,
         terminal_status: RunTerminalStatus = "failed",
+        use_heartbeat: bool = False,
     ) -> list[str]:
         """
-        Mark very old ``running`` sessions as terminal (host crash / leak safety net).
+        Mark stale ``running`` sessions as terminal (host crash / leak safety net).
+
         Default max age: ``GC_RUN_SESSION_REAP_SEC`` or 4 hours.
+
+        Set ``use_heartbeat=True`` to compare against :attr:`RunSession.last_heartbeat`
+        instead of :attr:`started_at`. In heartbeat mode the floor of 60 s is not
+        applied — callers (e.g. ``register``) typically use a shorter threshold.
         """
         if max_age_sec is None:
             raw = os.environ.get("GC_RUN_SESSION_REAP_SEC", "14400").strip()
@@ -74,14 +103,18 @@ class RunSessionRegistry:
                 max_age_sec = float(raw)
             except ValueError:
                 max_age_sec = 14_400.0
-        max_age_sec = max(60.0, float(max_age_sec))
+        if not use_heartbeat:
+            max_age_sec = max(60.0, float(max_age_sec))
+        else:
+            max_age_sec = max(0.0, float(max_age_sec))
         cutoff = datetime.now(UTC) - timedelta(seconds=max_age_sec)
         reaped: list[str] = []
         with self._lock:
             for rid, s in list(self._sessions.items()):
                 if s.status != "running":
                     continue
-                if s.started_at >= cutoff:
+                marker = s.last_heartbeat if use_heartbeat else s.started_at
+                if marker >= cutoff:
                     continue
                 s.finished_at = datetime.now(UTC)
                 s.status = terminal_status

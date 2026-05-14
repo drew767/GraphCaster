@@ -1,0 +1,19 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-circle-loader {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: gc-circle-spin 0.9s linear infinite;
+}
+
+@keyframes gc-circle-spin {
+  from { transform: rotate(-90deg); }
+  to   { transform: rotate(270deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-circle-loader {
+    animation: none;
+  }
+}

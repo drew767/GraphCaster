@@ -1,0 +1,87 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-onboarding-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.gc-onboarding-tour__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: auto;
+}
+
+.gc-onboarding-tour__highlight {
+  position: fixed;
+  pointer-events: none;
+  border-radius: var(--radius--medium, 8px);
+  box-shadow:
+    0 0 0 4px var(--color--primary, #6366f1),
+    0 0 0 9999px rgba(0, 0, 0, 0);
+  transition: top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease;
+}
+
+.gc-onboarding-tour__tooltip {
+  position: fixed;
+  pointer-events: auto;
+  background: var(--color--background--light-2, #ffffff);
+  color: var(--color--text, #1c1c1e);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.1));
+  border-radius: var(--radius--medium, 8px);
+  box-shadow: var(--shadow--large, 0 8px 24px rgba(0, 0, 0, 0.2));
+  padding: var(--space--medium, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space--small, 8px);
+}
+
+.gc-onboarding-tour__title {
+  font-size: var(--font-size--medium, 1rem);
+  font-weight: 600;
+}
+
+.gc-onboarding-tour__body {
+  font-size: var(--font-size--small, 0.875rem);
+  color: var(--color--text--shade-1, rgba(0, 0, 0, 0.7));
+  line-height: 1.4;
+}
+
+.gc-onboarding-tour__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space--xsmall, 4px);
+  gap: var(--space--small, 8px);
+}
+
+.gc-onboarding-tour__skip {
+  background: none;
+  border: none;
+  color: var(--color--text--shade-1, rgba(0, 0, 0, 0.6));
+  cursor: pointer;
+  font-size: var(--font-size--small, 0.875rem);
+  padding: var(--space--xsmall, 4px) var(--space--small, 8px);
+  border-radius: var(--radius--small, 4px);
+}
+
+.gc-onboarding-tour__skip:hover {
+  background: var(--color--background--light-3, rgba(0, 0, 0, 0.04));
+}
+
+.gc-onboarding-tour__next {
+  background: var(--color--primary, #6366f1);
+  color: var(--color--primary--text, #ffffff);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size--small, 0.875rem);
+  font-weight: 500;
+  padding: var(--space--xsmall, 4px) var(--space--medium, 16px);
+  border-radius: var(--radius--small, 4px);
+}
+
+.gc-onboarding-tour__next:hover {
+  filter: brightness(1.05);
+}

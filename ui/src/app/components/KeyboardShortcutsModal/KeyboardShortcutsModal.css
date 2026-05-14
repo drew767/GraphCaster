@@ -1,0 +1,74 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-shortcuts-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--md);
+}
+
+.gc-shortcuts-modal__search {
+  margin-bottom: var(--spacing--xs);
+}
+
+.gc-shortcuts-modal__empty {
+  padding: var(--spacing--lg) var(--spacing--sm);
+  color: var(--gc-color-text-secondary);
+  font-size: var(--gc-font-size-sm);
+  text-align: center;
+}
+
+.gc-shortcuts-modal__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--lg);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.gc-shortcuts-modal__group-title {
+  font-size: var(--gc-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gc-color-text-secondary);
+  margin: 0 0 var(--spacing--xs) 0;
+}
+
+.gc-shortcuts-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--2xs, 2px);
+}
+
+.gc-shortcuts-modal__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing--md);
+  padding: var(--spacing--xs) 0;
+  border-bottom: 1px solid var(--gc-color-border-subtle, var(--gc-color-border));
+}
+
+.gc-shortcuts-modal__row:last-child {
+  border-bottom: none;
+}
+
+.gc-shortcuts-modal__label {
+  font-size: var(--gc-font-size-sm);
+  color: var(--gc-color-text-primary);
+}
+
+.gc-shortcuts-modal__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing--xs);
+  flex-shrink: 0;
+}
+
+.gc-shortcuts-modal__or {
+  font-size: var(--gc-font-size-xs);
+  color: var(--gc-color-text-secondary);
+}

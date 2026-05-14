@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 15,
+  "meta": {
+    "schemaVersion": 15,
+    "graphId": "api-call-0000-0000-0000-000000000001",
+    "title": "api_call example — fetch JSON endpoint with auth header"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "start1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "apicall1",
+      "type": "api_call",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Fetch items",
+        "method": "GET",
+        "url": "https://api.example.test/v1/items",
+        "headers": {
+          "Authorization": "Bearer {{ secret.MY_API_TOKEN }}",
+          "Accept": "application/json"
+        },
+        "query": {
+          "limit": "10"
+        },
+        "responseAs": "auto",
+        "timeoutSec": 30,
+        "retries": 2,
+        "retryBackoffSec": 1.0,
+        "expectStatus": [200]
+      }
+    },
+    {
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 400, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "exit_err",
+      "type": "exit",
+      "position": { "x": 400, "y": 120 },
+      "data": { "title": "API error" }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "apicall1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "apicall1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e3",
+      "source": "apicall1",
+      "sourceHandle": "out_error",
+      "target": "exit_err",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

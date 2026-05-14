@@ -1,0 +1,206 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+/* Trigger */
+.gc-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color--text, #1c1c1e);
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius--3xs, 6px);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.gc-select-trigger:focus {
+  border-color: var(--color--primary, #007aff);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+.gc-select-trigger[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Trigger sizes */
+.gc-select-trigger--xsmall {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  height: 24px;
+}
+
+.gc-select-trigger--small {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  height: 30px;
+}
+
+.gc-select-trigger--medium {
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  height: 36px;
+}
+
+.gc-select-trigger--large {
+  padding: 9px 14px;
+  font-size: 1rem;
+  height: 44px;
+}
+
+/* Variants */
+.gc-select-trigger--error {
+  border-color: var(--color--danger, #ff3b30);
+}
+
+.gc-select-trigger--error:focus {
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.15);
+}
+
+.gc-select-trigger--success {
+  border-color: var(--color--success, #34c759);
+}
+
+.gc-select-trigger--success:focus {
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.15);
+}
+
+/* Placeholder */
+.gc-select-placeholder {
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+/* Trigger icon */
+.gc-select-trigger-icon {
+  display: flex;
+  align-items: center;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  flex-shrink: 0;
+}
+
+.gc-select-trigger-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Content (dropdown) */
+.gc-select-content {
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius--xs, 10px);
+  box-shadow:
+    var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.06)),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 2000;
+  animation: gc-select-in 120ms ease-out;
+  will-change: opacity, transform;
+  min-width: var(--radix-select-trigger-width);
+  max-height: 320px;
+}
+
+@keyframes gc-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Scrollable viewport */
+.gc-select-viewport {
+  padding: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Search input inside dropdown */
+.gc-select-search-wrap {
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.08));
+}
+
+.gc-select-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 0.8125rem;
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius--3xs, 6px);
+  background: var(--color--background, #f5f5f7);
+  color: var(--color--text, #1c1c1e);
+  outline: none;
+}
+
+.gc-select-search:focus {
+  border-color: var(--color--primary, #007aff);
+}
+
+/* Items */
+.gc-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: calc(var(--radius--3xs, 6px) - 2px);
+  font-size: 0.875rem;
+  color: var(--color--text, #1c1c1e);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background 120ms ease;
+}
+
+.gc-select-item[data-highlighted] {
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-select-item[data-state="checked"] {
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--color--primary, #007aff);
+}
+
+.gc-select-item[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.gc-select-item-label {
+  flex: 1;
+}
+
+/* Empty state */
+.gc-select-empty {
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  text-align: center;
+}
+
+/* Scroll buttons */
+.gc-select-scroll-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}

@@ -1,0 +1,112 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-collection-parameter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--2xs, 8px);
+}
+
+.gc-collection-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--2xs, 8px);
+}
+
+.gc-collection-item {
+  border: 1px solid var(--color--foreground-base, #e0e0e0);
+  border-radius: var(--radius--xs, 4px);
+  background: var(--color--background-xlight, #fafafa);
+}
+
+.gc-collection-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.gc-collection-item-title {
+  font-size: var(--font-size--2xs, 12px);
+  font-weight: 500;
+  color: var(--color--text-base, #333);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-collection-item-remove {
+  all: unset;
+  cursor: pointer;
+  color: var(--color--text-light, #888);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: var(--radius--4xs, 2px);
+  transition: color 150ms ease, background 150ms ease;
+  flex-shrink: 0;
+}
+
+.gc-collection-item-remove:hover:not(:disabled) {
+  color: var(--color--danger-base, #e53e3e);
+  background: var(--color--danger-tint-3, #fff5f5);
+}
+
+.gc-collection-item-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gc-collection-item-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--2xs, 8px);
+  padding: var(--spacing--2xs, 8px) var(--spacing--xs, 12px) var(--spacing--xs, 12px);
+}
+
+.gc-collection-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing--3xs, 4px);
+}
+
+.gc-collection-field-label {
+  font-size: var(--font-size--2xs, 12px);
+  color: var(--color--text-base, #333);
+  font-weight: 500;
+}
+
+.gc-collection-field-required {
+  color: var(--color--danger-base, #e53e3e);
+}
+
+.gc-collection-json-field {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-family--monospace, ui-monospace);
+  font-size: var(--font-size--2xs, 12px);
+  border: 1px solid var(--color--foreground-base, #e0e0e0);
+  border-radius: var(--radius--4xs, 2px);
+  padding: var(--spacing--3xs, 4px) var(--spacing--2xs, 8px);
+  background: var(--color--background-base, #fff);
+  color: var(--color--text-base, #333);
+  resize: vertical;
+  min-height: 64px;
+}
+
+.gc-collection-json-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gc-collection-empty {
+  color: var(--color--text-light, #888);
+  font-size: var(--font-size--2xs, 12px);
+  padding: var(--spacing--xs, 12px) 0;
+  text-align: center;
+}
+
+.gc-collection-footer {
+  padding-top: var(--spacing--3xs, 4px);
+}

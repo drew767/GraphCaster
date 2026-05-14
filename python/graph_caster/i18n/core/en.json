@@ -1,0 +1,13 @@
+{
+  "app": {
+    "title": "GraphCaster"
+  },
+  "run": {
+    "start": "Run",
+    "stop": "Stop"
+  },
+  "plugin": {
+    "loadError": "Failed to load plugin: {{name}}",
+    "unloadError": "Failed to unload plugin: {{name}}"
+  }
+}

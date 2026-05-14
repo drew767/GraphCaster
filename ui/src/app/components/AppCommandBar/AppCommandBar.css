@@ -1,0 +1,150 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-cmd-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+  animation: gc-cmd-fade-in 120ms ease;
+}
+
+@keyframes gc-cmd-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gc-cmd-panel {
+  width: 100%;
+  max-width: 600px;
+  max-height: 70vh;
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  border-radius: var(--radius--xs, 10px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: gc-cmd-scale-in 120ms ease;
+}
+
+@keyframes gc-cmd-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* cmdk search input wrapper */
+.gc-cmd-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  flex-shrink: 0;
+}
+
+.gc-cmd-search-icon {
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  flex-shrink: 0;
+}
+
+.gc-cmd-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-family, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  font-size: 14px;
+  color: var(--color--text, #1c1c1e);
+  line-height: 1.4;
+}
+
+.gc-cmd-input::placeholder {
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+}
+
+/* Scrollable list area */
+.gc-cmd-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px 0;
+}
+
+/* Group heading */
+[cmdk-group-heading] {
+  padding: 6px 14px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  user-select: none;
+}
+
+/* Individual item */
+[cmdk-item] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--color--text, #1c1c1e);
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 80ms;
+  user-select: none;
+}
+
+[cmdk-item][aria-selected="true"],
+[cmdk-item]:hover {
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-cmd-item-icon {
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.gc-cmd-item-label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gc-cmd-item-shortcut {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Empty state */
+[cmdk-empty] {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  text-align: center;
+}
+
+/* Separator between groups */
+[cmdk-separator] {
+  height: 1px;
+  background: var(--color--foreground, rgba(0,0,0,0.08));
+  margin: 4px 0;
+}

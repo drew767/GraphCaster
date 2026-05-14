@@ -11,6 +11,7 @@ import {
 } from "../run/consoleLineMeta";
 import { reduceConsoleLinesToRunTimeline } from "../run/buildRunTimeline";
 import { ExecutionTimeline } from "./ExecutionTimeline";
+import { useVirtualList } from "../hooks/useVirtualList";
 import { gcErrorTranslationKey } from "../lib/errorMessages";
 import { jsonHighlightedConsoleLine } from "../lib/jsonConsoleHighlight";
 import { runSessionClearConsole, useRunSession } from "../run/runSessionStore";
@@ -22,13 +23,21 @@ type Props = {
 };
 
 const TAIL_THRESHOLD_PX = 40;
+const CONSOLE_ROW_HEIGHT_PX = 18;
+const RENDER_WINDOW_OVERSCAN = 10;
+const VIRTUALIZE_THRESHOLD = 100;
 
 type PanelTab = "log" | "steps";
+
+type IndexedConsoleRow = {
+  index: number;
+  meta: ReturnType<typeof buildConsoleLineMeta>;
+};
 
 export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Props) {
   const { t } = useTranslation();
   const { consoleLines, pythonBanner, replaySourceLabel } = useRunSession();
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const tailStickRef = useRef(true);
   const [filterMode, setFilterMode] = useState<ConsoleFilterMode>("all");
   const [search, setSearch] = useState("");
@@ -36,7 +45,7 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
 
   const timeline = useMemo(() => reduceConsoleLinesToRunTimeline(consoleLines), [consoleLines]);
 
-  const indexedLines = useMemo(
+  const indexedLines = useMemo<IndexedConsoleRow[]>(
     () => consoleLines.map((line, index) => ({ index, meta: buildConsoleLineMeta(line) })),
     [consoleLines],
   );
@@ -50,6 +59,24 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
   const searchTrim = search.trim();
   const isViewFiltered = filterMode !== "all" || searchTrim.length > 0;
 
+  const shouldVirtualizeLog =
+    panelTab === "log" && visibleRows.length >= VIRTUALIZE_THRESHOLD;
+
+  const v = useVirtualList({
+    itemCount: shouldVirtualizeLog ? visibleRows.length : 0,
+    itemHeight: CONSOLE_ROW_HEIGHT_PX,
+    overscan: RENDER_WINDOW_OVERSCAN,
+    estimatedViewportHeight: Math.max(120, heightPx - 96),
+  });
+
+  const setBodyRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      bodyRef.current = node;
+      v.containerRef(node);
+    },
+    [v],
+  );
+
   const scrollBodyToBottom = useCallback(() => {
     const el = bodyRef.current;
     if (!el) {
@@ -59,14 +86,17 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  const onBodyScroll = useCallback(() => {
-    const el = bodyRef.current;
-    if (!el) {
-      return;
-    }
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-    tailStickRef.current = dist <= TAIL_THRESHOLD_PX;
-  }, []);
+  const onBodyScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const el = bodyRef.current;
+      if (el != null) {
+        const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+        tailStickRef.current = dist <= TAIL_THRESHOLD_PX;
+      }
+      v.onScroll(event);
+    },
+    [v],
+  );
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -87,6 +117,75 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
       URL.revokeObjectURL(url);
     });
   };
+
+  const renderLogRow = useCallback(
+    (row: IndexedConsoleRow, fixedHeight?: number) => {
+      const m = row.meta;
+      const navigable = m.nodeId != null && onNavigateToNode != null;
+      const lineClass = [
+        "gc-console-line",
+        m.isErrorLike
+          ? "gc-console-line--error"
+          : m.streamBackpressureDropped != null
+            ? "gc-console-line--warn"
+            : m.isStderr
+              ? "gc-console-line--stderr"
+              : "",
+        navigable ? "gc-console-line--nav" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const gcHint =
+        m.gcCode != null && m.gcCode !== ""
+          ? t(gcErrorTranslationKey(m.gcCode), { defaultValue: m.gcCode })
+          : "";
+      const style =
+        fixedHeight != null
+          ? { height: fixedHeight, overflow: "hidden" as const, boxSizing: "border-box" as const }
+          : undefined;
+      return (
+        <pre
+          key={row.index}
+          className={lineClass}
+          data-testid="gc-console-line"
+          style={style}
+          role={navigable ? "button" : undefined}
+          tabIndex={navigable ? 0 : undefined}
+          aria-label={
+            navigable && m.nodeId != null ? t("app.console.navigateToNode", { nodeId: m.nodeId }) : undefined
+          }
+          onClick={() => {
+            if (m.nodeId != null && onNavigateToNode != null) {
+              onNavigateToNode(m.nodeId);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (!navigable) {
+              return;
+            }
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              if (m.nodeId != null && onNavigateToNode != null) {
+                onNavigateToNode(m.nodeId);
+              }
+            }
+          }}
+        >
+          {m.streamBackpressureDropped != null
+            ? t("app.run.console.outputTruncated", { count: m.streamBackpressureDropped })
+            : gcHint !== "" ? (
+                <>
+                  {jsonHighlightedConsoleLine(m.displayLine)}
+                  <span className="gc-console-gc-hint"> — {gcHint}</span>
+                </>
+              ) : (
+                jsonHighlightedConsoleLine(m.displayLine)
+              )}
+        </pre>
+      );
+    },
+    [onNavigateToNode, t],
+  );
 
   return (
     <>
@@ -257,7 +356,7 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
           </div>
         ) : null}
         <div
-          ref={bodyRef}
+          ref={setBodyRef}
           className="gc-console-body"
           onScroll={onBodyScroll}
           role="tabpanel"
@@ -269,62 +368,27 @@ export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Prop
               <div className="gc-console-line gc-console-line--muted">{t("app.console.empty")}</div>
             ) : visibleRows.length === 0 ? (
               <div className="gc-console-line gc-console-line--muted">{t("app.console.noMatchingLines")}</div>
+            ) : shouldVirtualizeLog ? (
+              <div
+                data-testid="gc-console-virtual-spacer"
+                style={{ position: "relative", height: v.totalHeight }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    transform: `translateY(${v.offsetTop}px)`,
+                  }}
+                >
+                  {visibleRows.slice(v.startIndex, v.endIndex).map((row) =>
+                    renderLogRow(row, CONSOLE_ROW_HEIGHT_PX),
+                  )}
+                </div>
+              </div>
             ) : (
-              visibleRows.map((row) => {
-                const m = row.meta;
-                const navigable = m.nodeId != null && onNavigateToNode != null;
-                const lineClass = [
-                  "gc-console-line",
-                  m.isErrorLike
-                    ? "gc-console-line--error"
-                    : m.streamBackpressureDropped != null
-                      ? "gc-console-line--warn"
-                      : m.isStderr
-                        ? "gc-console-line--stderr"
-                        : "",
-                  navigable ? "gc-console-line--nav" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                const gcHint =
-                  m.gcCode != null && m.gcCode !== ""
-                    ? t(gcErrorTranslationKey(m.gcCode), { defaultValue: m.gcCode })
-                    : "";
-                return (
-                  <pre
-                    key={row.index}
-                    className={lineClass}
-                    role={navigable ? "button" : undefined}
-                    tabIndex={navigable ? 0 : undefined}
-                    aria-label={navigable && m.nodeId != null ? t("app.console.navigateToNode", { nodeId: m.nodeId }) : undefined}
-                    onClick={() => {
-                      if (m.nodeId != null && onNavigateToNode != null) {
-                        onNavigateToNode(m.nodeId);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (!navigable) {
-                        return;
-                      }
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        if (m.nodeId != null && onNavigateToNode != null) {
-                          onNavigateToNode(m.nodeId);
-                        }
-                      }
-                    }}
-                  >
-                    {m.streamBackpressureDropped != null
-                      ? t("app.run.console.outputTruncated", { count: m.streamBackpressureDropped })
-                      : gcHint !== ""
-                        ? <>
-                            {jsonHighlightedConsoleLine(m.displayLine)}
-                            <span className="gc-console-gc-hint"> — {gcHint}</span>
-                          </>
-                        : jsonHighlightedConsoleLine(m.displayLine)}
-                  </pre>
-                );
-              })
+              visibleRows.map((row) => renderLogRow(row))
             )
           ) : consoleLines.length === 0 ? (
             <div className="gc-console-line gc-console-line--muted">{t("app.console.empty")}</div>

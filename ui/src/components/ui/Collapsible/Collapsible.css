@@ -1,0 +1,84 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-collapsible {
+  font-family: var(--font-family, system-ui, sans-serif);
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-collapsible__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.375rem 0;
+  cursor: pointer;
+  color: var(--color--text, #1c1c1e);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  border-radius: var(--radius--3xs, 6px);
+  transition: color 0.15s ease-out;
+}
+
+.gc-collapsible__trigger:hover {
+  color: var(--color--primary, #007aff);
+}
+
+.gc-collapsible__trigger:focus {
+  outline: none;
+}
+
+.gc-collapsible__trigger:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 2px;
+}
+
+.gc-collapsible__trigger-label {
+  flex: 1;
+}
+
+.gc-collapsible__chevron {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease-out;
+}
+
+.gc-collapsible__trigger[data-state="open"] .gc-collapsible__chevron {
+  transform: rotate(90deg);
+}
+
+.gc-collapsible__content {
+  overflow: hidden;
+}
+
+.gc-collapsible__content[data-state="open"] {
+  animation: gc-collapsible-open 0.2s ease-out;
+}
+
+.gc-collapsible__content[data-state="closed"] {
+  animation: gc-collapsible-close 0.15s ease-in;
+}
+
+@keyframes gc-collapsible-open {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gc-collapsible-close {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-collapsible__chevron {
+    transition: none;
+  }
+  .gc-collapsible__content[data-state="open"],
+  .gc-collapsible__content[data-state="closed"] {
+    animation: none;
+  }
+}

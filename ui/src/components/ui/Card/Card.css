@@ -1,0 +1,110 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-card {
+  background-color: var(--color--background--light-2, #ffffff);
+  border-radius: var(--radius--xs, 10px);
+  color: var(--color--text, #1c1c1e);
+  font-family: var(--font-family, system-ui, sans-serif);
+  transition: box-shadow 0.15s ease-out, transform 0.15s ease-out;
+  overflow: hidden;
+}
+
+/* Variants */
+.gc-card--default {
+  border: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+}
+
+.gc-card--outlined {
+  border: 1.5px solid var(--color--foreground, rgba(0,0,0,0.08));
+  background-color: transparent;
+}
+
+.gc-card--elevated {
+  border: none;
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
+}
+
+/* Padding */
+.gc-card--padding-none > * {
+  padding: 0;
+}
+
+.gc-card--padding-small > .gc-card__body {
+  padding: 0.5rem;
+}
+.gc-card--padding-small > .gc-card__header,
+.gc-card--padding-small > .gc-card__footer {
+  padding: 0.5rem;
+}
+
+.gc-card--padding-medium > .gc-card__body {
+  padding: 1rem;
+}
+.gc-card--padding-medium > .gc-card__header,
+.gc-card--padding-medium > .gc-card__footer {
+  padding: 0.75rem 1rem;
+}
+
+.gc-card--padding-large > .gc-card__body {
+  padding: 1.5rem;
+}
+.gc-card--padding-large > .gc-card__header,
+.gc-card--padding-large > .gc-card__footer {
+  padding: 1rem 1.5rem;
+}
+
+/* Hoverable */
+.gc-card--hoverable:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Clickable */
+.gc-card--clickable {
+  cursor: pointer;
+  outline: none;
+}
+
+.gc-card--clickable:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 2px;
+}
+
+.gc-card--clickable:active {
+  transform: scale(0.995);
+}
+
+/* Sub-components */
+.gc-card__header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+}
+
+.gc-card__header-title {
+  flex: 1;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--color--text, #1c1c1e);
+}
+
+.gc-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.gc-card__footer {
+  border-top: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-card {
+    transition: none;
+  }
+}

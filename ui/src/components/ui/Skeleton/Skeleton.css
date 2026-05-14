@@ -1,0 +1,114 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+@keyframes gc-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.gc-skeleton {
+  display: block;
+  background-color: var(--color-bg-subtle, #f3f4f6);
+  border-radius: var(--radius-sm, 4px);
+  width: 100%;
+  height: 16px;
+  overflow: hidden;
+}
+
+.gc-skeleton--shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-bg-subtle, #f3f4f6) 25%,
+    var(--color-bg-shimmer, #e5e7eb) 50%,
+    var(--color-bg-subtle, #f3f4f6) 75%
+  );
+  background-size: 800px 100%;
+  animation: gc-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Variants */
+.gc-skeleton--text {
+  height: 14px;
+  border-radius: var(--radius-sm, 4px);
+  margin-bottom: var(--spacing-1, 4px);
+}
+
+.gc-skeleton--circle {
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.gc-skeleton--rect {
+  border-radius: 0;
+}
+
+.gc-skeleton--rounded {
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Group (count > 1) */
+.gc-skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+}
+
+/* SkeletonCard */
+.gc-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-4, 16px);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border-subtle, #e5e7eb);
+  background-color: var(--color-bg-default, #fff);
+}
+
+.gc-skeleton-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+}
+
+.gc-skeleton-card__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  flex: 1;
+}
+
+.gc-skeleton-card__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+}
+
+/* SkeletonRow */
+.gc-skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: var(--spacing-4, 16px);
+  padding: var(--spacing-2, 8px) 0;
+  border-bottom: 1px solid var(--color-border-subtle, #f3f4f6);
+  align-items: center;
+}
+
+/* SkeletonTable */
+.gc-skeleton-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.gc-skeleton-table__header {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: var(--spacing-4, 16px);
+  padding: var(--spacing-2, 8px) 0;
+  border-bottom: 2px solid var(--color-border-subtle, #e5e7eb);
+}

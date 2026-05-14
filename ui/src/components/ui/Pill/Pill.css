@@ -1,0 +1,111 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-weight: 500;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+
+/* Sizes */
+.gc-pill--small {
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+}
+
+.gc-pill--medium {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+/* Variants — same semantic palette as Tag but pill-shaped */
+.gc-pill--default {
+  background: var(--color--background--light-3, #eaeaef);
+  color: var(--color--text, #1c1c1e);
+  border-color: var(--color--foreground, rgba(0, 0, 0, 0.08));
+}
+
+.gc-pill--primary {
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--color--primary, #007aff);
+  border-color: rgba(0, 122, 255, 0.25);
+}
+
+.gc-pill--success {
+  background: rgba(52, 199, 89, 0.12);
+  color: #1a9e3f;
+  border-color: rgba(52, 199, 89, 0.25);
+}
+
+.gc-pill--warning {
+  background: rgba(255, 159, 10, 0.12);
+  color: #b5660a;
+  border-color: rgba(255, 159, 10, 0.25);
+}
+
+.gc-pill--danger {
+  background: rgba(255, 59, 48, 0.12);
+  color: #c0392b;
+  border-color: rgba(255, 59, 48, 0.25);
+}
+
+.gc-pill--info {
+  background: rgba(90, 200, 250, 0.15);
+  color: #0571a6;
+  border-color: rgba(90, 200, 250, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-pill--default {
+    background: var(--color--background--light-3, #242428);
+    color: var(--color--text, #f5f5f7);
+    border-color: var(--color--foreground, rgba(255, 255, 255, 0.08));
+  }
+
+  .gc-pill--primary {
+    background: rgba(10, 132, 255, 0.18);
+    color: var(--color--primary, #0a84ff);
+    border-color: rgba(10, 132, 255, 0.3);
+  }
+
+  .gc-pill--success {
+    background: rgba(52, 199, 89, 0.18);
+    color: #30d158;
+    border-color: rgba(52, 199, 89, 0.3);
+  }
+
+  .gc-pill--warning {
+    background: rgba(255, 159, 10, 0.18);
+    color: #ffd60a;
+    border-color: rgba(255, 159, 10, 0.3);
+  }
+
+  .gc-pill--danger {
+    background: rgba(255, 69, 58, 0.18);
+    color: #ff453a;
+    border-color: rgba(255, 69, 58, 0.3);
+  }
+
+  .gc-pill--info {
+    background: rgba(90, 200, 250, 0.18);
+    color: #5ac8fa;
+    border-color: rgba(90, 200, 250, 0.3);
+  }
+}
+
+/* Dot indicator */
+.gc-pill__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}

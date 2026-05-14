@@ -1,0 +1,88 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-personal-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.gc-personal-page__heading {
+  margin-bottom: 8px;
+}
+
+.gc-personal-section__avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.gc-personal-section__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.gc-personal-section__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  margin-top: 8px;
+}
+
+.gc-personal-section__pref-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.gc-personal-section__mfa-placeholder {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gc-personal-section__error {
+  display: block;
+}
+
+.gc-personal-section__qr-box {
+  width: 140px;
+  height: 140px;
+  background: var(--color--background--light-3, #eaeaef);
+  border: 1px dashed var(--color--foreground, rgba(0,0,0,0.08));
+  border-radius: var(--radius--3xs, 6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+}
+
+.gc-personal-section__avatar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-personal-section__mfa-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.gc-personal-section__mfa-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.gc-personal-section__mfa-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}

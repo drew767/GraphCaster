@@ -1,11 +1,12 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import { Handle, Position } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 
 import type { GcNodeData } from "../../graph/toReactFlow";
 
 import { LODLevel } from "./hooks/useLODLevel";
+import "./LODNodeRenderer.css";
 
 export { LODLevel };
 
@@ -47,18 +48,20 @@ export const LODNodeRenderer = memo(function LODNodeRenderer({
 }: LODNodeRendererProps) {
   const kind = data.graphNodeType || "task";
 
+  // Background color is the only state-dependent inline style; static box geometry
+  // (width/padding/border-radius) lives in LODNodeRenderer.css to avoid per-render
+  // style object allocations across hundreds of nodes during canvas pan/zoom.
+  const dynamicStyle = useMemo(
+    () => ({ backgroundColor: getNodeColor(kind) }),
+    [kind],
+  );
+
   if (lodLevel === LODLevel.GHOST) {
     return (
       <div
         data-testid="node-ghost"
         className="gc-lod-node gc-lod-node--ghost"
-        style={{
-          width: 160,
-          height: 40,
-          backgroundColor: getNodeColor(kind),
-          opacity: 0.3,
-          borderRadius: 4,
-        }}
+        style={dynamicStyle}
       />
     );
   }
@@ -67,14 +70,12 @@ export const LODNodeRenderer = memo(function LODNodeRenderer({
     return (
       <div
         data-testid="node-shape"
-        className="gc-lod-node gc-lod-node--low"
-        style={{
-          width: 160,
-          height: 40,
-          backgroundColor: getNodeColor(kind),
-          borderRadius: 4,
-          border: selected ? "2px solid #3b82f6" : "1px solid #ccc",
-        }}
+        className={
+          selected
+            ? "gc-lod-node gc-lod-node--low gc-lod-node--selected"
+            : "gc-lod-node gc-lod-node--low"
+        }
+        style={dynamicStyle}
       >
         <Handle type="target" position={Position.Left} />
         <Handle type="source" position={Position.Right} />
@@ -85,19 +86,15 @@ export const LODNodeRenderer = memo(function LODNodeRenderer({
   if (lodLevel === LODLevel.MEDIUM) {
     return (
       <div
-        className="gc-lod-node gc-lod-node--medium"
-        style={{
-          width: 160,
-          padding: "8px 12px",
-          backgroundColor: getNodeColor(kind),
-          borderRadius: 4,
-          border: selected ? "2px solid #3b82f6" : "1px solid #ccc",
-        }}
+        className={
+          selected
+            ? "gc-lod-node gc-lod-node--medium gc-lod-node--selected"
+            : "gc-lod-node gc-lod-node--medium"
+        }
+        style={dynamicStyle}
       >
         <Handle type="target" position={Position.Left} />
-        <div style={{ fontWeight: 500, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>
-          {data.label}
-        </div>
+        <div className="gc-lod-node__label">{data.label}</div>
         <Handle type="source" position={Position.Right} />
       </div>
     );
@@ -105,19 +102,16 @@ export const LODNodeRenderer = memo(function LODNodeRenderer({
 
   return (
     <div
-      className="gc-lod-node gc-lod-node--high"
-      style={{
-        width: 200,
-        padding: "12px 16px",
-        backgroundColor: getNodeColor(kind),
-        borderRadius: 6,
-        border: selected ? "2px solid #3b82f6" : "1px solid #ccc",
-        boxShadow: selected ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
-      }}
+      className={
+        selected
+          ? "gc-lod-node gc-lod-node--high gc-lod-node--selected"
+          : "gc-lod-node gc-lod-node--high"
+      }
+      style={dynamicStyle}
     >
       <Handle type="target" position={Position.Left} />
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{data.label}</div>
-      <div data-testid="node-details" style={{ fontSize: 11, color: "#666" }}>
+      <div className="gc-lod-node__label">{data.label}</div>
+      <div data-testid="node-details" className="gc-lod-node__details">
         {kind}
       </div>
       <Handle type="source" position={Position.Right} />

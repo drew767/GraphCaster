@@ -1,0 +1,82 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+/* UX73 — animated "+" on unconnected handles */
+
+.gc-handle-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--color--primary, #6366f1);
+  background: var(--color--background--light-2, #fff);
+  color: var(--color--primary, #6366f1);
+  cursor: pointer;
+  padding: 0;
+  pointer-events: all;
+
+  transform: scale(0.6);
+  opacity: 0;
+  transition:
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 200ms ease;
+}
+
+.gc-handle-plus:hover,
+.gc-handle-plus:focus-visible {
+  background: var(--color--primary, #6366f1);
+  color: var(--color--text--on-accent, #ffffff);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color--primary, #6366f1) 30%, transparent);
+}
+
+/* Parent node hover shows the plus */
+.gc-flow-node:hover .gc-handle-plus,
+.gc-flow-node--selected .gc-handle-plus {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Sizes scale with output label width: small=46px, medium=66px, large=80px */
+.gc-handle-plus--small {
+  width: 18px;
+  height: 18px;
+}
+
+.gc-handle-plus--medium {
+  width: 22px;
+  height: 22px;
+}
+
+.gc-handle-plus--large {
+  width: 26px;
+  height: 26px;
+}
+
+.gc-handle-plus__icon {
+  width: 10px;
+  height: 10px;
+}
+
+.gc-handle-plus--medium .gc-handle-plus__icon {
+  width: 12px;
+  height: 12px;
+}
+
+.gc-handle-plus--large .gc-handle-plus__icon {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes gc-handle-plus-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+.gc-handle-plus--pulsing {
+  animation: gc-handle-plus-pulse 1.4s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-handle-plus--pulsing {
+    animation: none;
+  }
+}

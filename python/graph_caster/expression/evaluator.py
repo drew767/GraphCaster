@@ -5,12 +5,15 @@
 from __future__ import annotations
 
 import ast
+import logging
 import os
 import operator
 import re
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Callable
+
+_log = logging.getLogger(__name__)
 
 from .errors import (
     ExpressionEvaluationError,
@@ -30,6 +33,8 @@ FORBIDDEN_NAMES = frozenset(
         "__mro__",
         "__globals__",
         "__code__",
+        "__init_subclass__",
+        "__dict__",
         "exec",
         "eval",
         "compile",
@@ -43,6 +48,15 @@ FORBIDDEN_NAMES = frozenset(
         "locals",
         "vars",
         "dir",
+        "type",
+        "object",
+        "help",
+        "super",
+        "classmethod",
+        "staticmethod",
+        "property",
+        "memoryview",
+        "mro",
     }
 )
 
@@ -328,7 +342,14 @@ class SafeEvalVisitor(ast.NodeVisitor):
 
 
 class ExpressionEvaluator:
-    """Evaluate expressions safely in a context."""
+    """Evaluate expressions safely in a context.
+
+    Security caveat: the timeout is **wall-clock cancellation only**; the underlying
+    worker thread keeps running malicious busy-loop code until it returns naturally,
+    because Python threads cannot be pre-empted. In multi-tenant deployments, run
+    expression evaluation in an isolated subprocess or container — this evaluator
+    is best-effort defense-in-depth, not a hard sandbox.
+    """
 
     def __init__(self, *, eval_timeout_sec: float | object = _EVAL_TIMEOUT_USE_ENV) -> None:
         """eval_timeout_sec: >0 = wall-clock limit (seconds); <=0 = unlimited.
@@ -352,6 +373,12 @@ class ExpressionEvaluator:
             try:
                 return fut.result(timeout=limit)
             except FuturesTimeoutError as e:
+                _log.warning(
+                    "Expression evaluation hit wall-clock timeout (%.3fs); "
+                    "underlying thread continues until it returns naturally: %r",
+                    limit,
+                    expression[:200],
+                )
                 raise ExpressionTimeoutError(
                     f"Evaluation exceeded timeout of {limit}s", expression
                 ) from e

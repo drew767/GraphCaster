@@ -1,0 +1,25 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-infotip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  color: var(--color--text--tint-2, hsl(0, 0%, 46%));
+  border-radius: 50%;
+  transition: color 0.15s;
+  vertical-align: middle;
+}
+
+.gc-infotip:hover,
+.gc-infotip:focus-visible {
+  color: var(--color--text, hsl(0, 0%, 13%));
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gc-infotip:hover,
+  .gc-infotip:focus-visible {
+    color: var(--color--text, hsl(0, 0%, 92%));
+  }
+}

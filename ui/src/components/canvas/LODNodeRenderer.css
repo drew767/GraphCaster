@@ -1,0 +1,62 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-lod-node {
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.gc-lod-node--ghost {
+  width: 160px;
+  height: 40px;
+  border-radius: 4px;
+  opacity: 0.3;
+}
+
+.gc-lod-node--low {
+  width: 160px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.gc-lod-node--medium {
+  width: 160px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.gc-lod-node--high {
+  width: 200px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.gc-lod-node--selected {
+  border: 2px solid #3b82f6;
+}
+
+.gc-lod-node--high.gc-lod-node--selected {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.gc-lod-node__label {
+  font-weight: 500;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-lod-node--high .gc-lod-node__label {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  white-space: normal;
+}
+
+.gc-lod-node__details {
+  font-size: 11px;
+  color: #666;
+}

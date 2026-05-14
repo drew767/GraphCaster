@@ -1,0 +1,97 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-inline-expr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-inline-expr__editor {
+  position: relative;
+  border: 1px solid var(--color--foreground, #d1d5db);
+  border-radius: 6px;
+  background: var(--gc-surface, #fff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.gc-inline-expr__editor:focus-within {
+  outline: 2px solid var(--gc-focus-ring, #2563eb);
+  outline-offset: 1px;
+}
+
+.gc-inline-expr__editor .cm-editor {
+  outline: none;
+  border-radius: 6px;
+}
+
+.gc-inline-expr__editor .cm-scroller {
+  font-family: inherit;
+}
+
+.gc-inline-expr__editor[data-placeholder]::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  color: var(--gc-placeholder, #9ca3af);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.gc-inline-expr__editor:has(.cm-content:not(:empty))::before {
+  display: none;
+}
+
+/* Expression token colors */
+.gc-expr-brace {
+  color: #2563eb;
+  font-weight: bold;
+}
+
+.gc-expr-var {
+  color: #7c3aed;
+}
+
+.gc-expr-str {
+  color: #d97706;
+}
+
+.gc-expr-num {
+  color: #16a34a;
+}
+
+/* Hover tooltip */
+.gc-expr-tooltip {
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-width: 300px;
+  white-space: pre-wrap;
+}
+
+/* Preview */
+.gc-inline-expr__preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--gc-text-muted, #6b7280);
+}
+
+.gc-inline-expr__preview-label {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.gc-inline-expr__preview-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--gc-preview-bg, #f3f4f6);
+  padding: 1px 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

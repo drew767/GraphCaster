@@ -1,0 +1,55 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-canvas-controls {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  background: var(--color--background-base, var(--gc-surface-1));
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-md);
+  box-shadow: var(--gc-shadow-raise);
+  pointer-events: auto;
+}
+
+.gc-canvas-controls__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--gc-radius-sm);
+  background: transparent;
+  color: var(--gc-text-primary);
+  cursor: pointer;
+}
+
+.gc-canvas-controls__btn:hover:not(:disabled) {
+  background: var(--color--background-base, var(--gc-surface-2));
+}
+
+.gc-canvas-controls__btn:focus-visible {
+  outline: 2px solid var(--gc-accent);
+  outline-offset: 1px;
+}
+
+.gc-canvas-controls__btn:disabled {
+  color: var(--color--foreground-light);
+  cursor: not-allowed;
+}
+
+.gc-canvas-controls__btn[data-pressed="true"] {
+  background: var(--gc-surface-2);
+  color: var(--gc-accent);
+}
+
+.gc-canvas--locked {
+  outline: 2px solid var(--color--danger, #dc2626);
+  outline-offset: -1px;
+}

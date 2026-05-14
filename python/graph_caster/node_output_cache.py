@@ -42,13 +42,43 @@ def stable_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
 
 
+def _type_tagged(obj: Any) -> Any:
+    """Recursively coerce *obj* into a JSON-native form that preserves the
+    distinction between Python types whose default JSON representation would
+    otherwise collide (``tuple`` vs ``list``, ``set``/``frozenset`` vs
+    ``str``).
+
+    JSON-native scalar/container types pass through untouched so existing
+    cached entries keyed on plain dicts/lists/strings continue to hit.
+    """
+    if isinstance(obj, bool) or obj is None:
+        return obj
+    if isinstance(obj, (int, float, str)):
+        return obj
+    if isinstance(obj, tuple):
+        return {"__t__": "tuple", "v": [_type_tagged(x) for x in obj]}
+    if isinstance(obj, (set, frozenset)):
+        kind = "frozenset" if isinstance(obj, frozenset) else "set"
+        # Sort by their stable_json form so order does not affect the key.
+        items = sorted(
+            (_type_tagged(x) for x in obj),
+            key=lambda v: stable_json(v),
+        )
+        return {"__t__": kind, "v": items}
+    if isinstance(obj, list):
+        return [_type_tagged(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): _type_tagged(v) for k, v in obj.items()}
+    return str(obj)
+
+
 def normalize_outputs_for_cache_key(outputs: Mapping[str, Any]) -> dict[str, Any]:
-    return json.loads(json.dumps(dict(outputs), sort_keys=True, default=str))
+    return _type_tagged(dict(outputs))
 
 
 def node_data_for_cache_key(data: Mapping[str, Any]) -> dict[str, Any]:
     filtered = {k: v for k, v in data.items() if k != "stepCache"}
-    return json.loads(json.dumps(filtered, sort_keys=True, default=str))
+    return _type_tagged(filtered)
 
 
 def upstream_step_cache_fingerprint(
@@ -216,9 +246,20 @@ class StepCacheStore:
                 return None
             return _coerce_step_cache_entry(raw)
 
-    def put(self, key_hex: str, entry: dict[str, Any]) -> None:
+    def put(self, key_hex: str, entry: dict[str, Any]) -> bool:
+        """Atomically write *entry* to the slot for *key_hex*.
+
+        Behaves like ``INSERT OR IGNORE``: the first writer wins, subsequent
+        writers see the existing file and return ``False`` without touching
+        it. The winner returns ``True``. Cross-thread races within the same
+        process are serialized with ``self._lock``; cross-process races rely
+        on ``O_CREAT | O_EXCL`` + ``os.link`` semantics on the local
+        filesystem.
+        """
         with self._lock:
             p = self._path_for(key_hex)
+            if p.exists():
+                return False
             p.parent.mkdir(parents=True, exist_ok=True)
             data = stable_json(entry).encode("utf-8")
             fd, tmp = tempfile.mkstemp(suffix=".json", dir=p.parent, text=False)
@@ -226,14 +267,34 @@ class StepCacheStore:
                 os.write(fd, data)
                 os.close(fd)
                 fd = -1
-                os.replace(tmp, p)
+                # Try the atomic link-then-unlink dance so concurrent winners
+                # across processes don't clobber each other. ``os.link`` fails
+                # with FileExistsError when the destination already exists.
+                try:
+                    os.link(tmp, p)
+                    won = True
+                except (FileExistsError, OSError, NotImplementedError):
+                    # Filesystem may not support hard links (e.g. some Windows
+                    # configurations). Fall back to a best-effort
+                    # check-then-rename: re-check existence, then rename.
+                    if p.exists():
+                        won = False
+                    else:
+                        try:
+                            os.replace(tmp, p)
+                            # Avoid the cleanup branch removing the just-renamed file.
+                            tmp = ""
+                            won = True
+                        except OSError:
+                            won = False
+                return won
             finally:
                 if fd >= 0:
                     try:
                         os.close(fd)
                     except OSError:
                         pass
-                if os.path.exists(tmp):
+                if tmp and os.path.exists(tmp):
                     try:
                         os.remove(tmp)
                     except OSError:

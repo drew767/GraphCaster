@@ -26,13 +26,128 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
   return path;
 }
 
-const brokerStreams = new Map<string, EventSource>();
-const brokerSockets = new Map<string, WebSocket>();
+/** Per-entry stream + creation timestamp; TTL sweep evicts entries older than `MAX_STREAM_LIFETIME_MS`. */
+type StreamEntry<T> = { stream: T; createdAt: number };
+
+const brokerStreams = new Map<string, StreamEntry<EventSource>>();
+const brokerSockets = new Map<string, StreamEntry<WebSocket>>();
 
 const ndjsonSeqSinksByRun = new Map<string, NdjsonSeqReorderSink>();
 
 /** When set, transient WS close must not reconnect (user cancel / stream replacement). */
 const wsReconnectSuppressed = new Set<string>();
+
+export const MAX_STREAM_LIFETIME_MS = 30 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 60_000;
+
+let sweepTimerId: ReturnType<typeof setInterval> | null = null;
+
+/** Closes any broker stream/socket older than the TTL. Returns the list of evicted run ids. */
+export function sweepExpiredBrokerStreams(now: number = Date.now()): string[] {
+  const evicted: string[] = [];
+  for (const [rid, entry] of Array.from(brokerStreams.entries())) {
+    if (now - entry.createdAt > MAX_STREAM_LIFETIME_MS) {
+      try {
+        entry.stream.close();
+      } catch {
+        /* ignore */
+      }
+      brokerStreams.delete(rid);
+      releaseNdjsonSeqSink(rid);
+      evicted.push(rid);
+    }
+  }
+  for (const [rid, entry] of Array.from(brokerSockets.entries())) {
+    if (now - entry.createdAt > MAX_STREAM_LIFETIME_MS) {
+      try {
+        entry.stream.close();
+      } catch {
+        /* ignore */
+      }
+      brokerSockets.delete(rid);
+      releaseNdjsonSeqSink(rid);
+      if (!evicted.includes(rid)) {
+        evicted.push(rid);
+      }
+    }
+  }
+  return evicted;
+}
+
+function startSweepTimer(): void {
+  if (sweepTimerId != null) {
+    return;
+  }
+  if (typeof setInterval === "undefined") {
+    return;
+  }
+  sweepTimerId = setInterval(() => {
+    sweepExpiredBrokerStreams();
+  }, SWEEP_INTERVAL_MS);
+}
+
+/** Stops the sweep timer (test teardown). */
+export function __stopSweep(): void {
+  if (sweepTimerId != null) {
+    clearInterval(sweepTimerId);
+    sweepTimerId = null;
+  }
+}
+
+/** Closes all live streams, clears reconnect-suppressed set and stops the sweep timer. */
+export function _resetWebRunBrokerForTests(): void {
+  for (const entry of brokerStreams.values()) {
+    try {
+      entry.stream.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  brokerStreams.clear();
+  for (const entry of brokerSockets.values()) {
+    try {
+      entry.stream.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  brokerSockets.clear();
+  ndjsonSeqSinksByRun.clear();
+  wsReconnectSuppressed.clear();
+  __stopSweep();
+}
+
+/** Internal helpers for the TTL test suite — not used at runtime. */
+export function __peekLiveRunIdsForTest(): string[] {
+  const ids: string[] = [];
+  for (const k of brokerStreams.keys()) {
+    ids.push(k);
+  }
+  for (const k of brokerSockets.keys()) {
+    if (!ids.includes(k)) {
+      ids.push(k);
+    }
+  }
+  return ids;
+}
+
+export function __registerEventSourceForTest(
+  runId: string,
+  es: EventSource,
+  createdAt: number,
+): void {
+  brokerStreams.set(runId, { stream: es, createdAt });
+  startSweepTimer();
+}
+
+export function __registerWebSocketForTest(
+  runId: string,
+  ws: WebSocket,
+  createdAt: number,
+): void {
+  brokerSockets.set(runId, { stream: ws, createdAt });
+  startSweepTimer();
+}
 
 function ndjsonSeqSinkForRun(rid: string): NdjsonSeqReorderSink {
   let s = ndjsonSeqSinksByRun.get(rid);
@@ -104,7 +219,8 @@ function attachWebBrokerSseRunStream(
   state: { exitReceived: boolean },
 ): void {
   const es = new EventSource(runBrokerStreamRelativeStreamPath(rid));
-  brokerStreams.set(rid, es);
+  brokerStreams.set(rid, { stream: es, createdAt: Date.now() });
+  startSweepTimer();
 
   es.addEventListener("message", (e: MessageEvent<string>) => {
     const line = e.data;
@@ -143,7 +259,7 @@ function attachWebBrokerSseRunStream(
     if (!brokerStreams.has(rid)) {
       return;
     }
-    if (brokerStreams.get(rid) !== es) {
+    if (brokerStreams.get(rid)?.stream !== es) {
       return;
     }
     es.close();
@@ -174,7 +290,8 @@ function attachWebBrokerWebSocket(
 ): void {
   const url = runBrokerWebSocketUrl(rid, viewerToken);
   const ws = new WebSocket(url);
-  brokerSockets.set(rid, ws);
+  brokerSockets.set(rid, { stream: ws, createdAt: Date.now() });
+  startSweepTimer();
 
   ws.onmessage = (ev: MessageEvent<string>) => {
     let parsed: unknown;
@@ -244,7 +361,7 @@ function attachWebBrokerWebSocket(
   };
 
   ws.onclose = () => {
-    if (brokerSockets.get(rid) === ws) {
+    if (brokerSockets.get(rid)?.stream === ws) {
       brokerSockets.delete(rid);
     }
     if (state.exitReceived) {
@@ -255,13 +372,13 @@ function attachWebBrokerWebSocket(
 }
 
 export function closeWebRunBrokerStream(): void {
-  for (const es of brokerStreams.values()) {
-    es.close();
+  for (const entry of brokerStreams.values()) {
+    entry.stream.close();
   }
   brokerStreams.clear();
-  for (const w of brokerSockets.values()) {
+  for (const entry of brokerSockets.values()) {
     try {
-      w.close();
+      entry.stream.close();
     } catch {
       /* ignore */
     }
@@ -276,15 +393,15 @@ export function closeWebRunBrokerStreamForRun(runId: string): void {
   if (rid !== "") {
     wsReconnectSuppressed.add(rid);
   }
-  const es = brokerStreams.get(runId);
-  if (es != null) {
-    es.close();
+  const esEntry = brokerStreams.get(runId);
+  if (esEntry != null) {
+    esEntry.stream.close();
     brokerStreams.delete(runId);
   }
-  const w = brokerSockets.get(runId);
-  if (w != null) {
+  const wEntry = brokerSockets.get(runId);
+  if (wEntry != null) {
     try {
-      w.close();
+      wEntry.stream.close();
     } catch {
       /* ignore */
     }
@@ -399,10 +516,10 @@ export async function startWebBrokerRun(args: {
 }
 
 export async function cancelWebBrokerRun(runId: string): Promise<void> {
-  const w = brokerSockets.get(runId);
-  if (w != null && w.readyState === WebSocket.OPEN) {
+  const wEntry = brokerSockets.get(runId);
+  if (wEntry != null && wEntry.stream.readyState === WebSocket.OPEN) {
     try {
-      w.send(JSON.stringify({ type: "cancel_run", runId }));
+      wEntry.stream.send(JSON.stringify({ type: "cancel_run", runId }));
     } catch {
       /* ignore */
     }

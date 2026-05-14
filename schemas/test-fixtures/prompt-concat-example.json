@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 15,
+  "meta": {
+    "schemaVersion": 15,
+    "graphId": "prompt-concat-0000-0000-000000000001",
+    "title": "prompt_concat example — summarize with context"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "start1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": {}
+    },
+    {
+      "id": "titleNode",
+      "type": "task",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Produce topic",
+        "command": "echo",
+        "argv": ["GraphCaster RAG pipeline"]
+      }
+    },
+    {
+      "id": "ragNode",
+      "type": "task",
+      "position": { "x": 200, "y": 120 },
+      "data": {
+        "title": "Produce passages",
+        "command": "echo",
+        "argv": ["Passage 1. Passage 2."]
+      }
+    },
+    {
+      "id": "concat1",
+      "type": "prompt_concat",
+      "position": { "x": 400, "y": 60 },
+      "data": {
+        "title": "Build summarize prompt",
+        "template": "Summarize: {{topic}}\n\nReference:\n{{context}}",
+        "slots": {
+          "topic": "{{ $node[\"titleNode\"].json.processResult.stdout }}",
+          "context": "{{ $node[\"ragNode\"].json.processResult.stdout }}"
+        }
+      }
+    },
+    {
+      "id": "exit1",
+      "type": "exit",
+      "position": { "x": 600, "y": 60 },
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "titleNode",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "start1",
+      "sourceHandle": "out_default",
+      "target": "ragNode",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e3",
+      "source": "titleNode",
+      "sourceHandle": "out_default",
+      "target": "concat1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e4",
+      "source": "ragNode",
+      "sourceHandle": "out_default",
+      "target": "concat1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e5",
+      "source": "concat1",
+      "sourceHandle": "out_default",
+      "target": "exit1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

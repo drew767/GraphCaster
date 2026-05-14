@@ -1,0 +1,150 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-input-wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.gc-input-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.gc-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-family, system-ui, sans-serif);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color--text, #1c1c1e);
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius--3xs, 6px);
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  appearance: none;
+}
+
+/* Sizes */
+.gc-input--xsmall {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  height: 24px;
+}
+
+.gc-input--small {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  height: 30px;
+}
+
+.gc-input--medium {
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  height: 36px;
+}
+
+.gc-input--large {
+  padding: 9px 14px;
+  font-size: 1rem;
+  height: 44px;
+}
+
+/* Icon padding adjustments */
+.gc-input--has-icon-left {
+  padding-left: 34px;
+}
+
+.gc-input--has-icon-right {
+  padding-right: 34px;
+}
+
+.gc-input--has-clear {
+  padding-right: 34px;
+}
+
+/* Focus */
+.gc-input:focus {
+  border-color: var(--color--primary, #007aff);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+/* Variants */
+.gc-input--error {
+  border-color: var(--color--danger, #ff3b30);
+}
+
+.gc-input--error:focus {
+  border-color: var(--color--danger, #ff3b30);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.15);
+}
+
+.gc-input--success {
+  border-color: var(--color--success, #34c759);
+}
+
+.gc-input--success:focus {
+  border-color: var(--color--success, #34c759);
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.15);
+}
+
+/* Disabled */
+.gc-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+/* Icon slots */
+.gc-input-icon {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+.gc-input-icon--left {
+  left: 10px;
+}
+
+.gc-input-icon--right {
+  right: 10px;
+}
+
+/* Clear button */
+.gc-input-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+  border-radius: 50%;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.gc-input-clear:hover {
+  color: var(--color--text, #1c1c1e);
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-input-clear:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 1px;
+}

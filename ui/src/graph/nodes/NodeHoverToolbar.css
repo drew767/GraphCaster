@@ -1,0 +1,53 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-node-hover-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--spacing--2xs, 4px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--color--background--light-2, #ffffff);
+  border: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.08));
+  box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.12));
+  z-index: 5;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.gc-node-hover-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color--text, #1c1c1e);
+  line-height: 0;
+}
+
+.gc-node-hover-toolbar__btn:hover {
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-node-hover-toolbar__btn:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: 1px;
+}
+
+.gc-node-hover-toolbar__btn[aria-pressed="true"] {
+  background: var(--color--background--light-3, #eaeaef);
+  color: var(--color--primary, #007aff);
+}
+
+.gc-node-hover-toolbar__btn--danger:hover {
+  color: var(--gc-danger, #dc2626);
+}

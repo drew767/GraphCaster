@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 16,
+  "graphId": "inbox-watcher-example",
+  "meta": {
+    "graphId": "inbox-watcher-example",
+    "title": "New-file inbox trigger example (F71)"
+  },
+  "nodes": [
+    {
+      "id": "fs-trigger-1",
+      "type": "trigger_filesystem",
+      "position": { "x": 80, "y": 80 },
+      "data": {
+        "path": "/workspace/inbox",
+        "glob": "*.json",
+        "events": ["created"],
+        "recursive": false,
+        "stableForSec": 1.0,
+        "pollIntervalSec": 2.0
+      }
+    },
+    {
+      "id": "process-1",
+      "type": "task",
+      "position": { "x": 320, "y": 80 },
+      "data": {
+        "command": "python",
+        "argv": ["-m", "my_processor", "--file", "{{$trigger.payload.path}}"],
+        "cwd": "/workspace"
+      }
+    },
+    {
+      "id": "exit-1",
+      "type": "exit",
+      "position": { "x": 560, "y": 80 },
+      "data": {}
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "fs-trigger-1", "target": "process-1" },
+    { "id": "e2", "source": "process-1", "target": "exit-1" }
+  ]
+}

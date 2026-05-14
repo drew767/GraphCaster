@@ -1,0 +1,74 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius--xs, 10px);
+  cursor: pointer;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--color--text, #1c1c1e);
+  transition: background 120ms ease;
+}
+
+.gc-user-pill:hover {
+  background: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-user-pill--collapsed {
+  justify-content: center;
+  width: auto;
+  padding: 4px;
+}
+
+.gc-user-pill__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.gc-user-pill__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color--text, #1c1c1e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.gc-user-pill__email {
+  font-size: 11px;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.gc-user-pill__chevron {
+  flex-shrink: 0;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+}
+
+.gc-usermenu-header {
+  padding: 10px 12px 6px;
+  pointer-events: none;
+}
+
+.gc-usermenu-header__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color--text, #1c1c1e);
+  line-height: 1.3;
+}
+
+.gc-usermenu-header__email {
+  font-size: 11px;
+  color: var(--color--text--tint-2, rgba(28,28,30,0.55));
+  line-height: 1.3;
+  margin-top: 1px;
+}

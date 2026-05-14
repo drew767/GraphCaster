@@ -1,0 +1,209 @@
+{
+  "$comment": "Unified node-type catalog. Single source of truth for UI <-> Python. Drift is detected by python/tests/test_node_types_catalog.py and ui/src/graph/nodeTypesCatalog.test.ts. Edit alongside python/graph_caster/node_registry.py::_BUILTIN_V1_TYPES and ui/src/graph/nodeKinds.ts.",
+  "version": 1,
+  "nodeTypes": [
+    {
+      "type": "start",
+      "title": "Start",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "exit",
+      "title": "Exit",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "task",
+      "title": "Task",
+      "category": "core",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "graph_ref",
+      "title": "Nested Graph",
+      "category": "nested",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "fork",
+      "title": "Fork",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "merge",
+      "title": "Merge",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "llm_agent",
+      "title": "LLM Agent",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "agent",
+      "title": "Agent",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "ai_route",
+      "title": "AI Route",
+      "category": "ai",
+      "supportsStepCache": false,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "mcp_tool",
+      "title": "MCP Tool",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "trigger_webhook",
+      "title": "Webhook Trigger",
+      "category": "trigger",
+      "supportsStepCache": false,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "trigger_schedule",
+      "title": "Schedule Trigger",
+      "category": "trigger",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "trigger_error",
+      "title": "Error Trigger",
+      "category": "trigger",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python"],
+      "drift": "Registered in Python _BUILTIN_V1_TYPES and used by error_handlers.py but not exported from ui/src/graph/nodeKinds.ts."
+    },
+    {
+      "type": "comment",
+      "title": "Comment",
+      "category": "frame",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "group",
+      "title": "Group",
+      "category": "frame",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "http_request",
+      "title": "HTTP Request",
+      "category": "core",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "rag_query",
+      "title": "RAG Query",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "rag_index",
+      "title": "RAG Index",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "python_code",
+      "title": "Python Code",
+      "category": "core",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "set_variable",
+      "title": "Set Variable",
+      "category": "core",
+      "supportsStepCache": true,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "delay",
+      "title": "Delay",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "debounce",
+      "title": "Debounce",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "wait_for",
+      "title": "Wait For",
+      "category": "flow",
+      "supportsStepCache": false,
+      "isIdempotent": true,
+      "implementedIn": ["python", "ui"]
+    },
+    {
+      "type": "prompt_concat",
+      "title": "Prompt Concat",
+      "category": "ai",
+      "supportsStepCache": true,
+      "isIdempotent": true,
+      "implementedIn": ["python"],
+      "drift": "Registered in Python _BUILTIN_V1_TYPES; available in ui/src/palette/useNodeCatalog.ts but not exported from ui/src/graph/nodeKinds.ts."
+    },
+    {
+      "type": "api_call",
+      "title": "API Call",
+      "category": "core",
+      "supportsStepCache": true,
+      "isIdempotent": false,
+      "implementedIn": ["python"],
+      "drift": "Registered in Python _BUILTIN_V1_TYPES; available in ui/src/palette/useNodeCatalog.ts but not exported from ui/src/graph/nodeKinds.ts."
+    }
+  ]
+}

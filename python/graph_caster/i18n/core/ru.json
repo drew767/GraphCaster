@@ -1,0 +1,13 @@
+{
+  "app": {
+    "title": "GraphCaster"
+  },
+  "run": {
+    "start": "Запустить",
+    "stop": "Остановить"
+  },
+  "plugin": {
+    "loadError": "Ошибка загрузки плагина: {{name}}",
+    "unloadError": "Ошибка выгрузки плагина: {{name}}"
+  }
+}

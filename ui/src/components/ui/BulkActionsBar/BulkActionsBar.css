@@ -1,0 +1,73 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4, 16px);
+  padding: var(--spacing-2, 8px) var(--spacing-4, 16px);
+  background-color: var(--color-bg-accent-subtle, #eff6ff);
+  border: 1px solid var(--color-border-accent, #bfdbfe);
+  border-radius: var(--radius-md, 8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.gc-bulk-bar--bottom {
+  position: fixed;
+  bottom: var(--spacing-6, 24px);
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  min-width: 480px;
+  max-width: 90vw;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-lg, 12px);
+  z-index: var(--z-overlay, 50);
+}
+
+.gc-bulk-bar--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gc-bulk-bar--bottom.gc-bulk-bar--hidden {
+  transform: translateX(-50%) translateY(16px);
+}
+
+.gc-bulk-bar--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.gc-bulk-bar__info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  flex-shrink: 0;
+}
+
+.gc-bulk-bar__count {
+  font-size: var(--text-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-fg-accent, #1d4ed8);
+  white-space: nowrap;
+}
+
+.gc-bulk-bar__clear-btn {
+  all: unset;
+  font-size: var(--text-xs, 12px);
+  color: var(--color-fg-muted, #6b7280);
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.gc-bulk-bar__clear-btn:hover {
+  color: var(--color-fg-default, #111827);
+}
+
+.gc-bulk-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  flex-wrap: wrap;
+}

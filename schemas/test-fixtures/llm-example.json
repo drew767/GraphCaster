@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "schemaVersion": 1,
+    "graphId": "llm-example-fixture",
+    "title": "LLM example — Hello (fixture)"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "s1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": { "title": "Start" }
+    },
+    {
+      "id": "llm1",
+      "type": "llm",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Ask Hello",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4",
+        "systemPrompt": "You are a helpful assistant.",
+        "userPrompt": "Hello",
+        "temperature": 0.7,
+        "maxTokens": 256,
+        "stream": false
+      }
+    },
+    {
+      "id": "x1",
+      "type": "exit",
+      "position": { "x": 400, "y": 0 },
+      "data": { "title": "Exit" }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "llm1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "llm1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

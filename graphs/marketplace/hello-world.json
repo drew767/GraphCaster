@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "graphId": "hello-world",
+    "title": "Hello World",
+    "description": "Minimal starter graph: start → echo task → exit. Use as a blank-slate template to learn GraphCaster.",
+    "marketplace": {
+      "badge": "Starter",
+      "frameworks": [],
+      "usecases": ["Demo", "Learning"],
+      "author": "GraphCaster Team",
+      "tags": ["starter", "hello-world", "minimal"],
+      "preview_image": "/static/marketplace/hello-world.png"
+    }
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "nodes": [
+    {
+      "id": "s1",
+      "type": "start",
+      "position": { "x": 0, "y": 0 },
+      "data": { "title": "Start" }
+    },
+    {
+      "id": "t1",
+      "type": "task",
+      "position": { "x": 200, "y": 0 },
+      "data": {
+        "title": "Echo Hello",
+        "command": "echo",
+        "argv": ["echo", "Hello, GraphCaster!"],
+        "successMode": "exit_code"
+      }
+    },
+    {
+      "id": "x1",
+      "type": "exit",
+      "position": { "x": 400, "y": 0 },
+      "data": { "title": "Exit" }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "s1",
+      "sourceHandle": "out_default",
+      "target": "t1",
+      "targetHandle": "in_default",
+      "condition": null
+    },
+    {
+      "id": "e2",
+      "source": "t1",
+      "sourceHandle": "out_default",
+      "target": "x1",
+      "targetHandle": "in_default",
+      "condition": null
+    }
+  ]
+}

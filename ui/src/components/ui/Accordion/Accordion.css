@@ -1,0 +1,104 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+.gc-accordion {
+  font-family: var(--font-family, system-ui, sans-serif);
+  color: var(--color--text, #1c1c1e);
+  border-radius: var(--radius--xs, 10px);
+  border: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+  overflow: hidden;
+}
+
+.gc-accordion__item {
+  border-bottom: 1px solid var(--color--foreground, rgba(0,0,0,0.08));
+}
+
+.gc-accordion__item:last-child {
+  border-bottom: none;
+}
+
+.gc-accordion__header {
+  margin: 0;
+}
+
+.gc-accordion__trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color--text, #1c1c1e);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  transition: background-color 0.15s ease-out;
+}
+
+.gc-accordion__trigger:hover {
+  background-color: var(--color--background--light-3, #eaeaef);
+}
+
+.gc-accordion__trigger:focus {
+  outline: none;
+}
+
+.gc-accordion__trigger:focus-visible {
+  outline: 2px solid var(--color--primary, #007aff);
+  outline-offset: -2px;
+}
+
+.gc-accordion__trigger-title {
+  flex: 1;
+}
+
+.gc-accordion__chevron {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease-out;
+  color: var(--color--text--tint-2, rgba(28, 28, 30, 0.55));
+}
+
+.gc-accordion__trigger[data-state="open"] .gc-accordion__chevron {
+  transform: rotate(180deg);
+}
+
+.gc-accordion__content {
+  overflow: hidden;
+}
+
+.gc-accordion__content[data-state="open"] {
+  animation: gc-accordion-open 0.2s ease-out;
+}
+
+.gc-accordion__content[data-state="closed"] {
+  animation: gc-accordion-close 0.15s ease-in;
+}
+
+.gc-accordion__content-inner {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color--text, #1c1c1e);
+}
+
+@keyframes gc-accordion-open {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gc-accordion-close {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-accordion__chevron {
+    transition: none;
+  }
+  .gc-accordion__content[data-state="open"],
+  .gc-accordion__content[data-state="closed"] {
+    animation: none;
+  }
+}

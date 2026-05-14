@@ -1,0 +1,18 @@
+/* Copyright GraphCaster. All Rights Reserved. */
+
+/* AlertDialog uses the Dialog base styles (Dialog.css).
+   These rules add alert-specific layout overrides only. */
+
+.gc-alert-dialog-content {
+  max-width: 440px;
+}
+
+.gc-alert-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color--foreground, rgba(0, 0, 0, 0.08));
+  flex-shrink: 0;
+}

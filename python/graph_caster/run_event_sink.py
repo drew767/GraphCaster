@@ -105,25 +105,32 @@ class TeeRunEventSink:
 
 
 class NdjsonAppendFileSink:
-    __slots__ = ("_path", "_encoding", "_file")
+    """Append events as NDJSON. ``emit`` and ``close`` are serialized with an
+    internal :class:`threading.Lock` so concurrent writers cannot interleave
+    partial lines or step on each other while reopening the file."""
+
+    __slots__ = ("_path", "_encoding", "_file", "_lock")
 
     def __init__(self, path: Path, encoding: str = "utf-8") -> None:
         self._path = Path(path)
         self._encoding = encoding
         self._file: IO[str] | None = None
+        self._lock = threading.Lock()
 
     def emit(self, event: RunEventDict) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(event, ensure_ascii=False) + "\n"
-        if self._file is None:
-            self._file = self._path.open("a", encoding=self._encoding, newline="\n")
-        self._file.write(line)
-        self._file.flush()
+        with self._lock:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            if self._file is None:
+                self._file = self._path.open("a", encoding=self._encoding, newline="\n")
+            self._file.write(line)
+            self._file.flush()
 
     def close(self) -> None:
-        if self._file is not None:
-            self._file.close()
-            self._file = None
+        with self._lock:
+            if self._file is not None:
+                self._file.close()
+                self._file = None
 
 
 def normalize_run_event_sink(sink: RunEventSink | Callable[[RunEventDict], None] | None) -> RunEventSink:

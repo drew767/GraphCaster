@@ -1,0 +1,5 @@
+[
+  {"title": "Introduction", "body": "This is the introduction section."},
+  {"title": "Architecture", "body": "The system uses a graph-based approach."},
+  {"title": "Conclusion", "body": "GraphCaster simplifies workflow orchestration."}
+]

@@ -62,6 +62,84 @@ NESTED_CONTEXT_INPUT_KEYS: frozenset[str] = frozenset(
 
 GRAPH_REF_SUBPROCESS_ENV = "GC_GRAPH_REF_SUBPROCESS"
 
+NESTED_IPC_MAX_BYTES_ENV = "GC_NESTED_IPC_MAX_BYTES"
+NESTED_IPC_MAX_LINE_BYTES_ENV = "GC_NESTED_IPC_MAX_LINE_BYTES"
+NESTED_IPC_TIMEOUT_SEC_ENV = "GC_NESTED_IPC_TIMEOUT_SEC"
+NESTED_IPC_TERM_GRACE_SEC = 5.0
+
+_DEFAULT_IPC_MAX_BYTES = 16 * 1024 * 1024
+_DEFAULT_IPC_MAX_LINE_BYTES = 1 * 1024 * 1024
+_DEFAULT_IPC_TIMEOUT_SEC = 600.0
+
+
+class NestedIPCSizeExceeded(RuntimeError):
+    """Raised when a nested IPC payload (request, response, or line) exceeds the configured cap."""
+
+
+NestedIpcPayloadTooLarge = NestedIPCSizeExceeded
+
+
+def _ipc_max_bytes() -> int:
+    raw = os.environ.get(NESTED_IPC_MAX_BYTES_ENV)
+    if raw is None or raw == "":
+        return _DEFAULT_IPC_MAX_BYTES
+    try:
+        n = int(raw)
+        return n if n > 0 else _DEFAULT_IPC_MAX_BYTES
+    except ValueError:
+        return _DEFAULT_IPC_MAX_BYTES
+
+
+def _ipc_max_line_bytes() -> int:
+    raw = os.environ.get(NESTED_IPC_MAX_LINE_BYTES_ENV)
+    if raw is None or raw == "":
+        return _DEFAULT_IPC_MAX_LINE_BYTES
+    try:
+        n = int(raw)
+        return n if n > 0 else _DEFAULT_IPC_MAX_LINE_BYTES
+    except ValueError:
+        return _DEFAULT_IPC_MAX_LINE_BYTES
+
+
+def _ipc_timeout_sec() -> float:
+    raw = os.environ.get(NESTED_IPC_TIMEOUT_SEC_ENV)
+    if raw is None or raw == "":
+        return _DEFAULT_IPC_TIMEOUT_SEC
+    try:
+        v = float(raw)
+        return v if v > 0 else _DEFAULT_IPC_TIMEOUT_SEC
+    except ValueError:
+        return _DEFAULT_IPC_TIMEOUT_SEC
+
+
+def _iter_lines_with_cap(stream: Any, max_line_bytes: int):
+    """Yield lines from a text stream while enforcing a per-line byte cap.
+
+    Bytes are counted in UTF-8 (so multi-byte characters are accounted for). On overflow,
+    raises NestedIPCSizeExceeded mentioning NESTED_IPC_MAX_LINE_BYTES_ENV.
+    """
+    buf: list[str] = []
+    byte_count = 0
+    while True:
+        ch = stream.read(1)
+        if ch == "" or ch is None:
+            break
+        if ch == "\n":
+            buf.append(ch)
+            yield "".join(buf)
+            buf = []
+            byte_count = 0
+            continue
+        buf.append(ch)
+        byte_count += len(ch.encode("utf-8"))
+        if byte_count > max_line_bytes:
+            raise NestedIPCSizeExceeded(
+                f"Nested IPC line exceeded cap (>{max_line_bytes} bytes); "
+                f"set {NESTED_IPC_MAX_LINE_BYTES_ENV} to raise the limit."
+            )
+    if buf:
+        yield "".join(buf)
+
 
 def graph_ref_subprocess_enabled() -> bool:
     v = os.environ.get(GRAPH_REF_SUBPROCESS_ENV, "").strip().lower()
@@ -94,10 +172,14 @@ def _payload_for_nested_context_write(ctx: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_nested_context_json(ctx: dict[str, Any], path: Path) -> None:
-    path.write_text(
-        json.dumps(_payload_for_nested_context_write(ctx), ensure_ascii=False),
-        encoding="utf-8",
-    )
+    serialized = json.dumps(_payload_for_nested_context_write(ctx), ensure_ascii=False)
+    cap = _ipc_max_bytes()
+    if len(serialized.encode("utf-8")) > cap:
+        raise NestedIPCSizeExceeded(
+            f"Nested IPC context payload exceeded cap ({cap} bytes); "
+            f"set {NESTED_IPC_MAX_BYTES_ENV} to raise the limit."
+        )
+    path.write_text(serialized, encoding="utf-8")
 
 
 def write_nested_run_result_json(ctx: dict[str, Any], path: Path) -> None:
@@ -111,7 +193,14 @@ def write_nested_run_result_json(ctx: dict[str, Any], path: Path) -> None:
     if isinstance(outs, dict):
         truncated = _truncate_strings(outs, MAX_CHAINED_PROCESS_OUTPUT_TEXT_LEN)
         payload["node_outputs"] = json.loads(json.dumps(truncated, default=str))
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    serialized = json.dumps(payload, ensure_ascii=False)
+    cap = _ipc_max_bytes()
+    if len(serialized.encode("utf-8")) > cap:
+        raise NestedIPCSizeExceeded(
+            f"Nested IPC result payload exceeded cap ({cap} bytes); "
+            f"set {NESTED_IPC_MAX_BYTES_ENV} to raise the limit."
+        )
+    path.write_text(serialized, encoding="utf-8")
 
 
 def merge_nested_run_result_into_parent(ctx: dict[str, Any], path: Path) -> None:
@@ -122,6 +211,16 @@ def merge_nested_run_result_into_parent(ctx: dict[str, Any], path: Path) -> None
     """
     if not path.is_file():
         return
+    cap = _ipc_max_bytes()
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return
+    if size > cap:
+        raise NestedIPCSizeExceeded(
+            f"Nested IPC result file {path} is {size} bytes, exceeds cap {cap}; "
+            f"set {NESTED_IPC_MAX_BYTES_ENV} to raise the limit."
+        )
     try:
         text = path.read_text(encoding="utf-8").strip()
         if not text:

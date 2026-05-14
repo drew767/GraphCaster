@@ -9,8 +9,24 @@ export interface NodeRenderProps {
   data: Record<string, unknown>;
   selected: boolean;
   dragging?: boolean;
+  width?: number | null;
+  height?: number | null;
+  positionAbsoluteX?: number;
+  positionAbsoluteY?: number;
 }
 
+/**
+ * Custom equality for memoized canvas nodes.
+ *
+ * Trade-off: we deep-walk only the **top level** of `data` via `shallowEqual` rather than running
+ * a full structural comparison. Deeper equality would prevent more re-renders, but the per-frame
+ * cost across hundreds of nodes is prohibitive (xyflow re-emits node props on every pan/zoom).
+ * Shallow equality is fast, but it relies on callers (parent components) to pass **stable function
+ * references** in `data` — pass a fresh closure and the memo correctly invalidates so handlers do
+ * not capture stale state. Internal xyflow props (`dragging`, `width`, `height`,
+ * `positionAbsoluteX`, `positionAbsoluteY`) must be included or a dragged node would visually
+ * "stick" because React would skip re-rendering even though geometry changed.
+ */
 export function areNodePropsEqual(prevProps: NodeRenderProps, nextProps: NodeRenderProps): boolean {
   if (prevProps.id !== nextProps.id) {
     return false;
@@ -19,6 +35,18 @@ export function areNodePropsEqual(prevProps: NodeRenderProps, nextProps: NodeRen
     return false;
   }
   if (prevProps.dragging !== nextProps.dragging) {
+    return false;
+  }
+  if (prevProps.width !== nextProps.width) {
+    return false;
+  }
+  if (prevProps.height !== nextProps.height) {
+    return false;
+  }
+  if (prevProps.positionAbsoluteX !== nextProps.positionAbsoluteX) {
+    return false;
+  }
+  if (prevProps.positionAbsoluteY !== nextProps.positionAbsoluteY) {
     return false;
   }
   if (!shallowEqual(prevProps.data, nextProps.data)) {

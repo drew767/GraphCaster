@@ -375,11 +375,26 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 except GraphStructureError:
                     canon = ""
                 if canon and args.start != canon and args.context_json is None:
-                    print(
-                        "graph-caster: warning: mid-graph --start without --context-json "
-                        "may break edge conditions; prefer --context-json with node_outputs.",
-                        file=sys.stderr,
-                    )
+                    if os.environ.get("GC_ALLOW_MID_START_WITHOUT_CONTEXT", "").strip().lower() in (
+                        "1",
+                        "true",
+                        "yes",
+                        "on",
+                    ):
+                        print(
+                            "graph-caster: warning: mid-graph --start without --context-json "
+                            "may break edge conditions; prefer --context-json with node_outputs.",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            "graph-caster: refusing mid-graph --start without --context-json; "
+                            "edge conditions and upstream pins would be unresolved. "
+                            "Pass --context-json with node_outputs, or set "
+                            "GC_ALLOW_MID_START_WITHOUT_CONTEXT=1 to opt in.",
+                            file=sys.stderr,
+                        )
+                        return 2
                 runner.run_from(args.start, context=ctx)
             elif until is not None:
                 runner.run(context=ctx)
@@ -389,7 +404,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             if args.nested_context_out is not None:
                 try:
                     write_nested_run_result_json(ctx, Path(args.nested_context_out))
-                except OSError:
+                except (OSError, RuntimeError):
                     pass
     except GraphStructureError as e:
         print(str(e), file=sys.stderr)
