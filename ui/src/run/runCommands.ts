@@ -51,6 +51,8 @@ export async function gcStartRun(args: {
   graphsDir?: string;
   artifactsBase?: string;
   untilNodeId?: string;
+  startNodeId?: string;
+  contextJson?: Record<string, unknown>;
   contextJsonPath?: string;
   stepCache?: boolean;
   stepCacheDirty?: string;
@@ -69,6 +71,9 @@ export async function gcStartRun(args: {
       artifactsBase:
         args.artifactsBase == null || args.artifactsBase === "" ? null : args.artifactsBase,
       untilNodeId: args.untilNodeId == null || args.untilNodeId === "" ? null : args.untilNodeId,
+      startNodeId:
+        args.startNodeId == null || args.startNodeId === "" ? null : args.startNodeId,
+      contextJson: args.contextJson ?? null,
       contextJsonPath:
         args.contextJsonPath == null || args.contextJsonPath === "" ? null : args.contextJsonPath,
       stepCache: args.stepCache === true ? true : null,

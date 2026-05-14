@@ -47,6 +47,8 @@ export type GcStartRunJob = {
   graphsDir?: string;
   artifactsBase?: string;
   untilNodeId?: string;
+  startNodeId?: string;
+  contextJson?: Record<string, unknown>;
   contextJsonPath?: string;
   stepCache?: boolean;
   stepCacheDirty?: string;
