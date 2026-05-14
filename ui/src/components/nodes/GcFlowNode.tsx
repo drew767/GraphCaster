@@ -1,12 +1,13 @@
 // Copyright GraphCaster. All Rights Reserved.
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GcNodeData } from "../../graph/toReactFlow";
 import { useGcEffectiveNodeTier } from "../../graph/useGcEffectiveNodeTier";
 import { useGcConnectionDrag } from "../GcConnectionDragContext";
+import "../canvas/CanvasHandlePlus.css";
 import { GcFlowTargetHandle } from "./GcFlowTargetHandle";
 
 function GcFlowNodeInner(props: NodeProps) {
@@ -88,6 +89,20 @@ function GcFlowNodeInner(props: NodeProps) {
   const compactAria =
     compactAriaParts.length > 0 ? `${compactAriaParts.join(". ")}.` : null;
   const connectionDrag = useGcConnectionDrag();
+
+  /* ── "fresh" pulse on new node mount (UXP3): clears after 2.8s or first pointerdown ── */
+  const [isFresh, setIsFresh] = useState(true);
+  useEffect(() => {
+    if (!isFresh) return;
+    const timer = window.setTimeout(() => setIsFresh(false), 2800);
+    const onPointerDown = () => setIsFresh(false);
+    window.addEventListener("pointerdown", onPointerDown, { once: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [isFresh]);
+
   let ariaLabel: string | undefined;
   if (overlayAria != null && compactAria != null) {
     ariaLabel = `${overlayAria} ${compactAria}`;
@@ -132,6 +147,7 @@ function GcFlowNodeInner(props: NodeProps) {
             type="source"
             position={Position.Right}
             id="out_default"
+            className={isFresh ? "gc-handle-plus--pulsing" : undefined}
             style={showErrorOut ? { top: compactHandles ? "42%" : "38%" } : undefined}
           />
           {showErrorOut ? (
@@ -140,7 +156,10 @@ function GcFlowNodeInner(props: NodeProps) {
               position={Position.Right}
               id="out_error"
               style={{ top: compactHandles ? "58%" : "62%" }}
-              className="gc-flow-node__handle--error"
+              className={
+                "gc-flow-node__handle--error" +
+                (isFresh ? " gc-handle-plus--pulsing" : "")
+              }
               title={t("app.canvas.errorOutHandle")}
             />
           ) : null}

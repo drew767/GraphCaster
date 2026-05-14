@@ -148,3 +148,29 @@ export function minimapNodeFill(node: Node<GcNodeData>): string {
 export function minimapNodeStroke(node: Node<GcNodeData>): string {
   return mixHex(minimapNodeFill(node), "#000000", 0.38);
 }
+
+/** Run-status values consumed by the minimap status color helper. */
+export type MinimapRunStatus = "running" | "success" | "error" | "skipped";
+
+/**
+ * Status-aware minimap node color.
+ *
+ * Returns a CSS token reference when a status is provided for the node,
+ * otherwise falls back to the default per-category fill from `minimapNodeFill`.
+ */
+export function minimapNodeColor(
+  node: Node<GcNodeData>,
+  runStatusByNode: Readonly<Record<string, MinimapRunStatus | undefined>>,
+): string {
+  const status = runStatusByNode[node.id];
+  if (status === "running") {
+    return "var(--color--warning)";
+  }
+  if (status === "success") {
+    return "var(--color--success)";
+  }
+  if (status === "error") {
+    return "var(--color--danger)";
+  }
+  return minimapNodeFill(node);
+}

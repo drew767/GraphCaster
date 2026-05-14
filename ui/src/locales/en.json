@@ -634,10 +634,9 @@
       "ungroup": "Ungroup selection",
       "openShortcuts": "Open this help",
       "openAddNodeMenu": "Open add-node menu at canvas center",
-      "bypass": "Bypass selected nodes (pass-through)",
-      "mute": "Mute selected nodes (skip downstream)",
-      "collapse": "Collapse / expand selected nodes",
-      "pin": "Pin / unpin selected nodes (lock position)",
+      "showKeyboardShortcuts": "Show keyboard shortcuts",
+      "executeWorkflow": "Execute workflow",
+      "newWorkflow": "New workflow",
       "keys": {
         "undo": "Ctrl+Z",
         "redo": "Ctrl+Shift+Z or Ctrl+Y",
@@ -647,12 +646,11 @@
         "paste": "Ctrl+V",
         "group": "Ctrl+G",
         "ungroup": "Ctrl+Shift+G",
-        "openShortcuts": "F1 or ?",
+        "openShortcuts": "F1",
         "openAddNodeMenu": "Alt+A",
-        "bypass": "Ctrl+B",
-        "mute": "Ctrl+M",
-        "collapse": "Alt+C",
-        "pin": "P"
+        "showKeyboardShortcuts": "?",
+        "executeWorkflow": "Ctrl+Enter",
+        "newWorkflow": "Alt+N"
       }
     },
     "onboarding": {
@@ -668,9 +666,845 @@
       "runStarted": "Run started.",
       "runQueued": "Run queued — will start when a slot is free."
     },
-    "import": {
-      "success": "Imported workflow from {{name}}",
-      "failed": "Could not import {{name}}: {{reason}}"
+    "sidebar": {
+      "ariaLabel": "Main navigation",
+      "workflows": "Workflows",
+      "executions": "Executions",
+      "credentials": "Credentials",
+      "templates": "Templates",
+      "projects": "Projects",
+      "plugins": "Plugins",
+      "settings": "Settings",
+      "settingsToggleAriaLabel": "Toggle settings menu",
+      "workspace": {
+        "switchAriaLabel": "Switch workspace"
+      },
+      "starred": {
+        "title": "Starred",
+        "empty": "No starred workflows",
+        "showAll": "Show all ({{count}})"
+      },
+      "user": {
+        "ariaLabel": "Open user menu",
+        "account": "Account",
+        "signOut": "Sign out",
+        "theme": {
+          "label": "Theme",
+          "light": "Light",
+          "system": "System",
+          "dark": "Dark"
+        }
+      }
+    },
+    "settings": {
+      "nav": {
+        "personal": "Personal",
+        "apiKeys": "API Keys",
+        "users": "Users",
+        "variables": "Variables",
+        "externalSecrets": "External Secrets",
+        "communityNodes": "Community Nodes",
+        "sourceControl": "Source Control",
+        "sso": "SSO",
+        "audit": "Audit",
+        "logStreaming": "Log Streaming",
+        "workers": "Workers",
+        "about": "About"
+      },
+      "sourceControl": {
+        "title": "Source Control",
+        "statusConnected": "Connected",
+        "statusDisconnected": "Disconnected",
+        "connectHeading": "Connect a repository",
+        "disconnectedHint": "Connect a Git repository to version your workflows.",
+        "repoHeading": "Repository",
+        "repoUrl": "Repository URL",
+        "branch": "Branch",
+        "lastSync": "Last sync",
+        "never": "Never",
+        "syncClean": "Up to date",
+        "syncAhead": "{{count}} ahead",
+        "syncBehind": "{{count}} behind",
+        "syncAheadBehind": "{{ahead}} ahead, {{behind}} behind",
+        "connect": "+ Connect repository",
+        "pull": "Pull",
+        "push": "Push",
+        "refresh": "Refresh",
+        "disconnect": "Disconnect",
+        "disconnectTitle": "Disconnect repository?",
+        "disconnectConfirm": "This will remove the repository connection. Local workflows will not be affected.",
+        "advanced": "Advanced",
+        "protectedBranches": "Protected branches",
+        "protectedBranchPh": "branch name",
+        "remove": "Remove",
+        "add": "Add",
+        "autoSync": "Auto-sync",
+        "autoSyncEveryMin": "Sync every (minutes)",
+        "save": "Save",
+        "cancel": "Cancel",
+        "connecting": "Connecting…",
+        "commitMessage": "Commit message",
+        "commitMessagePh": "Describe your changes",
+        "pullSuccess": "Pulled {{count}} commits",
+        "pullFailed": "Pull failed",
+        "backendMissing": "Backend not available — using local-only configuration.",
+        "connectModal": {
+          "title": "Connect repository",
+          "provider": "Provider",
+          "providers": {
+            "github": "GitHub",
+            "gitlab": "GitLab",
+            "bitbucket": "Bitbucket",
+            "custom": "Custom"
+          },
+          "authMode": "Authentication",
+          "sshKey": "SSH key",
+          "token": "Personal access token",
+          "tokenPh": "ghp_xxx…",
+          "testConnection": "Test connection",
+          "testOk": "Connection ok",
+          "testFail": "Test failed: {{message}}"
+        },
+        "pushModal": {
+          "title": "Push changes",
+          "noChanges": "No pending changes.",
+          "pushing": "Pushing…",
+          "confirm": "Push"
+        }
+      },
+      "sso": {
+        "title": "Single Sign-On",
+        "save": "Save",
+        "saving": "Saving…",
+        "samlTitle": "SAML",
+        "oidcTitle": "OIDC",
+        "provisioningTitle": "User provisioning",
+        "statusEnabled": "Enabled",
+        "statusDisabled": "Disabled",
+        "enableSaml": "Enable SAML",
+        "enableOidc": "Enable OIDC",
+        "providerName": "Provider name",
+        "loginUrl": "Login URL",
+        "logoutUrl": "Logout URL",
+        "metadataXml": "IdP metadata XML",
+        "uploadMetadata": "Upload metadata",
+        "certificate": "Certificate",
+        "attributeMappings": "Attribute mappings",
+        "attrEmail": "Email",
+        "attrFirstName": "First name",
+        "attrLastName": "Last name",
+        "attrGroups": "Groups",
+        "testSso": "Test SSO",
+        "testOpenedTab": "Opened test login",
+        "testFailed": "Test failed: {{message}}",
+        "issuerUrl": "Issuer URL",
+        "clientId": "Client ID",
+        "clientSecret": "Client secret",
+        "scopes": "Scopes",
+        "autoProvision": "Auto-provision users",
+        "defaultRole": "Default role",
+        "groupRoleMapping": "Group → role mapping",
+        "groupName": "Group",
+        "role": "Role",
+        "addMapping": "Add mapping",
+        "remove": "Remove",
+        "spInfoTitle": "Service Provider info",
+        "spEntityId": "Entity ID",
+        "spAcsUrl": "ACS URL",
+        "spLogoutUrl": "SLO URL",
+        "copy": "Copy",
+        "backendMissing": "Backend not available — using local-only configuration.",
+        "roles": {
+          "viewer": "Viewer",
+          "editor": "Editor",
+          "admin": "Admin",
+          "owner": "Owner"
+        }
+      },
+      "personal": {
+        "title": "Personal",
+        "profile": {
+          "heading": "Profile",
+          "firstName": "First name",
+          "firstNamePh": "Jane",
+          "lastName": "Last name",
+          "lastNamePh": "Doe",
+          "email": "Email",
+          "avatarUrl": "Avatar URL",
+          "avatarHint": "Provide a public image URL to use as your avatar.",
+          "save": "Save changes",
+          "saveSuccess": "Profile updated",
+          "saveError": "Could not update profile",
+          "errorInvalidUrl": "Enter a valid http(s) URL",
+          "errorInvalidEmail": "Enter a valid email address"
+        },
+        "password": {
+          "heading": "Password",
+          "old": "Current password",
+          "new": "New password",
+          "confirm": "Confirm new password",
+          "update": "Update password",
+          "saveSuccess": "Password updated",
+          "saveError": "Could not change password",
+          "errorMismatch": "Passwords do not match",
+          "errorTooShort": "Password must be at least 8 characters"
+        },
+        "mfa": {
+          "heading": "Two-factor authentication",
+          "enable": "Enable two-factor authentication",
+          "enableButton": "Enable",
+          "disable": "Disable",
+          "statusEnabled": "Enabled",
+          "statusDisabled": "Disabled",
+          "enabledSuccess": "Two-factor authentication enabled",
+          "disabledSuccess": "Two-factor authentication disabled",
+          "modalTitle": "Enable two-factor authentication",
+          "modalDescription": "Scan the QR code with your authenticator app, then enter the 6-digit code.",
+          "modalCancel": "Cancel",
+          "modalConfirm": "Enable",
+          "qrAlt": "MFA QR code (placeholder)",
+          "qrPlaceholder": "QR code placeholder",
+          "recoveryCodes": "Save your recovery codes in a safe place.",
+          "disableConfirmTitle": "Disable two-factor authentication?",
+          "disableConfirmDescription": "Your account will lose an extra layer of protection.",
+          "disableConfirmYes": "Disable",
+          "disableConfirmCancel": "Cancel"
+        },
+        "theme": {
+          "heading": "Appearance",
+          "label": "Theme",
+          "light": "Light",
+          "dark": "Dark",
+          "auto": "System"
+        },
+        "density": {
+          "label": "Density",
+          "compact": "Compact",
+          "default": "Default",
+          "comfortable": "Comfortable"
+        },
+        "language": {
+          "label": "Language"
+        }
+      },
+      "users": {
+        "title": "Users",
+        "inviteButton": "Invite users",
+        "pending": "Pending",
+        "endpointNotFound": "Users endpoint is not available",
+        "loadError": "Could not load users",
+        "roleUpdated": "Role updated",
+        "roleUpdateError": "Could not update role",
+        "resetPasswordSent": "Password reset email sent to {{email}}",
+        "resetPasswordError": "Could not send password reset",
+        "inviteLinkCopied": "Invitation link copied to clipboard",
+        "inviteLinkError": "Could not generate invitation link",
+        "deleteSuccess": "{{name}} removed",
+        "deleteError": "Could not remove user",
+        "emptyTitle": "No users yet",
+        "emptyCta": "Invite users",
+        "searchPlaceholder": "Search users…",
+        "searchAria": "Search users",
+        "filterRoleAll": "All roles",
+        "filterRoleAria": "Filter by role",
+        "editRoleAria": "Edit role, current role {{role}}",
+        "actionsAria": "Actions for {{name}}",
+        "roleDocsLink": "Learn about roles",
+        "columns": {
+          "name": "Name",
+          "email": "Email",
+          "role": "Role",
+          "lastActive": "Last active",
+          "projects": "Projects"
+        },
+        "actions": {
+          "generateInviteLink": "Generate invitation link",
+          "resetPassword": "Send password reset",
+          "delete": "Delete user"
+        },
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "editor": "Editor",
+          "member": "Member",
+          "viewer": "Viewer",
+          "dataset_operator": "Dataset operator"
+        },
+        "deleteModal": {
+          "title": "Remove user?",
+          "description": "{{name}} will lose access to this workspace.",
+          "confirm": "Remove",
+          "cancel": "Cancel"
+        },
+        "invite": {
+          "title": "Invite users",
+          "emailsLabel": "Emails",
+          "emailsPlaceholder": "alice@example.com, bob@example.com",
+          "emailsHint": "Separate multiple emails with commas, spaces, or new lines.",
+          "emailRequired": "Enter at least one valid email address",
+          "roleLabel": "Role",
+          "messageLabel": "Personal message (optional)",
+          "messagePlaceholder": "Welcome to the team!",
+          "send": "Send invitations",
+          "sendError": "Could not send invitations",
+          "cancel": "Cancel",
+          "done": "Done",
+          "linksReady": "Invitation links ready",
+          "linksDescription": "Share each link with the corresponding user.",
+          "copy": "Copy",
+          "copied": "Copied",
+          "copyLinkAria": "Copy invitation link for {{email}}"
+        },
+        "pendingInvitations": {
+          "heading": "Pending invitations",
+          "resend": "Resend",
+          "revoke": "Revoke",
+          "resentToast": "Invitation resent to {{email}}",
+          "resendError": "Could not resend invitation",
+          "revokedToast": "Invitation to {{email}} revoked",
+          "revokeError": "Could not revoke invitation",
+          "revokeConfirmTitle": "Revoke invitation?",
+          "revokeConfirmDescription": "The invitation to {{email}} will no longer be valid.",
+          "revokeConfirmYes": "Revoke",
+          "revokeConfirmCancel": "Cancel",
+          "justNow": "Invited just now",
+          "ago": {
+            "minutes": "Invited {{count}}m ago",
+            "hours": "Invited {{count}}h ago",
+            "days": "Invited {{count}}d ago"
+          }
+        }
+      },
+      "apiKeys": {
+        "modal": {
+          "title": "Create API key",
+          "labelField": "Label",
+          "labelPlaceholder": "e.g. CI deploy key",
+          "scopesField": "Scopes",
+          "scopesSelectedSuffix": "scopes selected",
+          "scopeGroups": {
+            "workflow": "Workflow",
+            "credential": "Credential",
+            "user": "User",
+            "admin": "Admin",
+            "project": "Project",
+            "source_control": "Source control"
+          },
+          "create": "Create",
+          "cancel": "Cancel",
+          "close": "Close",
+          "copy": "Copy",
+          "copied": "Copied",
+          "oneTimeNotice": "Copy this key now — you won't be able to see it again.",
+          "errorLabelRequired": "Label is required"
+        }
+      }
+    },
+    "ndv": {
+      "parameters": {
+        "learnMore": "Learn more",
+        "types": {
+          "collection": {
+            "addRow": "Add row",
+            "removeRow": "Remove",
+            "addField": "Add field",
+            "selectField": "Select field…",
+            "row": "Row"
+          },
+          "fixedCollection": {
+            "addInstance": "Add {{name}}",
+            "removeInstance": "Remove"
+          },
+          "multiOptions": {
+            "add": "Add option",
+            "selectOption": "Select option…"
+          },
+          "dateTime": {
+            "now": "Now",
+            "placeholder": "Pick date & time"
+          },
+          "filter": {
+            "addCondition": "Add condition",
+            "addGroup": "Add group",
+            "removeCondition": "Remove",
+            "removeGroup": "Remove group",
+            "leftPlaceholder": "Left operand",
+            "rightPlaceholder": "Right operand",
+            "combinator": {
+              "and": "AND",
+              "or": "OR"
+            },
+            "operator": {
+              "eq": "=",
+              "neq": "≠",
+              "lt": "<",
+              "lte": "≤",
+              "gt": ">",
+              "gte": "≥",
+              "contains": "contains",
+              "startsWith": "starts with",
+              "endsWith": "ends with",
+              "isEmpty": "is empty",
+              "isNotEmpty": "is not empty",
+              "regex": "regex"
+            }
+          },
+          "assignmentCollection": {
+            "addAssignment": "Add assignment",
+            "removeAssignment": "Remove",
+            "keyPlaceholder": "Key",
+            "valuePlaceholder": "Value",
+            "expressionToggle": "Expression",
+            "operation": {
+              "set": "Set",
+              "rename": "Rename",
+              "keep": "Keep",
+              "drop": "Drop"
+            }
+          }
+        }
+      },
+      "jsonView": {
+        "searchPlaceholder": "Search…",
+        "searchAriaLabel": "Search JSON",
+        "filterMatches": "Filter matches",
+        "closeSearch": "Close search",
+        "noMatches": "No matches"
+      }
+    }
+  },
+  "aiAssistant": {
+    "title": "AI Assistant",
+    "toggle": "Open AI assistant",
+    "close": "Close AI assistant",
+    "send": "Send",
+    "sendDisabledTooltip": "AI assistant requires Pro / paid plan",
+    "inputPlaceholder": "Type your message…",
+    "emptyState": "Ask anything about your workflows — coming soon",
+    "contextWorkflow": "Context: workflow «{{name}}»",
+    "contextNode": "Context: node «{{type}}»"
+  },
+  "settings": {
+    "environments": {
+      "title": "Environments",
+      "navLabel": "Environments",
+      "newEnvironment": "+ New environment",
+      "switchTo": "Switch to environment",
+      "delete": "Delete",
+      "active": "Active",
+      "cantDeleteProduction": "Cannot delete the production environment",
+      "variables": "{{count}} variables",
+      "credentials": "{{count}} credentials",
+      "banner": "Environments help separate credentials and variables between dev/staging/prod. Active environment is shown in the header.",
+      "namePlaceholder": "Environment name",
+      "modal": {
+        "title": "Create new environment",
+        "namePlaceholder": "Environment name",
+        "cloneFrom": "Clone settings from",
+        "cloneNone": "Empty",
+        "create": "Create",
+        "cancel": "Cancel"
+      },
+      "confirmDelete": "Delete environment \"{{name}}\"?"
+    }
+  },
+  "onboarding": {
+    "skip": "Skip tour",
+    "next": "Next",
+    "finish": "Got it",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to GraphCaster",
+        "body": "Take a quick tour to learn the essentials."
+      },
+      "sidebarWorkflows": {
+        "title": "Workflows",
+        "body": "Browse and create workflows here."
+      },
+      "sidebarExecutions": {
+        "title": "Executions",
+        "body": "See past executions and their results."
+      },
+      "canvasArea": {
+        "title": "Canvas",
+        "body": "Drop nodes here to build automations."
+      },
+      "runButton": {
+        "title": "Run",
+        "body": "Run your workflow to test it."
+      },
+      "userMenu": {
+        "title": "Account",
+        "body": "Find settings, account, and sign out here."
+      }
+    }
+  },
+  "a11y": {
+    "skipToMain": "Skip to main content",
+    "userMenu": "User menu",
+    "dismissNotification": "Dismiss notification",
+    "closeDialog": "Close dialog"
+  },
+  "credentials": {
+    "usages": {
+      "pillLabel": "Used in {{count}} workflow",
+      "pillLabel_plural": "Used in {{count}} workflows",
+      "pillLabelZero": "Not used",
+      "drawerTitle": "Workflows using {{name}}",
+      "openLink": "Open workflow",
+      "nodesLabel": "Nodes: {{nodes}}",
+      "empty": "Not used by any workflow yet.",
+      "loading": "Loading usages…",
+      "error": "Could not load workflows.",
+      "close": "Close"
+    },
+    "share": {
+      "menuItem": "Share…",
+      "modalTitle": "Share \"{{name}}\"",
+      "currentListHeading": "Shared with",
+      "emptyShared": "Not shared with anyone yet.",
+      "invitePlaceholder": "Enter email or user ID",
+      "inviteRoleLabel": "Role",
+      "roleViewer": "Viewer",
+      "roleEditor": "Editor",
+      "addButton": "Add",
+      "removeAria": "Remove {{name}}",
+      "addError": "Please enter an email or user ID.",
+      "addSuccess": "User added.",
+      "removeSuccess": "User removed.",
+      "doneButton": "Done"
+    },
+    "filter": {
+      "searchPlaceholder": "Search credentials…",
+      "searchAria": "Search credentials",
+      "typeLabel": "Type",
+      "typeAll": "All types"
+    }
+  },
+  "canvas": {
+    "edge": {
+      "insertNode": "Insert node here",
+      "deleteEdge": "Delete connection"
+    },
+    "sticky": {
+      "toolbarLabel": "Sticky note color",
+      "placeholder": "Write a note…",
+      "colors": {
+        "yellow": "Yellow",
+        "blue": "Blue",
+        "pink": "Pink",
+        "green": "Green",
+        "purple": "Purple",
+        "gray": "Gray"
+      }
+    }
+  },
+  "notifications": {
+    "heading": "Notifications",
+    "markAllRead": "Mark all as read",
+    "justNow": "just now",
+    "empty": {
+      "title": "No notifications yet"
+    }
+  },
+  "shortcuts": {
+    "modal": {
+      "title": "Keyboard shortcuts",
+      "searchPlaceholder": "Search shortcuts…",
+      "noResults": "No shortcuts match your search.",
+      "or": "or",
+      "category": {
+        "edit": "Editor",
+        "view": "Canvas",
+        "navigation": "Navigation",
+        "selection": "Selection",
+        "run": "Workflow"
+      }
+    },
+    "auth": {
+      "signin": {
+        "errorNetwork": "Network error. Please try again."
+      },
+      "setup": {
+        "subheading": "Set up your GraphCaster instance.",
+        "stepLabel1": "Admin account",
+        "stepLabel2": "Workspace",
+        "stepLabel3": "Preferences",
+        "step1Title": "Create the admin account",
+        "step1Subtitle": "This account has full access to the instance.",
+        "step2Title": "Name your workspace",
+        "step2Subtitle": "You can change this later in workspace settings.",
+        "step3Title": "Preferences",
+        "step3Subtitle": "Pick defaults — you can change them later.",
+        "firstName": "First name",
+        "firstNamePlaceholder": "Jane",
+        "lastName": "Last name",
+        "lastNamePlaceholder": "Doe",
+        "email": "Email",
+        "emailPlaceholder": "you@example.com",
+        "password": "Password",
+        "passwordPlaceholder": "At least 8 characters",
+        "confirmPassword": "Confirm password",
+        "confirmPasswordPlaceholder": "Repeat password",
+        "errorPasswordMismatch": "Passwords do not match.",
+        "workspaceName": "Workspace name",
+        "workspaceNamePlaceholder": "My workspace",
+        "workspaceSlug": "Slug",
+        "workspaceSlugPlaceholder": "my-workspace",
+        "workspaceSlugHint": "Lowercase letters, numbers, and hyphens.",
+        "telemetryLabel": "Help improve GraphCaster",
+        "telemetryHint": "Send anonymous usage stats. No content or credentials are sent.",
+        "locale": "Language",
+        "theme": "Theme",
+        "themeSystem": "System",
+        "themeLight": "Light",
+        "themeDark": "Dark",
+        "back": "Back",
+        "next": "Next",
+        "finish": "Finish"
+      }
+    },
+    "projects": {
+      "title": "Projects",
+      "newButton": "+ New project",
+      "loading": "Loading projects…",
+      "loadError": "Could not load projects.",
+      "notFound": "Project not found.",
+      "memberCount_one": "{{count}} member",
+      "memberCount_other": "{{count}} members",
+      "workflowCount_one": "{{count}} workflow",
+      "workflowCount_other": "{{count}} workflows",
+      "lastActivity": "Last activity {{when}}",
+      "actionEdit": "Edit",
+      "actionDelete": "Delete",
+      "actionOpen": "Open",
+      "emptyTitle": "No projects yet",
+      "emptySubtitle": "Group workflows by team or initiative.",
+      "searchPlaceholder": "Search projects…",
+      "searchAriaLabel": "Search projects",
+      "noResults": "No projects match \"{{query}}\".",
+      "deleteTitle": "Delete project",
+      "deleteDescription": "Are you sure you want to delete \"{{name}}\"? This cannot be undone.",
+      "deleteConfirm": "Delete",
+      "deleteCancel": "Cancel",
+      "nameRequired": "Name is required.",
+      "inviteTitle": "Invite member",
+      "inviteEmail": "Email",
+      "inviteEmailPlaceholder": "person@example.com",
+      "inviteRole": "Role",
+      "inviteSubmit": "Send invite",
+      "inviteCancel": "Cancel",
+      "inviteError": "Could not send invite.",
+      "backToProjects": "Back to projects",
+      "tabs": {
+        "members": "Members",
+        "workflows": "Workflows",
+        "credentials": "Credentials",
+        "variables": "Variables",
+        "settings": "Settings"
+      },
+      "members": {
+        "invite": "+ Invite member",
+        "empty": "No members yet.",
+        "remove": "Remove",
+        "removeTitle": "Remove member",
+        "removeDescription": "Remove {{name}} from this project?",
+        "removeConfirm": "Remove",
+        "removeCancel": "Cancel",
+        "changeRole": "Change role",
+        "columns": {
+          "member": "Member",
+          "role": "Role",
+          "invitedAt": "Invited"
+        }
+      },
+      "workflows": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "empty": "No workflows in this project.",
+        "moveOut": "Move out",
+        "moveOutTitle": "Move workflow out of project",
+        "moveOutDescription": "Move \"{{name}}\" out of this project?",
+        "moveOutConfirm": "Move",
+        "moveOutCancel": "Cancel",
+        "columns": {
+          "name": "Name",
+          "active": "Status",
+          "updatedAt": "Updated"
+        }
+      },
+      "credentials": {
+        "empty": "No credentials in this project.",
+        "columns": {
+          "name": "Name",
+          "type": "Type"
+        }
+      },
+      "variables": {
+        "empty": "No variables in this project.",
+        "edit": "Edit",
+        "editTitle": "Edit variable",
+        "editKey": "Key",
+        "editValue": "Value",
+        "editValuePlaceholder": "Value",
+        "editSave": "Save",
+        "editCancel": "Cancel",
+        "columns": {
+          "key": "Key",
+          "value": "Value"
+        }
+      },
+      "settings": {
+        "name": "Project name",
+        "namePlaceholder": "Project name",
+        "description": "Description",
+        "descriptionPlaceholder": "Short description",
+        "save": "Save",
+        "archiveLabel": "Archive project",
+        "archiveHint": "Archived projects are read-only.",
+        "dangerZone": "Danger zone",
+        "deleteButton": "Delete project",
+        "deleteHint": "This action cannot be undone.",
+        "deleteContinue": "Continue",
+        "deleteTypeName": "Type \"{{name}}\" to confirm.",
+        "deleteTypeNameAria": "Type project name to confirm deletion",
+        "deleteFinalTitle": "Delete project — final confirmation"
+      }
+    }
+  },
+  "workflowHeader": {
+    "namePlaceholder": "Untitled workflow",
+    "active": {
+      "label": "Active",
+      "tooltipOn": "Workflow is active",
+      "tooltipOff": "Workflow is inactive"
+    },
+    "tags": {
+      "addTags": "+ Add tags",
+      "addTagsAria": "Add tags",
+      "countLabel": "{{count}} tag",
+      "countLabel_other": "{{count}} tags",
+      "noTags": "No tags yet",
+      "createPlaceholder": "Create new tag"
+    },
+    "execute": {
+      "label": "Execute workflow",
+      "pinnedLabel": "Execute with pinned data",
+      "groupAria": "Execute workflow",
+      "menuAria": "Execute options"
+    },
+    "share": "Share"
+  },
+  "workflowShare": {
+    "modalTitle": "Share workflow",
+    "modalTitleNamed": "Share \"{{name}}\"",
+    "currentListHeading": "People with access",
+    "emptyShared": "Nobody has access yet.",
+    "invitePlaceholder": "Enter email or username",
+    "inviteRoleLabel": "Role",
+    "roleViewer": "Viewer",
+    "roleEditor": "Editor",
+    "addButton": "Add",
+    "addError": "Enter an email or username.",
+    "addSuccess": "Share added.",
+    "removeSuccess": "Share removed.",
+    "removeAria": "Remove access for {{name}}",
+    "doneButton": "Done"
+  },
+  "commandBar": {
+    "addNodeLabel": "Add node: {{name}}",
+    "groups": {
+      "view": "View",
+      "system": "System",
+      "editor": "Editor",
+      "addNode": "Add node",
+      "settings": "Settings"
+    },
+    "recent": {
+      "workflows": "Recent workflows",
+      "executions": "Recent executions"
+    },
+    "routes": {
+      "home": "Home",
+      "workflows": "Workflows",
+      "workflowsArchive": "Workflows · Archive",
+      "executions": "Executions",
+      "templates": "Templates",
+      "credentials": "Credentials",
+      "projects": "Projects",
+      "newWorkflow": "New workflow",
+      "signin": "Sign in",
+      "signup": "Sign up",
+      "signout": "Sign out",
+      "forgotPassword": "Forgot password",
+      "changePassword": "Change password",
+      "setup": "Setup",
+      "entityNotFound": "Entity not found",
+      "unauthorized": "Unauthorized"
+    },
+    "settings": {
+      "personal": "Settings · Personal",
+      "apiKeys": "Settings · API keys",
+      "users": "Settings · Users",
+      "externalSecrets": "Settings · External secrets",
+      "communityNodes": "Settings · Community nodes",
+      "sourceControl": "Settings · Source control",
+      "sso": "Settings · SSO",
+      "audit": "Settings · Audit log",
+      "variables": "Settings · Variables",
+      "environments": "Settings · Environments",
+      "logStreaming": "Settings · Log streaming",
+      "workers": "Settings · Workers",
+      "about": "Settings · About"
+    },
+    "editor": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "copy": "Copy selection",
+      "paste": "Paste",
+      "duplicate": "Duplicate selection",
+      "delete": "Delete selection",
+      "selectAll": "Select all",
+      "group": "Group selection",
+      "ungroup": "Ungroup selection",
+      "comment": "Add comment",
+      "sticky": "Add sticky note",
+      "rename": "Rename node",
+      "findNode": "Find node",
+      "openAddNode": "Open add-node menu",
+      "pinData": "Pin node data",
+      "unpinData": "Unpin node data",
+      "disableNode": "Disable node",
+      "enableNode": "Enable node",
+      "executeNode": "Execute selected node"
+    },
+    "view": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fitView": "Fit view to graph",
+      "centerSelection": "Center selection",
+      "toggleMinimap": "Toggle minimap",
+      "toggleGrid": "Toggle grid",
+      "toggleSidebar": "Toggle sidebar",
+      "toggleRightPanel": "Toggle right panel",
+      "togglePalette": "Toggle node palette",
+      "toggleFullscreen": "Toggle fullscreen",
+      "focusNode": "Focus selected node"
+    },
+    "system": {
+      "themeLight": "Theme: Light",
+      "themeDark": "Theme: Dark",
+      "themeAuto": "Theme: System",
+      "langEn": "Language: English",
+      "langRu": "Language: Russian",
+      "reload": "Reload app",
+      "reportBug": "Report a bug",
+      "changelog": "Open changelog",
+      "docs": "Open documentation",
+      "community": "Open community",
+      "status": "Open status page",
+      "copyLink": "Copy page link",
+      "logout": "Log out"
     }
   }
 }

@@ -2273,6 +2273,57 @@ body {
   white-space: nowrap;
 }
 
+/* ------------------------------------------------------------------ */
+/* A11y polish — global focus-visible + skip link                     */
+/* ------------------------------------------------------------------ */
+
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color--primary, #6366f1);
+  outline-offset: 2px;
+  border-radius: var(--radius--small, 4px);
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--color--primary, #6366f1);
+  outline-offset: 2px;
+}
+
+.gc-skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 8px 16px;
+  background: var(--color--primary, #6366f1);
+  color: var(--color--primary--text, #ffffff);
+  text-decoration: none;
+  border-radius: 0 0 var(--radius--small, 4px) 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 10000;
+  transform: translateY(-110%);
+  transition: transform 120ms ease;
+}
+
+.gc-skip-link:focus,
+.gc-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--color--primary, #6366f1);
+  outline-offset: 2px;
+}
+
+.gc-list-row--focused {
+  outline: 2px solid var(--color--primary, #6366f1);
+  outline-offset: -2px;
+}
+
 .gc-expression-ac__kind {
   flex-shrink: 0;
   font-size: 0.65rem;

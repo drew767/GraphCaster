@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   minimapBaseFillForGraphNodeType,
+  minimapNodeColor,
   minimapNodeFill,
   minimapNodeStroke,
+  type MinimapRunStatus,
 } from "./minimapNodeColors";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
@@ -122,5 +124,36 @@ describe("minimapNodeColors", () => {
     const stroke = minimapNodeStroke(node);
     expect(stroke).not.toBe(fill);
     expect(stroke.startsWith("#")).toBe(true);
+  });
+
+  describe("minimapNodeColor (run status)", () => {
+    const taskNode = n({
+      id: "t1",
+      data: { graphNodeType: GRAPH_NODE_TYPE_TASK, label: "", raw: {} },
+    });
+
+    it("returns warning token for running", () => {
+      const map: Record<string, MinimapRunStatus> = { t1: "running" };
+      expect(minimapNodeColor(taskNode, map)).toBe("var(--color--warning)");
+    });
+
+    it("returns success token for success", () => {
+      const map: Record<string, MinimapRunStatus> = { t1: "success" };
+      expect(minimapNodeColor(taskNode, map)).toBe("var(--color--success)");
+    });
+
+    it("returns danger token for error", () => {
+      const map: Record<string, MinimapRunStatus> = { t1: "error" };
+      expect(minimapNodeColor(taskNode, map)).toBe("var(--color--danger)");
+    });
+
+    it("falls back to default fill when no status", () => {
+      expect(minimapNodeColor(taskNode, {})).toBe(minimapNodeFill(taskNode));
+    });
+
+    it("falls back to default fill for skipped (no token)", () => {
+      const map: Record<string, MinimapRunStatus> = { t1: "skipped" };
+      expect(minimapNodeColor(taskNode, map)).toBe(minimapNodeFill(taskNode));
+    });
   });
 });

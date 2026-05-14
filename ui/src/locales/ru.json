@@ -634,10 +634,6 @@
       "ungroup": "Разгруппировать",
       "openShortcuts": "Открыть эту справку",
       "openAddNodeMenu": "Меню добавления ноды по центру холста",
-      "bypass": "Bypass выбранных нод (проброс ввода в вывод)",
-      "mute": "Mute выбранных нод (пропуск всего downstream)",
-      "collapse": "Свернуть / развернуть выбранные ноды",
-      "pin": "Закрепить / открепить выбранные ноды",
       "keys": {
         "undo": "Ctrl+Z",
         "redo": "Ctrl+Shift+Z или Ctrl+Y",
@@ -647,12 +643,8 @@
         "paste": "Ctrl+V",
         "group": "Ctrl+G",
         "ungroup": "Ctrl+Shift+G",
-        "openShortcuts": "F1 или ?",
-        "openAddNodeMenu": "Alt+A",
-        "bypass": "Ctrl+B",
-        "mute": "Ctrl+M",
-        "collapse": "Alt+C",
-        "pin": "P"
+        "openShortcuts": "F1",
+        "openAddNodeMenu": "Alt+A"
       }
     },
     "onboarding": {
@@ -668,9 +660,827 @@
       "runStarted": "Запуск начат.",
       "runQueued": "Запуск в очереди — начнётся, когда освободится слот."
     },
-    "import": {
-      "success": "Workflow импортирован из {{name}}",
-      "failed": "Не удалось импортировать {{name}}: {{reason}}"
+    "sidebar": {
+      "ariaLabel": "Основная навигация",
+      "workflows": "Процессы",
+      "executions": "Запуски",
+      "credentials": "Учётные данные",
+      "templates": "Шаблоны",
+      "projects": "Проекты",
+      "plugins": "Плагины",
+      "settings": "Настройки",
+      "settingsToggleAriaLabel": "Переключить меню настроек",
+      "workspace": {
+        "switchAriaLabel": "Сменить рабочее пространство"
+      },
+      "starred": {
+        "title": "Избранное",
+        "empty": "Нет избранных процессов",
+        "showAll": "Показать все ({{count}})"
+      },
+      "user": {
+        "ariaLabel": "Открыть меню пользователя",
+        "account": "Аккаунт",
+        "signOut": "Выйти",
+        "theme": {
+          "label": "Тема",
+          "light": "Светлая",
+          "system": "Системная",
+          "dark": "Тёмная"
+        }
+      }
+    },
+    "settings": {
+      "nav": {
+        "personal": "Личные",
+        "apiKeys": "API-ключи",
+        "users": "Пользователи",
+        "variables": "Переменные",
+        "externalSecrets": "Внешние секреты",
+        "communityNodes": "Community-ноды",
+        "sourceControl": "Контроль версий",
+        "sso": "SSO",
+        "audit": "Аудит",
+        "logStreaming": "Стриминг логов",
+        "workers": "Воркеры",
+        "about": "О приложении"
+      },
+      "sourceControl": {
+        "title": "Управление версиями",
+        "statusConnected": "Подключено",
+        "statusDisconnected": "Не подключено",
+        "connectHeading": "Подключить репозиторий",
+        "disconnectedHint": "Подключите Git-репозиторий для версионирования рабочих процессов.",
+        "repoHeading": "Репозиторий",
+        "repoUrl": "URL репозитория",
+        "branch": "Ветка",
+        "lastSync": "Последняя синхронизация",
+        "never": "Никогда",
+        "syncClean": "Синхронизировано",
+        "syncAhead": "Впереди на {{count}}",
+        "syncBehind": "Отстаёт на {{count}}",
+        "syncAheadBehind": "Впереди {{ahead}}, позади {{behind}}",
+        "connect": "+ Подключить репозиторий",
+        "pull": "Pull",
+        "push": "Push",
+        "refresh": "Обновить",
+        "disconnect": "Отключить",
+        "disconnectTitle": "Отключить репозиторий?",
+        "disconnectConfirm": "Подключение к репозиторию будет удалено. Локальные рабочие процессы не пострадают.",
+        "advanced": "Расширенные",
+        "protectedBranches": "Защищённые ветки",
+        "protectedBranchPh": "имя ветки",
+        "remove": "Удалить",
+        "add": "Добавить",
+        "autoSync": "Автосинхронизация",
+        "autoSyncEveryMin": "Интервал (минуты)",
+        "save": "Сохранить",
+        "cancel": "Отмена",
+        "connecting": "Подключение…",
+        "commitMessage": "Сообщение коммита",
+        "commitMessagePh": "Опишите изменения",
+        "pullSuccess": "Получено коммитов: {{count}}",
+        "pullFailed": "Не удалось выполнить pull",
+        "backendMissing": "Backend недоступен — используется локальная конфигурация.",
+        "connectModal": {
+          "title": "Подключение репозитория",
+          "provider": "Провайдер",
+          "providers": {
+            "github": "GitHub",
+            "gitlab": "GitLab",
+            "bitbucket": "Bitbucket",
+            "custom": "Другой"
+          },
+          "authMode": "Аутентификация",
+          "sshKey": "SSH-ключ",
+          "token": "Личный токен доступа",
+          "tokenPh": "ghp_xxx…",
+          "testConnection": "Проверить подключение",
+          "testOk": "Подключение установлено",
+          "testFail": "Ошибка: {{message}}"
+        },
+        "pushModal": {
+          "title": "Отправить изменения",
+          "noChanges": "Нет изменений для отправки.",
+          "pushing": "Отправка…",
+          "confirm": "Push"
+        }
+      },
+      "sso": {
+        "title": "Единый вход (SSO)",
+        "save": "Сохранить",
+        "saving": "Сохранение…",
+        "samlTitle": "SAML",
+        "oidcTitle": "OIDC",
+        "provisioningTitle": "Создание пользователей",
+        "statusEnabled": "Включено",
+        "statusDisabled": "Выключено",
+        "enableSaml": "Включить SAML",
+        "enableOidc": "Включить OIDC",
+        "providerName": "Имя провайдера",
+        "loginUrl": "URL входа",
+        "logoutUrl": "URL выхода",
+        "metadataXml": "Метаданные IdP (XML)",
+        "uploadMetadata": "Загрузить метаданные",
+        "certificate": "Сертификат",
+        "attributeMappings": "Сопоставление атрибутов",
+        "attrEmail": "Email",
+        "attrFirstName": "Имя",
+        "attrLastName": "Фамилия",
+        "attrGroups": "Группы",
+        "testSso": "Проверить SSO",
+        "testOpenedTab": "Открыт тестовый вход",
+        "testFailed": "Ошибка: {{message}}",
+        "issuerUrl": "Issuer URL",
+        "clientId": "Client ID",
+        "clientSecret": "Client Secret",
+        "scopes": "Scopes",
+        "autoProvision": "Авто-создание пользователей",
+        "defaultRole": "Роль по умолчанию",
+        "groupRoleMapping": "Группа → роль",
+        "groupName": "Группа",
+        "role": "Роль",
+        "addMapping": "Добавить",
+        "remove": "Удалить",
+        "spInfoTitle": "Параметры Service Provider",
+        "spEntityId": "Entity ID",
+        "spAcsUrl": "ACS URL",
+        "spLogoutUrl": "SLO URL",
+        "copy": "Копировать",
+        "backendMissing": "Backend недоступен — используется локальная конфигурация.",
+        "roles": {
+          "viewer": "Наблюдатель",
+          "editor": "Редактор",
+          "admin": "Администратор",
+          "owner": "Владелец"
+        }
+      },
+      "personal": {
+        "title": "Личные настройки",
+        "profile": {
+          "heading": "Профиль",
+          "firstName": "Имя",
+          "firstNamePh": "Иван",
+          "lastName": "Фамилия",
+          "lastNamePh": "Иванов",
+          "email": "Email",
+          "avatarUrl": "URL аватара",
+          "avatarHint": "Укажите публичный URL изображения для аватара.",
+          "save": "Сохранить",
+          "saveSuccess": "Профиль обновлён",
+          "saveError": "Не удалось обновить профиль",
+          "errorInvalidUrl": "Введите корректный http(s) URL",
+          "errorInvalidEmail": "Введите корректный email"
+        },
+        "password": {
+          "heading": "Пароль",
+          "old": "Текущий пароль",
+          "new": "Новый пароль",
+          "confirm": "Подтвердите новый пароль",
+          "update": "Сменить пароль",
+          "saveSuccess": "Пароль обновлён",
+          "saveError": "Не удалось сменить пароль",
+          "errorMismatch": "Пароли не совпадают",
+          "errorTooShort": "Пароль должен содержать минимум 8 символов"
+        },
+        "mfa": {
+          "heading": "Двухфакторная аутентификация",
+          "enable": "Включить двухфакторную аутентификацию",
+          "enableButton": "Включить",
+          "disable": "Отключить",
+          "statusEnabled": "Включено",
+          "statusDisabled": "Отключено",
+          "enabledSuccess": "Двухфакторная аутентификация включена",
+          "disabledSuccess": "Двухфакторная аутентификация отключена",
+          "modalTitle": "Включение двухфакторной аутентификации",
+          "modalDescription": "Отсканируйте QR-код приложением-аутентификатором и введите 6-значный код.",
+          "modalCancel": "Отмена",
+          "modalConfirm": "Включить",
+          "qrAlt": "QR-код MFA (заглушка)",
+          "qrPlaceholder": "Заглушка QR-кода",
+          "recoveryCodes": "Сохраните резервные коды в надёжном месте.",
+          "disableConfirmTitle": "Отключить двухфакторную аутентификацию?",
+          "disableConfirmDescription": "Аккаунт лишится дополнительного уровня защиты.",
+          "disableConfirmYes": "Отключить",
+          "disableConfirmCancel": "Отмена"
+        },
+        "theme": {
+          "heading": "Внешний вид",
+          "label": "Тема",
+          "light": "Светлая",
+          "dark": "Тёмная",
+          "auto": "Системная"
+        },
+        "density": {
+          "label": "Плотность",
+          "compact": "Компактно",
+          "default": "Обычно",
+          "comfortable": "Свободно"
+        },
+        "language": {
+          "label": "Язык"
+        }
+      },
+      "users": {
+        "title": "Пользователи",
+        "inviteButton": "Пригласить",
+        "pending": "Ожидает",
+        "endpointNotFound": "Сервис пользователей недоступен",
+        "loadError": "Не удалось загрузить пользователей",
+        "roleUpdated": "Роль обновлена",
+        "roleUpdateError": "Не удалось обновить роль",
+        "resetPasswordSent": "Письмо для сброса пароля отправлено на {{email}}",
+        "resetPasswordError": "Не удалось отправить сброс пароля",
+        "inviteLinkCopied": "Ссылка-приглашение скопирована",
+        "inviteLinkError": "Не удалось создать ссылку-приглашение",
+        "deleteSuccess": "{{name}} удалён",
+        "deleteError": "Не удалось удалить пользователя",
+        "emptyTitle": "Пользователей пока нет",
+        "emptyCta": "Пригласить пользователей",
+        "searchPlaceholder": "Поиск пользователей…",
+        "searchAria": "Поиск пользователей",
+        "filterRoleAll": "Все роли",
+        "filterRoleAria": "Фильтр по роли",
+        "editRoleAria": "Изменить роль, текущая роль: {{role}}",
+        "actionsAria": "Действия с {{name}}",
+        "roleDocsLink": "Подробнее о ролях",
+        "columns": {
+          "name": "Имя",
+          "email": "Email",
+          "role": "Роль",
+          "lastActive": "Был(а)",
+          "projects": "Проекты"
+        },
+        "actions": {
+          "generateInviteLink": "Создать ссылку-приглашение",
+          "resetPassword": "Сбросить пароль",
+          "delete": "Удалить пользователя"
+        },
+        "roles": {
+          "owner": "Владелец",
+          "admin": "Администратор",
+          "editor": "Редактор",
+          "member": "Участник",
+          "viewer": "Наблюдатель",
+          "dataset_operator": "Оператор данных"
+        },
+        "deleteModal": {
+          "title": "Удалить пользователя?",
+          "description": "{{name}} потеряет доступ к этому рабочему пространству.",
+          "confirm": "Удалить",
+          "cancel": "Отмена"
+        },
+        "invite": {
+          "title": "Пригласить пользователей",
+          "emailsLabel": "Email-адреса",
+          "emailsPlaceholder": "alice@example.com, bob@example.com",
+          "emailsHint": "Разделяйте адреса запятыми, пробелами или новой строкой.",
+          "emailRequired": "Введите хотя бы один корректный email",
+          "roleLabel": "Роль",
+          "messageLabel": "Личное сообщение (необязательно)",
+          "messagePlaceholder": "Добро пожаловать в команду!",
+          "send": "Отправить приглашения",
+          "sendError": "Не удалось отправить приглашения",
+          "cancel": "Отмена",
+          "done": "Готово",
+          "linksReady": "Ссылки-приглашения готовы",
+          "linksDescription": "Передайте каждую ссылку соответствующему пользователю.",
+          "copy": "Скопировать",
+          "copied": "Скопировано",
+          "copyLinkAria": "Скопировать ссылку для {{email}}"
+        },
+        "pendingInvitations": {
+          "heading": "Ожидающие приглашения",
+          "resend": "Отправить снова",
+          "revoke": "Отозвать",
+          "resentToast": "Приглашение для {{email}} отправлено заново",
+          "resendError": "Не удалось повторно отправить приглашение",
+          "revokedToast": "Приглашение для {{email}} отозвано",
+          "revokeError": "Не удалось отозвать приглашение",
+          "revokeConfirmTitle": "Отозвать приглашение?",
+          "revokeConfirmDescription": "Приглашение для {{email}} перестанет действовать.",
+          "revokeConfirmYes": "Отозвать",
+          "revokeConfirmCancel": "Отмена",
+          "justNow": "Приглашено только что",
+          "ago": {
+            "minutes": "Приглашено {{count}} мин назад",
+            "hours": "Приглашено {{count}} ч назад",
+            "days": "Приглашено {{count}} дн назад"
+          }
+        }
+      },
+      "apiKeys": {
+        "modal": {
+          "title": "Создать API-ключ",
+          "labelField": "Название",
+          "labelPlaceholder": "Например, CI deploy key",
+          "scopesField": "Права",
+          "scopesSelectedSuffix": "прав выбрано",
+          "scopeGroups": {
+            "workflow": "Рабочие процессы",
+            "credential": "Учётные данные",
+            "user": "Пользователи",
+            "admin": "Администратор",
+            "project": "Проекты",
+            "source_control": "Контроль версий"
+          },
+          "create": "Создать",
+          "cancel": "Отмена",
+          "close": "Закрыть",
+          "copy": "Скопировать",
+          "copied": "Скопировано",
+          "oneTimeNotice": "Скопируйте ключ сейчас — позже увидеть его будет нельзя.",
+          "errorLabelRequired": "Укажите название"
+        }
+      }
+    },
+    "ndv": {
+      "parameters": {
+        "learnMore": "Подробнее",
+        "types": {
+          "collection": {
+            "addRow": "Добавить строку",
+            "removeRow": "Удалить",
+            "addField": "Добавить поле",
+            "selectField": "Выберите поле…",
+            "row": "Строка"
+          },
+          "fixedCollection": {
+            "addInstance": "Добавить {{name}}",
+            "removeInstance": "Удалить"
+          },
+          "multiOptions": {
+            "add": "Добавить опцию",
+            "selectOption": "Выберите опцию…"
+          },
+          "dateTime": {
+            "now": "Сейчас",
+            "placeholder": "Выберите дату и время"
+          },
+          "filter": {
+            "addCondition": "Добавить условие",
+            "addGroup": "Добавить группу",
+            "removeCondition": "Удалить",
+            "removeGroup": "Удалить группу",
+            "leftPlaceholder": "Левый операнд",
+            "rightPlaceholder": "Правый операнд",
+            "combinator": {
+              "and": "И",
+              "or": "ИЛИ"
+            },
+            "operator": {
+              "eq": "=",
+              "neq": "≠",
+              "lt": "<",
+              "lte": "≤",
+              "gt": ">",
+              "gte": "≥",
+              "contains": "содержит",
+              "startsWith": "начинается с",
+              "endsWith": "заканчивается на",
+              "isEmpty": "пусто",
+              "isNotEmpty": "не пусто",
+              "regex": "regex"
+            }
+          },
+          "assignmentCollection": {
+            "addAssignment": "Добавить присваивание",
+            "removeAssignment": "Удалить",
+            "keyPlaceholder": "Ключ",
+            "valuePlaceholder": "Значение",
+            "expressionToggle": "Выражение",
+            "operation": {
+              "set": "Установить",
+              "rename": "Переименовать",
+              "keep": "Сохранить",
+              "drop": "Удалить"
+            }
+          }
+        }
+      },
+      "jsonView": {
+        "searchPlaceholder": "Поиск…",
+        "searchAriaLabel": "Поиск в JSON",
+        "filterMatches": "Скрыть не совпавшие",
+        "closeSearch": "Закрыть поиск",
+        "noMatches": "Совпадений нет"
+      }
+    }
+  },
+  "aiAssistant": {
+    "title": "AI-ассистент",
+    "toggle": "Открыть AI-ассистента",
+    "close": "Закрыть AI-ассистента",
+    "send": "Отправить",
+    "sendDisabledTooltip": "AI-ассистент доступен в платном тарифе Pro",
+    "inputPlaceholder": "Введите сообщение…",
+    "emptyState": "Спросите что-нибудь о ваших воркфлоу — скоро здесь будет ассистент",
+    "contextWorkflow": "Контекст: воркфлоу «{{name}}»",
+    "contextNode": "Контекст: нода «{{type}}»"
+  },
+  "settings": {
+    "environments": {
+      "title": "Окружения",
+      "navLabel": "Окружения",
+      "newEnvironment": "+ Новое окружение",
+      "switchTo": "Переключиться на окружение",
+      "delete": "Удалить",
+      "active": "Активное",
+      "cantDeleteProduction": "Нельзя удалить продакшен-окружение",
+      "variables": "Переменных: {{count}}",
+      "credentials": "Креденшелов: {{count}}",
+      "banner": "Окружения помогают разделять креденшелы и переменные между dev / staging / prod. Активное окружение отображается в шапке.",
+      "namePlaceholder": "Название окружения",
+      "modal": {
+        "title": "Создать окружение",
+        "namePlaceholder": "Название окружения",
+        "cloneFrom": "Клонировать настройки из",
+        "cloneNone": "Пусто",
+        "create": "Создать",
+        "cancel": "Отмена"
+      },
+      "confirmDelete": "Удалить окружение «{{name}}»?"
+    }
+  },
+  "onboarding": {
+    "skip": "Пропустить",
+    "next": "Далее",
+    "finish": "Готово",
+    "steps": {
+      "welcome": {
+        "title": "Добро пожаловать в GraphCaster",
+        "body": "Короткий тур по интерфейсу."
+      },
+      "sidebarWorkflows": {
+        "title": "Воркфлоу",
+        "body": "Просматривайте и создавайте воркфлоу здесь."
+      },
+      "sidebarExecutions": {
+        "title": "Выполнения",
+        "body": "Смотрите прошлые запуски и их результаты."
+      },
+      "canvasArea": {
+        "title": "Холст",
+        "body": "Перетаскивайте ноды сюда, чтобы собирать автоматизации."
+      },
+      "runButton": {
+        "title": "Запуск",
+        "body": "Запустите воркфлоу, чтобы проверить его."
+      },
+      "userMenu": {
+        "title": "Аккаунт",
+        "body": "Здесь настройки, аккаунт и выход."
+      }
+    }
+  },
+  "a11y": {
+    "skipToMain": "Перейти к содержимому",
+    "userMenu": "Меню пользователя",
+    "dismissNotification": "Закрыть уведомление",
+    "closeDialog": "Закрыть окно"
+  },
+  "credentials": {
+    "usages": {
+      "pillLabel": "Используется в {{count}} процессе",
+      "pillLabel_plural": "Используется в {{count}} процессах",
+      "pillLabelZero": "Не используется",
+      "drawerTitle": "Процессы, использующие «{{name}}»",
+      "openLink": "Открыть процесс",
+      "nodesLabel": "Узлы: {{nodes}}",
+      "empty": "Пока не используется ни в одном процессе.",
+      "loading": "Загрузка использований…",
+      "error": "Не удалось загрузить процессы.",
+      "close": "Закрыть"
+    },
+    "share": {
+      "menuItem": "Поделиться…",
+      "modalTitle": "Доступ к «{{name}}»",
+      "currentListHeading": "Доступ открыт",
+      "emptyShared": "Доступ ещё ни с кем не открыт.",
+      "invitePlaceholder": "Email или ID пользователя",
+      "inviteRoleLabel": "Роль",
+      "roleViewer": "Просмотр",
+      "roleEditor": "Редактирование",
+      "addButton": "Добавить",
+      "removeAria": "Удалить {{name}}",
+      "addError": "Введите email или ID пользователя.",
+      "addSuccess": "Пользователь добавлен.",
+      "removeSuccess": "Пользователь удалён.",
+      "doneButton": "Готово"
+    },
+    "filter": {
+      "searchPlaceholder": "Поиск учётных данных…",
+      "searchAria": "Поиск учётных данных",
+      "typeLabel": "Тип",
+      "typeAll": "Все типы"
+    }
+  },
+  "canvas": {
+    "edge": {
+      "insertNode": "Вставить узел",
+      "deleteEdge": "Удалить связь"
+    },
+    "sticky": {
+      "toolbarLabel": "Цвет заметки",
+      "placeholder": "Введите заметку…",
+      "colors": {
+        "yellow": "Жёлтый",
+        "blue": "Синий",
+        "pink": "Розовый",
+        "green": "Зелёный",
+        "purple": "Фиолетовый",
+        "gray": "Серый"
+      }
+    },
+    "auth": {
+      "signin": {
+        "errorNetwork": "Ошибка сети. Попробуйте снова."
+      },
+      "setup": {
+        "subheading": "Настройте экземпляр GraphCaster.",
+        "stepLabel1": "Администратор",
+        "stepLabel2": "Рабочая область",
+        "stepLabel3": "Настройки",
+        "step1Title": "Создайте аккаунт администратора",
+        "step1Subtitle": "Этот аккаунт имеет полный доступ к экземпляру.",
+        "step2Title": "Назовите рабочую область",
+        "step2Subtitle": "Это можно изменить позже в настройках.",
+        "step3Title": "Предпочтения",
+        "step3Subtitle": "Выберите значения по умолчанию — их можно изменить позже.",
+        "firstName": "Имя",
+        "firstNamePlaceholder": "Иван",
+        "lastName": "Фамилия",
+        "lastNamePlaceholder": "Иванов",
+        "email": "Email",
+        "emailPlaceholder": "you@example.com",
+        "password": "Пароль",
+        "passwordPlaceholder": "Минимум 8 символов",
+        "confirmPassword": "Подтвердите пароль",
+        "confirmPasswordPlaceholder": "Повторите пароль",
+        "errorPasswordMismatch": "Пароли не совпадают.",
+        "workspaceName": "Название рабочей области",
+        "workspaceNamePlaceholder": "Моя рабочая область",
+        "workspaceSlug": "Идентификатор",
+        "workspaceSlugPlaceholder": "my-workspace",
+        "workspaceSlugHint": "Строчные буквы, цифры и дефисы.",
+        "telemetryLabel": "Помогите улучшить GraphCaster",
+        "telemetryHint": "Отправлять анонимную статистику использования. Содержимое и учётные данные не отправляются.",
+        "locale": "Язык",
+        "theme": "Тема",
+        "themeSystem": "Системная",
+        "themeLight": "Светлая",
+        "themeDark": "Тёмная",
+        "back": "Назад",
+        "next": "Далее",
+        "finish": "Готово"
+      }
+    },
+    "projects": {
+      "title": "Проекты",
+      "newButton": "+ Новый проект",
+      "loading": "Загрузка проектов…",
+      "loadError": "Не удалось загрузить проекты.",
+      "notFound": "Проект не найден.",
+      "memberCount_one": "{{count}} участник",
+      "memberCount_few": "{{count}} участника",
+      "memberCount_many": "{{count}} участников",
+      "memberCount_other": "{{count}} участников",
+      "workflowCount_one": "{{count}} процесс",
+      "workflowCount_few": "{{count}} процесса",
+      "workflowCount_many": "{{count}} процессов",
+      "workflowCount_other": "{{count}} процессов",
+      "lastActivity": "Последняя активность {{when}}",
+      "actionEdit": "Изменить",
+      "actionDelete": "Удалить",
+      "actionOpen": "Открыть",
+      "emptyTitle": "Проектов пока нет",
+      "emptySubtitle": "Группируйте процессы по командам или инициативам.",
+      "searchPlaceholder": "Поиск проектов…",
+      "searchAriaLabel": "Поиск проектов",
+      "noResults": "Нет проектов, соответствующих \"{{query}}\".",
+      "deleteTitle": "Удалить проект",
+      "deleteDescription": "Удалить \"{{name}}\"? Это действие необратимо.",
+      "deleteConfirm": "Удалить",
+      "deleteCancel": "Отмена",
+      "nameRequired": "Введите название.",
+      "inviteTitle": "Пригласить участника",
+      "inviteEmail": "Email",
+      "inviteEmailPlaceholder": "person@example.com",
+      "inviteRole": "Роль",
+      "inviteSubmit": "Отправить приглашение",
+      "inviteCancel": "Отмена",
+      "inviteError": "Не удалось отправить приглашение.",
+      "backToProjects": "К списку проектов",
+      "tabs": {
+        "members": "Участники",
+        "workflows": "Процессы",
+        "credentials": "Учётные данные",
+        "variables": "Переменные",
+        "settings": "Настройки"
+      },
+      "members": {
+        "invite": "+ Пригласить участника",
+        "empty": "Пока нет участников.",
+        "remove": "Удалить",
+        "removeTitle": "Удалить участника",
+        "removeDescription": "Удалить {{name}} из проекта?",
+        "removeConfirm": "Удалить",
+        "removeCancel": "Отмена",
+        "changeRole": "Сменить роль",
+        "columns": {
+          "member": "Участник",
+          "role": "Роль",
+          "invitedAt": "Приглашён"
+        }
+      },
+      "workflows": {
+        "active": "Активен",
+        "inactive": "Неактивен",
+        "empty": "В этом проекте нет процессов.",
+        "moveOut": "Вынести",
+        "moveOutTitle": "Вынести процесс из проекта",
+        "moveOutDescription": "Вынести \"{{name}}\" из этого проекта?",
+        "moveOutConfirm": "Вынести",
+        "moveOutCancel": "Отмена",
+        "columns": {
+          "name": "Название",
+          "active": "Статус",
+          "updatedAt": "Обновлён"
+        }
+      },
+      "credentials": {
+        "empty": "В этом проекте нет учётных данных.",
+        "columns": {
+          "name": "Название",
+          "type": "Тип"
+        }
+      },
+      "variables": {
+        "empty": "В этом проекте нет переменных.",
+        "edit": "Изменить",
+        "editTitle": "Изменить переменную",
+        "editKey": "Ключ",
+        "editValue": "Значение",
+        "editValuePlaceholder": "Значение",
+        "editSave": "Сохранить",
+        "editCancel": "Отмена",
+        "columns": {
+          "key": "Ключ",
+          "value": "Значение"
+        }
+      },
+      "settings": {
+        "name": "Название проекта",
+        "namePlaceholder": "Название проекта",
+        "description": "Описание",
+        "descriptionPlaceholder": "Краткое описание",
+        "save": "Сохранить",
+        "archiveLabel": "Архивировать проект",
+        "archiveHint": "Архивные проекты доступны только для чтения.",
+        "dangerZone": "Опасная зона",
+        "deleteButton": "Удалить проект",
+        "deleteHint": "Это действие необратимо.",
+        "deleteContinue": "Продолжить",
+        "deleteTypeName": "Введите \"{{name}}\" для подтверждения.",
+        "deleteTypeNameAria": "Введите название проекта для подтверждения удаления",
+        "deleteFinalTitle": "Удалить проект — финальное подтверждение"
+      }
+    }
+  },
+  "workflowHeader": {
+    "namePlaceholder": "Без названия",
+    "active": {
+      "label": "Активен",
+      "tooltipOn": "Рабочий процесс активен",
+      "tooltipOff": "Рабочий процесс не активен"
+    },
+    "tags": {
+      "addTags": "+ Добавить теги",
+      "addTagsAria": "Добавить теги",
+      "countLabel": "{{count}} тег",
+      "countLabel_few": "{{count}} тега",
+      "countLabel_many": "{{count}} тегов",
+      "noTags": "Тегов ещё нет",
+      "createPlaceholder": "Создать новый тег"
+    },
+    "execute": {
+      "label": "Execute workflow",
+      "pinnedLabel": "Execute with pinned data",
+      "groupAria": "Запуск рабочего процесса",
+      "menuAria": "Опции запуска"
+    },
+    "share": "Поделиться"
+  },
+  "workflowShare": {
+    "modalTitle": "Поделиться рабочим процессом",
+    "modalTitleNamed": "Поделиться «{{name}}»",
+    "currentListHeading": "У кого есть доступ",
+    "emptyShared": "Пока ни у кого нет доступа.",
+    "invitePlaceholder": "Введите email или имя пользователя",
+    "inviteRoleLabel": "Роль",
+    "roleViewer": "Просмотр",
+    "roleEditor": "Редактирование",
+    "addButton": "Добавить",
+    "addError": "Введите email или имя пользователя.",
+    "addSuccess": "Доступ предоставлен.",
+    "removeSuccess": "Доступ отозван.",
+    "removeAria": "Отозвать доступ у {{name}}",
+    "doneButton": "Готово"
+  },
+  "commandBar": {
+    "addNodeLabel": "Добавить узел: {{name}}",
+    "groups": {
+      "view": "Вид",
+      "system": "Система",
+      "editor": "Редактор",
+      "addNode": "Добавить узел",
+      "settings": "Настройки"
+    },
+    "recent": {
+      "workflows": "Недавние рабочие процессы",
+      "executions": "Недавние запуски"
+    },
+    "routes": {
+      "home": "Главная",
+      "workflows": "Рабочие процессы",
+      "workflowsArchive": "Рабочие процессы · Архив",
+      "executions": "Запуски",
+      "templates": "Шаблоны",
+      "credentials": "Учётные данные",
+      "projects": "Проекты",
+      "newWorkflow": "Новый рабочий процесс",
+      "signin": "Вход",
+      "signup": "Регистрация",
+      "signout": "Выход",
+      "forgotPassword": "Восстановление пароля",
+      "changePassword": "Сменить пароль",
+      "setup": "Настройка",
+      "entityNotFound": "Объект не найден",
+      "unauthorized": "Нет доступа"
+    },
+    "settings": {
+      "personal": "Настройки · Профиль",
+      "apiKeys": "Настройки · Ключи API",
+      "users": "Настройки · Пользователи",
+      "externalSecrets": "Настройки · Внешние секреты",
+      "communityNodes": "Настройки · Узлы сообщества",
+      "sourceControl": "Настройки · Контроль версий",
+      "sso": "Настройки · SSO",
+      "audit": "Настройки · Журнал аудита",
+      "variables": "Настройки · Переменные",
+      "environments": "Настройки · Окружения",
+      "logStreaming": "Настройки · Поток логов",
+      "workers": "Настройки · Воркеры",
+      "about": "Настройки · О программе"
+    },
+    "editor": {
+      "undo": "Отменить",
+      "redo": "Повторить",
+      "copy": "Копировать выделение",
+      "paste": "Вставить",
+      "duplicate": "Дублировать выделение",
+      "delete": "Удалить выделение",
+      "selectAll": "Выделить всё",
+      "group": "Сгруппировать",
+      "ungroup": "Разгруппировать",
+      "comment": "Добавить комментарий",
+      "sticky": "Добавить заметку",
+      "rename": "Переименовать узел",
+      "findNode": "Найти узел",
+      "openAddNode": "Открыть меню добавления узла",
+      "pinData": "Зафиксировать данные узла",
+      "unpinData": "Снять фиксацию данных",
+      "disableNode": "Отключить узел",
+      "enableNode": "Включить узел",
+      "executeNode": "Выполнить выбранный узел"
+    },
+    "view": {
+      "zoomIn": "Приблизить",
+      "zoomOut": "Отдалить",
+      "fitView": "Уместить граф",
+      "centerSelection": "Центрировать выделение",
+      "toggleMinimap": "Переключить миникарту",
+      "toggleGrid": "Переключить сетку",
+      "toggleSidebar": "Переключить боковую панель",
+      "toggleRightPanel": "Переключить правую панель",
+      "togglePalette": "Переключить палитру узлов",
+      "toggleFullscreen": "Полноэкранный режим",
+      "focusNode": "Фокус на выбранном узле"
+    },
+    "system": {
+      "themeLight": "Тема: Светлая",
+      "themeDark": "Тема: Тёмная",
+      "themeAuto": "Тема: Системная",
+      "langEn": "Язык: Английский",
+      "langRu": "Язык: Русский",
+      "reload": "Перезагрузить",
+      "reportBug": "Сообщить об ошибке",
+      "changelog": "Открыть журнал изменений",
+      "docs": "Открыть документацию",
+      "community": "Открыть сообщество",
+      "status": "Открыть статус",
+      "copyLink": "Копировать ссылку",
+      "logout": "Выйти"
     }
   }
 }

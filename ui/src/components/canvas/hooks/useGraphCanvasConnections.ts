@@ -10,6 +10,10 @@ import type {
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import { isGcFlowConnectionAllowed } from "../../../graph/connectionCompatibility";
+import {
+  dispatchCanvasConnectEnd,
+  dispatchCanvasConnectStart,
+} from "../../../graph/hooks/useCanvasAutoPan";
 import { flowConnectionHandle } from "../../../graph/normalizeHandles";
 import { newGraphEdgeId } from "../../../graph/nodePalette";
 import type { GraphEdgeJson } from "../../../graph/types";
@@ -48,11 +52,13 @@ export function useGraphCanvasConnections(options: {
     } else {
       setConnectionDrag(null);
     }
+    dispatchCanvasConnectStart();
   }, [setConnectionDrag]);
 
   const onConnectEnd = useCallback<OnConnectEnd>(
     (event, connectionState) => {
       setConnectionDrag(null);
+      dispatchCanvasConnectEnd();
       if (structureLocked || !onConnectDroppedOnPane) {
         return;
       }

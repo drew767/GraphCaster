@@ -9,6 +9,16 @@ import type { GraphDocumentJson } from "../graph/types";
 
 export type { GraphDocumentJson, GraphDocumentParseError, ParseGraphDocumentJsonResult };
 
+export { initEmbedHost } from "./host";
+export type {
+  EmbedCommand,
+  EmbedEvent,
+  EmbedHostHandle,
+  EmbedHostHandlers,
+  InitEmbedHostOptions,
+} from "./host";
+export { EmbedBridge } from "./EmbedBridge";
+
 /**
  * Parse a graph document from JSON text or a pre-parsed value (host embed entry).
  * Invalid JSON text yields **`{ ok: false, error: { kind: "invalid_json" } }`**.

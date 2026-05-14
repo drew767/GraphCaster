@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { AlignDistributeOp } from "../graph/canvasAlignSelection";
 import type { RunMotionPreference } from "../graph/canvasRunMotion";
+import { useHeaderSlotStore } from "../app/stores/headerSlotStore";
 
 export type WorkspaceGraphOption = {
   fileName: string;
@@ -127,9 +128,17 @@ export function TopBar({
   stepCacheDirtyCount = 0,
 }: Props) {
   const { t, i18n } = useTranslation();
+  const slotLeft = useHeaderSlotStore((s) => s.left);
+  const slotCenter = useHeaderSlotStore((s) => s.center);
+  const slotRight = useHeaderSlotStore((s) => s.right);
 
   return (
     <header className="gc-top">
+      {slotLeft != null && (
+        <div className="gc-top-slot gc-top-slot--left" data-testid="topbar-slot-left">
+          {slotLeft}
+        </div>
+      )}
       <span className="gc-top-title">{t("app.title")}</span>
       <div className="gc-top-menu">
         <span className="gc-top-menu-label">{t("app.menu.file")}</span>
@@ -446,6 +455,16 @@ export function TopBar({
           </div>
         ) : null}
       </div>
+      {slotCenter != null && (
+        <div className="gc-top-slot gc-top-slot--center" data-testid="topbar-slot-center">
+          {slotCenter}
+        </div>
+      )}
+      {slotRight != null && (
+        <div className="gc-top-slot gc-top-slot--right" data-testid="topbar-slot-right">
+          {slotRight}
+        </div>
+      )}
       <div className="gc-top-actions">
         <select
           className="gc-lang-select"

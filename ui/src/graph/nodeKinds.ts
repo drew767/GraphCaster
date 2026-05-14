@@ -26,6 +26,8 @@ export const GRAPH_NODE_TYPE_PYTHON_CODE = "python_code" as const;
 export const GRAPH_NODE_TYPE_LLM_AGENT = "llm_agent" as const;
 /** In-process agent node (tool loop); distinct from subprocess ``llm_agent``. */
 export const GRAPH_NODE_TYPE_AGENT = "agent" as const;
+/** Sticky note (non-executable; resizable; user-colored). */
+export const GRAPH_NODE_TYPE_STICKY_NOTE = "sticky_note" as const;
 
 export function isGraphDocumentFrameType(type: string): boolean {
   return type === GRAPH_NODE_TYPE_COMMENT || type === GRAPH_NODE_TYPE_GROUP;

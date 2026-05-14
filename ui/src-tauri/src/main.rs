@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod menu;
 mod run_bridge;
 
 use run_bridge::RunSessionState;
@@ -9,6 +10,12 @@ use run_bridge::RunSessionState;
 fn main() {
     tauri::Builder::default()
         .manage(RunSessionState::default())
+        .setup(|app| {
+            let menu = menu::build_menu(app.handle())?;
+            app.set_menu(menu)?;
+            app.on_menu_event(menu::handle_menu_event);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             run_bridge::get_run_environment_info,
             run_bridge::gc_start_run,
