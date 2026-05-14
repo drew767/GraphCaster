@@ -15,6 +15,7 @@ import {
   isGraphDocumentFrameType,
 } from "./nodeKinds";
 import { normalizeEdgeHandleValue, pickEdgeHandleRaw } from "./normalizeHandles";
+import { coerceGcNodeMode, gcNodeClassNamesFor } from "./nodeModeClassNames";
 import { coercePortKindOverride } from "./portDataKinds";
 import type { GraphDocumentJson, GraphEdgeJson } from "./types";
 import type { NodeRunPhase } from "../run/nodeRunOverlay";
@@ -26,12 +27,28 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Allowed values for ``mode``. Mirrors Python ``NODE_MODES`` and TypeScript
+ * ``NodeMode`` (re-exported from `stores/graphMutationsStore.ts`).
+ */
+export type GcNodeMode = "normal" | "bypass" | "mute" | "disabled";
+
 export type GcNodeData = {
   graphNodeType: string;
   label: string;
   raw: Record<string, unknown>;
   runOverlayPhase?: NodeRunPhase | null;
+  /** UX127–UX128: execution mode. Default "normal". */
+  mode?: GcNodeMode;
+  /** UX129: visual-only collapse (LOD ghost-tier render). */
+  collapsed?: boolean;
+  /** UX130: lock position from drag. Mirrors xyflow Node.draggable=false. */
+  pinned?: boolean;
 };
+
+function _coerceBool(value: unknown): boolean {
+  return value === true;
+}
 
 export function nodeLabel(data: Record<string, unknown> | undefined, fallbackId: string): string {
   const title = data?.title;
@@ -115,6 +132,10 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
         ? { x: abs.x - pAbs.x, y: abs.y - pAbs.y }
         : { x: abs.x, y: abs.y };
 
+    const mode = coerceGcNodeMode(n.mode);
+    const collapsed = _coerceBool(data.gcCollapsed);
+    const pinned = _coerceBool(data.gcPinned);
+
     return {
       id: n.id,
       type: "gcNode",
@@ -123,10 +144,15 @@ export function graphDocumentToFlow(doc: GraphDocumentJson): { nodes: Node<GcNod
       extent: parentId ? ("parent" as const) : undefined,
       zIndex: 1,
       deletable: graphNodeType !== GRAPH_NODE_TYPE_START,
+      draggable: !pinned,
+      className: gcNodeClassNamesFor(mode, collapsed, pinned),
       data: {
         graphNodeType,
         label: nodeLabel(data, n.id),
         raw: { ...data },
+        mode,
+        collapsed,
+        pinned,
       },
     };
   });

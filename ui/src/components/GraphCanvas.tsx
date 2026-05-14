@@ -33,7 +33,7 @@ import type { MinimapChrome } from "../graph/minimapChrome";
 import { minimapChromeForTheme } from "../graph/minimapChrome";
 import { minimapNodeFill, minimapNodeStroke } from "../graph/minimapNodeColors";
 import type { GraphDocumentJson, GraphEdgeJson } from "../graph/types";
-import type { GcNodeData } from "../graph/toReactFlow";
+import type { GcNodeData, GcNodeMode } from "../graph/toReactFlow";
 import {
   buildAddNodeConnectMenuFilter,
   type AddNodeMenuPick,
@@ -77,6 +77,11 @@ import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
 import { nodeRunOverlayMapsEqual, type NodeRunOverlayEntry } from "../run/nodeRunOverlay";
+import { gcNodeClassNamesFor } from "../graph/nodeModeClassNames";
+import {
+  useGraphMutationsStore,
+  type GraphMutationCommand,
+} from "../stores/graphMutationsStore";
 
 const EMPTY_WARNING_EDGE_IDS: ReadonlySet<string> = new Set();
 
@@ -504,6 +509,85 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
     );
 
     removeNodesByIdRef.current = applyRemoveNodeIds;
+
+    /* UX127a/UX128a/UX129/UX130 — register a single command handler that
+       applies mutations through xyflow's setNodes. The store keeps the
+       commands; the canvas owns the actual node state. */
+    const registerMutationHandler = useGraphMutationsStore((s) => s.registerHandler);
+    useEffect(() => {
+      const handler = (cmd: GraphMutationCommand) => {
+        const ids = new Set(cmd.nodeIds);
+        if (ids.size === 0) {
+          return;
+        }
+        let touched = false;
+        setNodes((nds) => {
+          const next = nds.map((n) => {
+            if (!ids.has(n.id)) {
+              return n;
+            }
+            const data = n.data as GcNodeData | undefined;
+            if (data == null) {
+              return n;
+            }
+            const rawSrc = data.raw ?? {};
+            let nextMode: GcNodeMode = data.mode ?? "normal";
+            let nextCollapsed = data.collapsed ?? false;
+            let nextPinned = data.pinned ?? false;
+            const nextRaw: Record<string, unknown> = { ...rawSrc };
+
+            switch (cmd.kind) {
+              case "setNodeMode": {
+                const incoming = cmd.mode;
+                // Toggle behaviour: hitting the same mode again returns to "normal".
+                nextMode = data.mode === incoming ? "normal" : incoming;
+                break;
+              }
+              case "toggleCollapse": {
+                nextCollapsed = !nextCollapsed;
+                nextRaw.gcCollapsed = nextCollapsed;
+                if (!nextCollapsed) {
+                  delete nextRaw.gcCollapsed;
+                }
+                break;
+              }
+              case "togglePin": {
+                nextPinned = !nextPinned;
+                nextRaw.gcPinned = nextPinned;
+                if (!nextPinned) {
+                  delete nextRaw.gcPinned;
+                }
+                break;
+              }
+            }
+
+            touched = true;
+            return {
+              ...n,
+              draggable: !nextPinned,
+              className: gcNodeClassNamesFor(nextMode, nextCollapsed, nextPinned),
+              data: {
+                ...data,
+                raw: nextRaw,
+                mode: nextMode,
+                collapsed: nextCollapsed,
+                pinned: nextPinned,
+              },
+            } as Node<GcNodeData>;
+          });
+          return next;
+        });
+        if (touched) {
+          window.requestAnimationFrame(() => {
+            onFlowStructureChange();
+          });
+        }
+      };
+      registerMutationHandler(handler);
+      return () => {
+        registerMutationHandler(null);
+      };
+    }, [registerMutationHandler, setNodes, onFlowStructureChange]);
 
     const onPaneClick = useCallback(() => {
       setAddMenu(null);

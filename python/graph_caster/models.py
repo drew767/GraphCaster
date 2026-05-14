@@ -9,9 +9,26 @@ from typing import Any
 # Non-executable canvas frames (editor-only); runner and static graph checks skip these like edges.
 EDITOR_FRAME_NODE_TYPES: frozenset[str] = frozenset({"comment", "group"})
 
+# Permitted values for ``Node.mode`` (UX127–UX130 patch).
+# normal:   default, executes as usual.
+# bypass:   skipped at runtime; inputs forwarded to outputs by HandleContract matching (UX127b).
+# mute:     skipped at runtime; downstream propagated as ``skipped`` (UX128b).
+# disabled: same UI semantics as mute but reserved for legacy ``data.disabled`` migrations.
+NODE_MODES: frozenset[str] = frozenset({"normal", "bypass", "mute", "disabled"})
+
 
 def is_editor_frame_node_type(node_type: str) -> bool:
     return node_type in EDITOR_FRAME_NODE_TYPES
+
+
+def _normalize_node_mode(value: Any) -> str:
+    if value is None:
+        return "normal"
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in NODE_MODES:
+            return v
+    return "normal"
 
 
 def _normalize_edge_condition(value: Any) -> str | None:
@@ -63,6 +80,8 @@ class Node:
     type: str
     position: dict[str, float]
     data: dict[str, Any] = field(default_factory=dict)
+    #: Execution mode. See :data:`NODE_MODES`. Default ``"normal"``.
+    mode: str = "normal"
 
 
 @dataclass
@@ -134,12 +153,22 @@ class GraphDocument:
                 data_obj = dict(data_raw)
             else:
                 raise ValueError(f"nodes[{i}].data must be a JSON object")
+            mode_raw: Any = n.get("mode")
+            if mode_raw is None:
+                # Legacy compatibility: ``data.disabled: true`` maps to mode="mute".
+                if data_obj.get("disabled") is True:
+                    mode_value = "mute"
+                else:
+                    mode_value = "normal"
+            else:
+                mode_value = _normalize_node_mode(mode_raw)
             nodes.append(
                 Node(
                     id=nid.strip(),
                     type=node_type,
                     position={"x": float(pos.get("x", 0)), "y": float(pos.get("y", 0))},
                     data=data_obj,
+                    mode=mode_value,
                 )
             )
         edges: list[Edge] = []

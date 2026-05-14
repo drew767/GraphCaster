@@ -7,6 +7,11 @@ export type GraphNodeJson = {
   /** When set, this node is visually inside an editor frame (`comment` or `group`); `parentId` is that frame's id. */
   parentId?: string;
   data?: Record<string, unknown>;
+  /**
+   * Execution mode (UX127–UX130). Mirrors Python ``Node.mode``.
+   * One of "normal" | "bypass" | "mute" | "disabled". Omitted when "normal".
+   */
+  mode?: string;
 };
 
 export type GraphEdgeJson = {

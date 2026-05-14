@@ -634,6 +634,10 @@
       "ungroup": "Разгруппировать",
       "openShortcuts": "Открыть эту справку",
       "openAddNodeMenu": "Меню добавления ноды по центру холста",
+      "bypass": "Bypass выбранных нод (проброс ввода в вывод)",
+      "mute": "Mute выбранных нод (пропуск всего downstream)",
+      "collapse": "Свернуть / развернуть выбранные ноды",
+      "pin": "Закрепить / открепить выбранные ноды",
       "keys": {
         "undo": "Ctrl+Z",
         "redo": "Ctrl+Shift+Z или Ctrl+Y",
@@ -643,8 +647,12 @@
         "paste": "Ctrl+V",
         "group": "Ctrl+G",
         "ungroup": "Ctrl+Shift+G",
-        "openShortcuts": "F1",
-        "openAddNodeMenu": "Alt+A"
+        "openShortcuts": "F1 или ?",
+        "openAddNodeMenu": "Alt+A",
+        "bypass": "Ctrl+B",
+        "mute": "Ctrl+M",
+        "collapse": "Alt+C",
+        "pin": "P"
       }
     },
     "onboarding": {
@@ -659,6 +667,10 @@
       "copiedNodes": "Выделение скопировано в буфер.",
       "runStarted": "Запуск начат.",
       "runQueued": "Запуск в очереди — начнётся, когда освободится слот."
+    },
+    "import": {
+      "success": "Workflow импортирован из {{name}}",
+      "failed": "Не удалось импортировать {{name}}: {{reason}}"
     }
   }
 }

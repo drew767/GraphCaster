@@ -634,6 +634,10 @@
       "ungroup": "Ungroup selection",
       "openShortcuts": "Open this help",
       "openAddNodeMenu": "Open add-node menu at canvas center",
+      "bypass": "Bypass selected nodes (pass-through)",
+      "mute": "Mute selected nodes (skip downstream)",
+      "collapse": "Collapse / expand selected nodes",
+      "pin": "Pin / unpin selected nodes (lock position)",
       "keys": {
         "undo": "Ctrl+Z",
         "redo": "Ctrl+Shift+Z or Ctrl+Y",
@@ -643,8 +647,12 @@
         "paste": "Ctrl+V",
         "group": "Ctrl+G",
         "ungroup": "Ctrl+Shift+G",
-        "openShortcuts": "F1",
-        "openAddNodeMenu": "Alt+A"
+        "openShortcuts": "F1 or ?",
+        "openAddNodeMenu": "Alt+A",
+        "bypass": "Ctrl+B",
+        "mute": "Ctrl+M",
+        "collapse": "Alt+C",
+        "pin": "P"
       }
     },
     "onboarding": {
@@ -659,6 +667,10 @@
       "copiedNodes": "Copied selection to clipboard.",
       "runStarted": "Run started.",
       "runQueued": "Run queued — will start when a slot is free."
+    },
+    "import": {
+      "success": "Imported workflow from {{name}}",
+      "failed": "Could not import {{name}}: {{reason}}"
     }
   }
 }

@@ -97,6 +97,10 @@ export function flowToDocument(
     if (typeof pid === "string" && pid.trim() !== "") {
       row.parentId = pid.trim();
     }
+    const mode = n.data?.mode;
+    if (typeof mode === "string" && mode !== "" && mode !== "normal") {
+      row.mode = mode;
+    }
     return row;
   });
 
