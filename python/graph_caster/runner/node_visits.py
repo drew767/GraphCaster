@@ -8,6 +8,19 @@ import copy
 import time
 from typing import Any, Literal
 
+
+def _adaptive_retry_sleep(deadline: float) -> None:
+    """Cheap retry-sleep: 500 ms when far from deadline, 100 ms in the last 5 s.
+
+    Replaces a busy-wait that capped at 200 ms; reduces wake-ups on long retries
+    without sacrificing cancel responsiveness near completion.
+    """
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return
+    time.sleep(min(0.5 if remaining > 5.0 else 0.1, remaining))
+
+
 from graph_caster.runner.retry_policy import (
     circuit_is_open,
     circuit_on_failure,
@@ -203,7 +216,7 @@ def run_subprocess_task_visit(
                                 ctx["_gc_process_cancelled"] = True
                                 ok = False
                                 break
-                            time.sleep(max(0.0, min(0.2, deadline - time.monotonic())))
+                            _adaptive_retry_sleep(deadline)
                         if cancel_fn is not None and cancel_fn():
                             break
         if (
@@ -804,7 +817,7 @@ def run_http_request_visit(
                             ctx["_gc_process_cancelled"] = True
                             ok = False
                             break
-                        time.sleep(max(0.0, min(0.2, deadline - time.monotonic())))
+                        _adaptive_retry_sleep(deadline)
                     if cancel_fn is not None and cancel_fn():
                         break
 
@@ -1031,7 +1044,7 @@ def run_rag_query_visit(
                             ctx["_gc_process_cancelled"] = True
                             ok = False
                             break
-                        time.sleep(max(0.0, min(0.2, deadline - time.monotonic())))
+                        _adaptive_retry_sleep(deadline)
                     if cancel_fn is not None and cancel_fn():
                         break
 
@@ -1241,7 +1254,7 @@ def run_python_code_visit(
                             ctx["_gc_process_cancelled"] = True
                             ok = False
                             break
-                        time.sleep(max(0.0, min(0.2, deadline - time.monotonic())))
+                        _adaptive_retry_sleep(deadline)
                     if cancel_fn is not None and cancel_fn():
                         break
 
