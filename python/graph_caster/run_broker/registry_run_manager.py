@@ -104,16 +104,30 @@ class BrokerRegistryRunManager:
         if path is None:
             raise FileNotFoundError(f"Graph not found: {graph_id}")
 
+        start_from_node = str(merged_ctx.pop("startFromNode", "") or "").strip() or None
+        until_node = str(merged_ctx.pop("untilNode", "") or "").strip() or None
+        pinned_context: dict[str, Any] | None = merged_ctx.pop("pinnedContext", None)
+        if pinned_context and not isinstance(pinned_context, dict):
+            pinned_context = None
+
+        run_ctx: dict[str, Any] = dict(merged_ctx)
+        if pinned_context:
+            run_ctx.update(pinned_context)
+
         doc_json = await asyncio.to_thread(path.read_text, encoding="utf-8")
         body: dict[str, Any] = {
             "documentJson": doc_json,
-            "contextJson": merged_ctx,
+            "contextJson": run_ctx,
             "graphsDir": str(gdir),
         }
         if self._workspace_root is not None:
             body["workspaceRoot"] = str(self._workspace_root)
         if self._artifacts_base is not None:
             body["artifactsBase"] = str(self._artifacts_base)
+        if start_from_node:
+            body["startNodeId"] = start_from_node
+        if until_node:
+            body["untilNodeId"] = until_node
 
         try:
             sp = await asyncio.to_thread(self._registry.spawn_from_body, body)

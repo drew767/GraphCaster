@@ -56,6 +56,9 @@ class RunRequest:
     inputs: dict[str, Any] = field(default_factory=dict)
     wait_for_completion: bool = False
     timeout: float = 300.0
+    start_from_node: str | None = None
+    until_node: str | None = None
+    context: dict[str, Any] | None = None
 
 
 @dataclass
@@ -116,14 +119,27 @@ class APIV1Handler:
         """Start a new graph run."""
         self._check_auth(auth_header, "run:execute")
 
-        trigger_ctx = {
+        trigger_ctx: dict[str, Any] = {
             "type": "api",
             "graph_id": graph_id,
             "inputs": request.inputs,
         }
+        if request.start_from_node:
+            trigger_ctx["startFromNode"] = request.start_from_node
+        if request.until_node:
+            trigger_ctx["untilNode"] = request.until_node
+
+        merged_context: dict[str, Any] = dict(request.inputs)
+        if request.context:
+            merged_context.update(request.context)
+        if request.start_from_node:
+            merged_context["startFromNode"] = request.start_from_node
+        if request.until_node:
+            merged_context["untilNode"] = request.until_node
+
         run_id = await self._run_manager.start_run(
             graph_id,
-            context=request.inputs,
+            context=merged_context,
             trigger_context=trigger_ctx,
         )
 
@@ -195,3 +211,49 @@ class APIV1Handler:
             cancelled=result.get("cancelled", False),
             message=result.get("message"),
         )
+
+    async def get_replay_plan(
+        self,
+        run_id: str,
+        *,
+        workspace_root: "Path",
+        start_from: str | None = None,
+        auth_header: str | None = None,
+    ) -> "dict[str, Any]":
+        """Preview a replay plan without executing (GET /api/v1/runs/{runId}/replay-plan)."""
+        from pathlib import Path as _Path
+
+        self._check_auth(auth_header, "run:view")
+        from graph_caster.replay import ReplayManager, ReplayError
+
+        mgr = ReplayManager(_Path(workspace_root))
+        try:
+            plan = await mgr.build_plan(run_id, start_from=start_from)
+        except ReplayError as exc:
+            raise KeyError(str(exc)) from exc
+        return plan.to_dict()
+
+    async def start_replay(
+        self,
+        run_id: str,
+        *,
+        workspace_root: "Path",
+        start_from: str | None = None,
+        override_inputs: "dict | None" = None,
+        auth_header: str | None = None,
+    ) -> str:
+        """Execute a replay and return the new run_id (POST /api/v1/runs/{runId}/replay)."""
+        from pathlib import Path as _Path
+
+        self._check_auth(auth_header, "run:execute")
+        from graph_caster.replay import ReplayManager, ReplayError
+
+        mgr = ReplayManager(_Path(workspace_root))
+        try:
+            plan = await mgr.build_plan(
+                run_id, start_from=start_from, override_inputs=override_inputs
+            )
+            new_run_id = await mgr.execute(plan, override_inputs=override_inputs)
+        except ReplayError as exc:
+            raise ValueError(str(exc)) from exc
+        return new_run_id

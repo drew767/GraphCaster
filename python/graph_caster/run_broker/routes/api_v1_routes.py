@@ -103,7 +103,23 @@ def make_api_v1_routes(reg: RunBrokerRegistry) -> list[Route]:
         except (TypeError, ValueError):
             timeout = 300.0
 
-        req = RunRequest(inputs=inputs, wait_for_completion=wait, timeout=timeout)
+        start_from_node_raw = body.get("startFromNode") or body.get("start_from_node")
+        start_from_node = str(start_from_node_raw).strip() if start_from_node_raw else None
+        until_node_raw = body.get("untilNode") or body.get("until_node")
+        until_node = str(until_node_raw).strip() if until_node_raw else None
+        context_raw = body.get("context")
+        if context_raw is not None and not isinstance(context_raw, dict):
+            return JSONResponse({"error": "context must be object"}, status_code=400)
+        context: dict | None = context_raw if isinstance(context_raw, dict) else None
+
+        req = RunRequest(
+            inputs=inputs,
+            wait_for_completion=wait,
+            timeout=timeout,
+            start_from_node=start_from_node or None,
+            until_node=until_node or None,
+            context=context,
+        )
         auth_h = request.headers.get("Authorization")
         try:
             resp = await handler.start_run(graph_id, req, auth_header=auth_h)

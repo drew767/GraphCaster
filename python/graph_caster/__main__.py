@@ -127,6 +127,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Merge node_outputs from this JSON object (key node_outputs: { nodeId: … }) into run context before start",
     )
     run.add_argument(
+        "--use-pins",
+        action="store_true",
+        default=False,
+        help="F48: auto-populate ancestor outputs from gcPin.payload before a mid-graph --start run",
+    )
+    run.add_argument(
+        "--pins-from-run",
+        default=None,
+        metavar="RUN_ID",
+        help="F48: load pinned outputs from a previous run's events.ndjson; requires --artifacts-base",
+    )
+    run.add_argument(
+        "--pin-output",
+        action="append",
+        default=[],
+        metavar="nodeId:key:jsonValue",
+        dest="pin_outputs",
+        help="F48: explicit per-node output override nodeId:key:jsonValue (repeatable)",
+    )
+    run.add_argument(
         "--nested-context-out",
         type=Path,
         default=None,
@@ -350,7 +370,26 @@ def _cmd_run(args: argparse.Namespace) -> int:
         persist_run_events=persist_ev,
         fork_max_parallel=args.fork_max_parallel,
         public_stream=public_stream,
+        scheduler=getattr(args, "scheduler", None),
     )
+    # F48: parse --pin-output overrides (nodeId:key:jsonValue)
+    pin_overrides: dict[str, dict] = {}
+    for po in getattr(args, "pin_outputs", None) or []:
+        parts = po.split(":", 2)
+        if len(parts) != 3:
+            print(f"graph-caster: --pin-output {po!r}: expected format nodeId:key:jsonValue", file=sys.stderr)
+            return 2
+        po_node, po_key, po_raw = parts
+        po_node, po_key = po_node.strip(), po_key.strip()
+        if not po_node or not po_key:
+            print(f"graph-caster: --pin-output {po!r}: nodeId and key must not be empty", file=sys.stderr)
+            return 2
+        try:
+            po_val = json.loads(po_raw)
+        except json.JSONDecodeError:
+            po_val = po_raw
+        pin_overrides.setdefault(po_node, {})[po_key] = po_val
+
     try:
         ctx: dict = {"last_result": True}
         if args.run_id is not None and str(args.run_id).strip():
@@ -361,6 +400,31 @@ def _cmd_run(args: argparse.Namespace) -> int:
             except (OSError, json.JSONDecodeError, ValueError) as e:
                 print(f"graph-caster: context-json: {e}", file=sys.stderr)
                 return 2
+
+        # F48: build pinned context when --use-pins / --pins-from-run / --pin-output is set
+        use_pins_flag = bool(getattr(args, "use_pins", False))
+        pins_from_run = (getattr(args, "pins_from_run", None) or "").strip() or None
+        has_f48 = (use_pins_flag or pins_from_run or pin_overrides) and args.start and until is None
+        if has_f48:
+            import asyncio as _asyncio
+            from graph_caster.partial_exec import build_pinned_context
+
+            _ws = workspace_root or artifacts_base or Path(".")
+            _pctx = _asyncio.run(
+                build_pinned_context(
+                    graph=raw,
+                    start_node=args.start,
+                    use_pins=use_pins_flag,
+                    from_run_id=pins_from_run,
+                    workspace_root=_ws,
+                    overrides=pin_overrides or None,
+                )
+            )
+            bucket = ctx.setdefault("node_outputs", {})
+            bucket.update(_pctx.get("node_outputs", {}))
+        elif pin_overrides and not args.start:
+            print("graph-caster: --pin-output requires --start (mid-graph entry point)", file=sys.stderr)
+            return 2
 
         if until is not None and args.start:
             print(
