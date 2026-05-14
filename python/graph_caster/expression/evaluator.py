@@ -407,4 +407,7 @@ class ExpressionEvaluator:
         result = re.sub(r"\$env\b", '__ctx__["env"]', result)
         result = re.sub(r"\$iteration\b", '__ctx__["iteration"]', result)
         result = re.sub(r"\$vars\b", '__ctx__["vars"]', result)
+        result = re.sub(r"\$sys\b", '__ctx__["sys"]', result)
+        result = re.sub(r"\$session\b", '__ctx__["session"]', result)
+        result = re.sub(r"\$tenant\b", '__ctx__["tenant"]', result)
         return result

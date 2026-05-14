@@ -1,10 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphcaster.local/schemas/graph-document.schema.json",
-  "title": "GraphCaster graph document (v1.14)",
+  "title": "GraphCaster graph document (v1.20)",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "nodes", "edges"],
+  "required": [
+    "schemaVersion",
+    "nodes",
+    "edges"
+  ],
   "properties": {
     "schemaVersion": {
       "type": "integer",
@@ -14,28 +18,47 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "schemaVersion": { "type": "integer" },
-        "graphId": { "type": "string", "minLength": 1 },
-        "title": { "type": "string" },
-        "author": { "type": "string" }
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "graphId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        }
       }
     },
     "viewport": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "x": { "type": "number" },
-        "y": { "type": "number" },
-        "zoom": { "type": "number" }
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        }
       }
     },
     "nodes": {
       "type": "array",
-      "items": { "$ref": "#/$defs/node" }
+      "items": {
+        "$ref": "#/$defs/node"
+      }
     },
     "edges": {
       "type": "array",
-      "items": { "$ref": "#/$defs/edge" }
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
     }
   },
   "$defs": {
@@ -44,7 +67,9 @@
       "additionalProperties": true,
       "description": "Pinned task output (optional). When enabled and payload contains a dict processResult, the runner may skip spawning the process and use that result; otherwise payload seeds node_outputs before the visit merge.",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": true,
@@ -66,23 +91,55 @@
       "additionalProperties": true,
       "description": "Cursor Agent CLI preset for task nodes (phase 9). Builds argv for headless `agent -p` style runs; executable from GC_CURSOR_AGENT, PATH `agent`, or Windows %LOCALAPPDATA%\\\\cursor-agent\\\\agent.cmd. Do not store API keys in the graph — use host environment.",
       "properties": {
-        "presetVersion": { "type": "integer", "const": 1 },
-        "prompt": { "type": "string", "description": "Inline prompt text; optional if promptFile is set. Supports placeholders {{out:<nodeId>.processResult.stdout}} and .stderr (truncated)." },
-        "promptFile": { "type": "string", "description": "Relative path from cwd base (no ..); read as UTF-8 when prompt is empty." },
+        "presetVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Inline prompt text; optional if promptFile is set. Supports placeholders {{out:<nodeId>.processResult.stdout}} and .stderr (truncated)."
+        },
+        "promptFile": {
+          "type": "string",
+          "description": "Relative path from cwd base (no ..); read as UTF-8 when prompt is empty."
+        },
         "cwdBase": {
           "type": "string",
-          "enum": ["workspace_root", "graphs_root", "artifact_dir"],
+          "enum": [
+            "workspace_root",
+            "graphs_root",
+            "artifact_dir"
+          ],
           "default": "workspace_root",
           "description": "workspace_root: parent of graphs/ if folder is named graphs, else graphs root; graphs_root: workspace graphs directory; artifact_dir: root run artifact directory."
         },
-        "cwdRelative": { "type": "string", "description": "Optional subdirectory under cwdBase (no ..)." },
-        "printMode": { "type": "boolean", "default": true, "description": "When true, pass -p (--print) for headless output." },
-        "applyFileChanges": { "type": "boolean", "default": false, "description": "When true with printMode, pass --force so the agent may modify files." },
-        "model": { "type": "string", "description": "Optional --model argument." },
-        "outputFormat": { "type": "string", "description": "Optional --output-format (e.g. text, json, stream-json)." },
+        "cwdRelative": {
+          "type": "string",
+          "description": "Optional subdirectory under cwdBase (no ..)."
+        },
+        "printMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, pass -p (--print) for headless output."
+        },
+        "applyFileChanges": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true with printMode, pass --force so the agent may modify files."
+        },
+        "model": {
+          "type": "string",
+          "description": "Optional --model argument."
+        },
+        "outputFormat": {
+          "type": "string",
+          "description": "Optional --output-format (e.g. text, json, stream-json)."
+        },
         "extraArgs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Extra argv tokens inserted before the final prompt positional argument."
         }
       }
@@ -90,20 +147,35 @@
     "node": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type", "position", "data"],
+      "required": [
+        "id",
+        "type",
+        "position",
+        "data"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), llm_agent (delegated subprocess; stdin JSON + stdout NDJSON agent protocol), agent (in-runner tool loop; data.inputText and optional systemPrompt), ai_route (structured AI branch picker after upstream output), comment (sticky frame), group (organizational frame; n8n-style), merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI), trigger_webhook (HTTP entry; no incoming edges; path + method + optional auth for run broker), trigger_schedule (cron metadata entry; no incoming edges; external scheduler), code (F67: sandboxed Python/JS snippet; result/stdout/stderr outputs; see $defs.codeData). Other values: unknown executable (task-like handles in validation)."
+          "description": "Known kinds: start, exit, task, graph_ref, mcp_tool (external MCP tools/call per visit), llm_agent (delegated subprocess; stdin JSON + stdout NDJSON agent protocol), agent (in-runner tool loop; data.inputText and optional systemPrompt), ai_route (structured AI branch picker after upstream output), comment (sticky frame), group (organizational frame; n8n-style), merge (join; data.mode passthrough | barrier), fork (fan-out; unconditional out_default edges only in runner; optional data.maxParallel int >=1 caps parallel branch pool with runner/env/CLI), trigger_webhook (HTTP entry; no incoming edges; path + method + optional auth for run broker), trigger_schedule (cron metadata entry; no incoming edges; external scheduler), trigger_error (error-handler entry; no incoming edges; fires when a source graph run fails/is cancelled/times out; see $defs.triggerErrorData), human_input (pause run and wait for human response; see $defs.humanInputData; F45). , code (F67: sandboxed Python/JS snippet; result/stdout/stderr outputs; see $defs.codeData). Other values: unknown executable (task-like handles in validation)."
         },
         "position": {
           "type": "object",
-          "required": ["x", "y"],
+          "required": [
+            "x",
+            "y"
+          ],
           "properties": {
-            "x": { "type": "number" },
-            "y": { "type": "number" }
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
           },
           "additionalProperties": true
         },
@@ -124,18 +196,66 @@
       "additionalProperties": true,
       "description": "Delegated LLM / agent subprocess (F11): one JSON line on stdin (upstreamOutputs, optional inputPayload); child stdout must be NDJSON with types agent_delegate_start, agent_step, agent_tool_call, agent_finished, agent_failed. Uses same env/envKeys/CWD patterns as task (F8 secrets). Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task / mcp_tool).",
       "properties": {
-        "title": { "type": "string" },
-        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
-        "command": { "type": ["string", "array"] },
-        "argv": { "type": "array", "items": { "type": "string" } },
-        "cwd": { "type": "string" },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } },
-        "envKeys": { "$ref": "#/$defs/envKeysList" },
-        "timeoutSec": { "type": "number", "minimum": 1, "maximum": 86400, "default": 600 },
-        "retryCount": { "type": "integer", "minimum": 0, "default": 0, "description": "Extra attempts after the first subprocess (same as task); emits process_retry between attempts." },
-        "maxRetries": { "type": "integer", "minimum": 0, "description": "If set, combined with retryCount as max(retryCount, maxRetries) for total retries after first attempt." },
-        "retryBackoffSec": { "type": "number", "minimum": 0, "default": 1, "description": "Delay before each retry (seconds)." },
-        "maxAgentSteps": { "type": "integer", "minimum": 0, "default": 0, "description": "Max agent_step lines before runner kills child; 0 = unlimited." },
+        "title": {
+          "type": "string"
+        },
+        "stepCache": {
+          "type": "boolean",
+          "description": "When true, allow F17 step-cache for this node if the run host enables it."
+        },
+        "command": {
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "envKeys": {
+          "$ref": "#/$defs/envKeysList"
+        },
+        "timeoutSec": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 600
+        },
+        "retryCount": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Extra attempts after the first subprocess (same as task); emits process_retry between attempts."
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "If set, combined with retryCount as max(retryCount, maxRetries) for total retries after first attempt."
+        },
+        "retryBackoffSec": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1,
+          "description": "Delay before each retry (seconds)."
+        },
+        "maxAgentSteps": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Max agent_step lines before runner kills child; 0 = unlimited."
+        },
         "inputPayload": {
           "description": "Optional extra JSON merged into stdin payload as inputPayload (object or string)."
         }
@@ -153,12 +273,20 @@
         },
         "sourcePortKind": {
           "type": "string",
-          "enum": ["any", "json", "primitive"],
+          "enum": [
+            "any",
+            "json",
+            "primitive"
+          ],
           "description": "Optional F18 phase 2: camelCase only; override effective PortDataKind on the source side of this edge; if omitted, registry uses node.type + sourceHandle (see port_data_kinds.py / portDataKinds.ts)."
         },
         "targetPortKind": {
           "type": "string",
-          "enum": ["any", "json", "primitive"],
+          "enum": [
+            "any",
+            "json",
+            "primitive"
+          ],
           "description": "Optional F18 phase 2: camelCase only; override effective PortDataKind on the target side of this edge; if omitted, registry uses node.type + targetHandle."
         }
       }
@@ -168,24 +296,69 @@
       "additionalProperties": true,
       "description": "MCP client node (direction B): one tools/call per visit. Secrets via envKeys / bearerEnvKey + workspace secrets (F8). Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task).",
       "properties": {
-        "title": { "type": "string" },
-        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
+        "title": {
+          "type": "string"
+        },
+        "stepCache": {
+          "type": "boolean",
+          "description": "When true, allow F17 step-cache for this node if the run host enables it."
+        },
         "transport": {
           "type": "string",
-          "enum": ["stdio", "streamable_http"],
+          "enum": [
+            "stdio",
+            "streamable_http"
+          ],
           "default": "stdio"
         },
-        "toolName": { "type": "string", "minLength": 1 },
-        "arguments": { "type": "object", "additionalProperties": true },
-        "timeoutSec": { "type": "number", "minimum": 1, "maximum": 600, "default": 60 },
-        "command": { "type": ["string", "array"] },
-        "argv": { "type": "array", "items": { "type": "string" } },
-        "cwd": { "type": "string" },
-        "serverUrl": { "type": "string" },
-        "allowInsecureLocalhost": { "type": "boolean", "default": false },
-        "bearerEnvKey": { "type": "string" },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } },
-        "envKeys": { "$ref": "#/$defs/envKeysList" }
+        "toolName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "timeoutSec": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 60
+        },
+        "command": {
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "serverUrl": {
+          "type": "string"
+        },
+        "allowInsecureLocalhost": {
+          "type": "boolean",
+          "default": false
+        },
+        "bearerEnvKey": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "envKeys": {
+          "$ref": "#/$defs/envKeysList"
+        }
       }
     },
     "aiRouteNodeData": {
@@ -193,11 +366,18 @@
       "additionalProperties": true,
       "description": "AI branch router node. Optional stepCache: true opts into cross-run disk step-cache (F17) when the host passes step-cache and artifacts-base (same contract as task / mcp_tool).",
       "properties": {
-        "title": { "type": "string" },
-        "stepCache": { "type": "boolean", "description": "When true, allow F17 step-cache for this node if the run host enables it." },
+        "title": {
+          "type": "string"
+        },
+        "stepCache": {
+          "type": "boolean",
+          "description": "When true, allow F17 step-cache for this node if the run host enables it."
+        },
         "providerKind": {
           "type": "string",
-          "enum": ["http_json"],
+          "enum": [
+            "http_json"
+          ],
           "default": "http_json",
           "description": "MVP: POST JSON to endpointUrl; response must include choiceIndex (1-based)."
         },
@@ -209,17 +389,43 @@
           "type": "string",
           "description": "Name of environment variable holding Bearer token (optional; omit for local/unauthenticated endpoints)."
         },
-        "timeoutSec": { "type": "number", "minimum": 0.1, "default": 30 },
-        "maxRetries": { "type": "integer", "minimum": 0, "default": 0 },
-        "retryBackoffSec": { "type": "number", "minimum": 0, "default": 1 },
-        "maxRequestJsonBytes": { "type": "integer", "minimum": 256, "default": 65536 },
-        "authorHint": { "type": "string", "maxLength": 4096 },
+        "timeoutSec": {
+          "type": "number",
+          "minimum": 0.1,
+          "default": 30
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "retryBackoffSec": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "maxRequestJsonBytes": {
+          "type": "integer",
+          "minimum": 256,
+          "default": 65536
+        },
+        "authorHint": {
+          "type": "string",
+          "maxLength": 4096
+        },
         "onFailure": {
           "type": "string",
-          "enum": ["stop_run", "fallback"],
+          "enum": [
+            "stop_run",
+            "fallback"
+          ],
           "default": "stop_run"
         },
-        "fallbackChoiceIndex": { "type": "integer", "minimum": 1, "default": 1 }
+        "fallbackChoiceIndex": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
       }
     },
     "triggerWebhookData": {
@@ -234,12 +440,21 @@
         },
         "method": {
           "type": "string",
-          "enum": ["GET", "POST", "PUT", "DELETE"],
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
           "default": "POST"
         },
         "responseMode": {
           "type": "string",
-          "enum": ["immediate", "wait", "lastNode"],
+          "enum": [
+            "immediate",
+            "wait",
+            "lastNode"
+          ],
           "default": "immediate",
           "description": "immediate: return run id immediately; wait (or legacy lastNode): block until run reaches a terminal status (see waitTimeoutSec), then include status/outputs/error."
         },
@@ -251,7 +466,9 @@
           "description": "Seconds to wait when responseMode is wait (default 300, max 3600)."
         }
       },
-      "required": ["path"]
+      "required": [
+        "path"
+      ]
     },
     "triggerScheduleData": {
       "type": "object",
@@ -268,7 +485,149 @@
           "default": "UTC"
         }
       },
-      "required": ["cron"]
+      "required": [
+        "cron"
+      ]
+    },
+    "triggerErrorData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Error-handler trigger configuration (F72). A graph with start.data.kind == 'error_handler' and a trigger_error node is invoked when a source graph run ends with a matching terminal status. The error-handler registry scans graphs/ for trigger_error nodes and wires dispatch at the broker level.",
+      "properties": {
+        "sourceGraphIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Graph IDs to monitor. Use [\"*\"] to match all graphs.",
+          "default": [
+            "*"
+          ]
+        },
+        "triggerOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "failed",
+              "cancelled",
+              "timeout"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": [
+            "failed"
+          ],
+          "description": "Terminal statuses that trigger this handler. Subset of: failed, cancelled, timeout."
+        }
+      }
+    },
+    "humanInputData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Data fields for human_input nodes (F45). Runner pauses on this node and emits human_input_required, then resumes with the provided payload after POST /api/v1/runs/{runId}/resume.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "text",
+            "choice",
+            "approval",
+            "json"
+          ],
+          "default": "text",
+          "description": "Input modality: text (free text), choice (pick from list), approval (yes/no), json (structured JSON object)."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Question or instruction shown to the human. Required."
+        },
+        "choices": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "List of string options for kind=choice."
+        },
+        "schema": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ],
+          "description": "JSON Schema for kind=json; shown as Monaco editor with validation."
+        },
+        "timeoutSec": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Seconds before the run auto-resumes with timedOut=true. 0 = no timeout."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "$ref": "#/$defs/edgeData"
+        },
+        "sourceHandle": {
+          "type": "string",
+          "description": "Source handle id: out_default (success path) or out_error (failure path after task/graph_ref/mcp_tool failure; Dify FAIL_BRANCH-style). See python/README.md."
+        },
+        "targetHandle": {
+          "type": "string"
+        },
+        "source_handle": {
+          "type": "string"
+        },
+        "target_handle": {
+          "type": "string"
+        },
+        "condition": {
+          "description": "Empty/null: unconditional. Max 65536 chars after trim. Literals true/false/1/0/yes/no. Mustache templates: {{dotted.path}} or {{dotted.path}} op literal (==, !=, <, <=, >, >=); first segment may be reserved $json (last_result snapshot, n8n-style). JSON object starting with { but not {{: JSON Logic subset (same predicate root). Other strings: truthiness of last_result. See python/README.md.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      }
     },
     "codeData": {
       "type": "object",
@@ -277,7 +636,10 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "javascript"],
+          "enum": [
+            "python",
+            "javascript"
+          ],
           "default": "python",
           "description": "Runtime language for the snippet."
         },
@@ -288,7 +650,26 @@
         },
         "arguments": {
           "description": "JSON value passed as `args` global inside the snippet.",
-          "oneOf": [{ "type": "null" }, { "type": "object" }, { "type": "array" }, { "type": "string" }, { "type": "number" }, { "type": "boolean" }]
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object"
+            },
+            {
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
         },
         "timeoutSec": {
           "type": "number",
@@ -305,29 +686,9 @@
           "description": "Soft memory limit in MiB (POSIX only; ignored on Windows)."
         }
       },
-      "required": ["code"]
-    },
-    "edge": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "source", "target"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "source": { "type": "string", "minLength": 1 },
-        "target": { "type": "string", "minLength": 1 },
-        "data": { "$ref": "#/$defs/edgeData" },
-        "sourceHandle": {
-          "type": "string",
-          "description": "Source handle id: out_default (success path) or out_error (failure path after task/graph_ref/mcp_tool failure; Dify FAIL_BRANCH-style). See python/README.md."
-        },
-        "targetHandle": { "type": "string" },
-        "source_handle": { "type": "string" },
-        "target_handle": { "type": "string" },
-        "condition": {
-          "description": "Empty/null: unconditional. Max 65536 chars after trim. Literals true/false/1/0/yes/no. Mustache templates: {{dotted.path}} or {{dotted.path}} op literal (==, !=, <, <=, >, >=); first segment may be reserved $json (last_result snapshot, n8n-style). JSON object starting with { but not {{: JSON Logic subset (same predicate root). Other strings: truthiness of last_result. See python/README.md.",
-          "oneOf": [{ "type": "null" }, { "type": "string" }]
-        }
-      }
+      "required": [
+        "code"
+      ]
     }
   }
 }

@@ -119,27 +119,24 @@ class APIV1Handler:
         """Start a new graph run."""
         self._check_auth(auth_header, "run:execute")
 
-        trigger_ctx: dict[str, Any] = {
+        trigger_ctx = {
             "type": "api",
             "graph_id": graph_id,
             "inputs": request.inputs,
         }
-        if request.start_from_node:
-            trigger_ctx["startFromNode"] = request.start_from_node
-        if request.until_node:
-            trigger_ctx["untilNode"] = request.until_node
-
-        merged_context: dict[str, Any] = dict(request.inputs)
+        ctx: dict[str, Any] = dict(request.inputs)
         if request.context:
-            merged_context.update(request.context)
+            ctx.setdefault("node_outputs", request.context.get("node_outputs"))
+            for k, v in request.context.items():
+                if k != "node_outputs":
+                    ctx[k] = v
         if request.start_from_node:
-            merged_context["startFromNode"] = request.start_from_node
+            ctx["startFromNode"] = request.start_from_node
         if request.until_node:
-            merged_context["untilNode"] = request.until_node
-
+            ctx["untilNode"] = request.until_node
         run_id = await self._run_manager.start_run(
             graph_id,
-            context=merged_context,
+            context=ctx,
             trigger_context=trigger_ctx,
         )
 
@@ -212,19 +209,78 @@ class APIV1Handler:
             message=result.get("message"),
         )
 
+    async def start_partial_run(
+        self,
+        graph_id: str,
+        *,
+        start_node: str,
+        use_pins: bool = True,
+        from_run_id: "str | None" = None,
+        overrides: "dict | None" = None,
+        workspace_root: "Any" = None,
+        auth_header: "str | None" = None,
+    ) -> RunResponse:
+        """Start a partial run from *start_node* with pinned upstream outputs (F48)."""
+        from pathlib import Path as _Path
+        import json as _json
+        from datetime import datetime as _datetime, timezone as _tz
+
+        self._check_auth(auth_header, "run:execute")
+
+        merged_context: dict[str, Any] = {"startFromNode": start_node}
+
+        if workspace_root is not None:
+            _ws = _Path(workspace_root).resolve()
+            raw_doc: "dict | None" = None
+            _graphs_dir = _ws / "graphs"
+            if _graphs_dir.is_dir():
+                for _p in _graphs_dir.iterdir():
+                    if _p.suffix != ".json":
+                        continue
+                    try:
+                        _raw = _json.loads(_p.read_text(encoding="utf-8"))
+                    except (OSError, _json.JSONDecodeError):
+                        continue
+                    _meta = _raw.get("meta") or {}
+                    _gid = str(_meta.get("graphId") or _raw.get("graphId") or "").strip()
+                    if _gid == graph_id:
+                        raw_doc = _raw
+                        break
+
+            if raw_doc is not None:
+                from graph_caster.partial_exec import build_pinned_context
+                pinned = await build_pinned_context(
+                    graph=raw_doc,
+                    start_node=start_node,
+                    use_pins=use_pins,
+                    from_run_id=from_run_id,
+                    workspace_root=_ws,
+                    overrides=overrides,
+                )
+                merged_context.update(pinned)
+
+        trigger_ctx: dict[str, Any] = {"type": "api_partial", "graph_id": graph_id, "startNode": start_node}
+        run_id = await self._run_manager.start_run(graph_id, context=merged_context, trigger_context=trigger_ctx)
+        return RunResponse(
+            run_id=run_id,
+            graph_id=graph_id,
+            status="started",
+            created_at=_datetime.now(_tz.utc).isoformat(),
+        )
+
     async def get_replay_plan(
         self,
         run_id: str,
         *,
-        workspace_root: "Path",
-        start_from: str | None = None,
-        auth_header: str | None = None,
+        workspace_root: "Any",
+        start_from: "str | None" = None,
+        auth_header: "str | None" = None,
     ) -> "dict[str, Any]":
         """Preview a replay plan without executing (GET /api/v1/runs/{runId}/replay-plan)."""
         from pathlib import Path as _Path
 
         self._check_auth(auth_header, "run:view")
-        from graph_caster.replay import ReplayManager, ReplayError
+        from graph_caster.replay import ReplayError, ReplayManager
 
         mgr = ReplayManager(_Path(workspace_root))
         try:
@@ -237,16 +293,16 @@ class APIV1Handler:
         self,
         run_id: str,
         *,
-        workspace_root: "Path",
-        start_from: str | None = None,
+        workspace_root: "Any",
+        start_from: "str | None" = None,
         override_inputs: "dict | None" = None,
-        auth_header: str | None = None,
+        auth_header: "str | None" = None,
     ) -> str:
         """Execute a replay and return the new run_id (POST /api/v1/runs/{runId}/replay)."""
         from pathlib import Path as _Path
 
         self._check_auth(auth_header, "run:execute")
-        from graph_caster.replay import ReplayManager, ReplayError
+        from graph_caster.replay import ReplayError, ReplayManager
 
         mgr = ReplayManager(_Path(workspace_root))
         try:
