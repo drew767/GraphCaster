@@ -612,6 +612,13 @@
 
   /* BG shorthand used in one rule */
   --gc-bg: var(--color--background);
+
+  /* Node category colors for palette sidebar */
+  --gc-category-flow: #3b82f6;
+  --gc-category-run-ai: #8b5cf6;
+  --gc-category-nested: #10b981;
+  --gc-category-notes: #f59e0b;
+  --gc-category-default: #6b7280;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -647,5 +654,12 @@
 
     /* BG */
     --gc-bg: var(--color--background);
+
+    /* Node category colors - adjusted for dark mode */
+    --gc-category-flow: #60a5fa;
+    --gc-category-run-ai: #a78bfa;
+    --gc-category-nested: #34d399;
+    --gc-category-notes: #fbbf24;
+    --gc-category-default: #9ca3af;
   }
 }

@@ -11,6 +11,7 @@ import {
   type WorkspaceGraphAddMenuRow,
 } from "../graph/addNodeMenu";
 import type { NodeTemplateId } from "../graph/nodeTemplates";
+import { getNodeIcon, getNodeCategoryFromType } from "../graph/nodeIcons";
 import { DraggableNodeItem } from "./DraggableNodeItem";
 import "./NodePaletteSidebar.css";
 
@@ -123,6 +124,8 @@ export function NodePaletteSidebar({
                 key={nodeType}
                 nodeType={nodeType}
                 label={labelForPrimitive(nodeType)}
+                icon={getNodeIcon(nodeType)}
+                category={getNodeCategoryFromType(nodeType)}
                 payload={{ kind: "primitive", nodeType }}
                 onClick={() => handleNodeClick(nodeType)}
               />
@@ -141,6 +144,8 @@ export function NodePaletteSidebar({
                 key={`graph-${graph.graphId}`}
                 nodeType="graph_ref"
                 label={graph.label}
+                icon={getNodeIcon("graph_ref")}
+                category="nested"
                 payload={{ kind: "graph_ref", targetGraphId: graph.graphId }}
                 onClick={() => onNodeClick?.({ kind: "graph_ref", targetGraphId: graph.graphId })}
               />

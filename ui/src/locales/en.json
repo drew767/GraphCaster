@@ -34,6 +34,7 @@
       "addNodeFilterPh": "Filter by type…",
       "addNodeNoMatch": "No matching node type.",
       "addNodeNoGraphs": "No graphs in workspace. Add graphs to the linked folder.",
+      "nodeItemDragHint": "Drag to canvas or press Enter to add",
       "addNodeCategoryGroup": "Filter by category",
       "addNodeCategory": {
         "all": "All",

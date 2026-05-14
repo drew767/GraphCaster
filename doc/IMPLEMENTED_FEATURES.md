@@ -118,6 +118,27 @@
 
 ---
 
+## Sidebar Node Palette with Drag & Drop (n8n/Langflow-style)
+
+| Идея конкурента | Реализация GC |
+|-----------------|---------------|
+| Сворачиваемая боковая панель для добавления нод перетаскиванием (n8n, Langflow, Flowise) | Компонент **`NodePaletteSidebar`** (`ui/src/components/NodePaletteSidebar.tsx`); свёрнутое/развёрнутое состояние в **`AppShell`**; toggle-кнопка (`«`/`»`) |
+| Фильтрация по категориям и поиск | **`ADD_NODE_CATEGORY_ORDER`** (`all`, `flow`, `steps`, `nested`, `notes`) в **`addNodeMenu.ts`**; инпут поиска с debounce-free фильтрацией |
+| Drag and drop на canvas (как n8n / Langflow `SidebarDraggableComponent`) | Компонент **`DraggableNodeItem`** (`ui/src/components/DraggableNodeItem.tsx`); custom MIME type **`application/x-gc-node`** (**`GC_DRAG_NODE_MIME_TYPE`** в **`nodeDragDrop.ts`**); payload encoding/decoding (**`encodeNodeDragData`** / **`decodeNodeDragData`**); **`dataTransfer.effectAllowed = "copy"`**; координаты drop через **`reactFlowInstance.screenToFlowPosition`** |
+| Визуальная обратная связь при drop (n8n / Langflow highlight) | Классы **`gc-flow-wrap--drop-active`** в **`app.css`**; outline и overlay при dragover; **`dragEnterCounterRef`** для корректной работы с вложенными элементами |
+| Custom drag ghost (как Langflow `borderLeftColor` + icon) | **`dataTransfer.setDragImage`** с off-screen **`gc-drag-ghost`** элементом; включает иконку и label |
+| Иконки и цветовые индикаторы категорий (n8n `NodeIcon`, Langflow `borderLeftColor`) | Эмодзи-иконки в **`nodeIcons.ts`** (**`NODE_ICONS`**: `▶️` Start, `⚙️` Task, `🧠` AI route, `📂` Graph ref, …); цветная левая граница по категории в **`nodeCategoryColors.ts`** (**`NODE_CATEGORY_COLORS`**: flow=blue, run_ai=purple, nested=green, notes=amber); CSS-переменные в **`tokens.css`** |
+| Grip индикатор для drag affordance (Langflow grip icon) | Символ **`⋮⋮`** появляется при hover; **`gc-draggable-node-item__grip`** с `opacity` transition |
+| Click-to-add (альтернатива drag) | **`onClick`** на **`DraggableNodeItem`** вызывает **`onNodeClick`**; canvas добавляет ноду в центр viewport |
+| Keyboard accessibility (Enter/Space для добавления) | **`tabIndex={0}`**, **`onKeyDown`** (Enter / Space); ARIA **`aria-label`** с инструкцией drag/Enter |
+| Keyboard shortcut для toggle (Ctrl+Shift+N) | Слушатель в **`AppShell`**; локализованный hint в **`nodePaletteToggle`** |
+| Поддержка nested graphs из workspace | **`workspaceGraphs`** prop; категория **`nested`**; empty state **`addNodeNoGraphs`** |
+| Dark mode | CSS-переменные в **`@media (prefers-color-scheme: dark)`** в **`tokens.css`** и **`DraggableNodeItem.css`** |
+
+Код: **`ui/src/components/NodePaletteSidebar.tsx`**, **`ui/src/components/NodePaletteSidebar.css`**, **`ui/src/components/DraggableNodeItem.tsx`**, **`ui/src/components/DraggableNodeItem.css`**, **`ui/src/graph/nodeDragDrop.ts`**, **`ui/src/graph/nodeIcons.ts`**, **`ui/src/graph/nodeCategoryColors.ts`**, **`ui/src/graph/addNodeMenu.ts`**, **`ui/src/layout/AppShell.tsx`**, **`ui/src/components/GraphCanvas.tsx`**, **`ui/src/styles/tokens.css`**. Vitest: **`nodeDragDrop.test.ts`**, **`nodeIcons.test.ts`**, **`nodeCategoryColors.test.ts`**, **`DraggableNodeItem.test.tsx`**, **`NodePaletteSidebar.test.tsx`**, **`addNodeMenu.test.ts`**. Локали: **`en.json`** / **`ru.json`** (**`nodePaletteToggle`**, **`nodeItemDragHint`**, **`nodeItemGrip`**, **`addNodeNoGraphs`**).
+
+---
+
 ## Визуализация прогона на канвасе (edge highlight + motion modes)
 
 | Идея конкурента | Реализация GC |

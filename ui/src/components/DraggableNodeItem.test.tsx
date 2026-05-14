@@ -106,4 +106,56 @@ describe("DraggableNodeItem", () => {
     fireEvent.keyDown(item, { key: " " });
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("renders with icon", () => {
+    render(
+      <DraggableNodeItem
+        nodeType="task"
+        label="Task Node"
+        icon="⚙️"
+        category="run_ai"
+        payload={{ kind: "primitive", nodeType: "task" }}
+      />,
+    );
+    expect(screen.getByText("⚙️")).toBeInTheDocument();
+  });
+
+  it("applies category data attribute", () => {
+    render(
+      <DraggableNodeItem
+        nodeType="start"
+        label="Start"
+        icon="▶️"
+        category="flow"
+        payload={{ kind: "primitive", nodeType: "start" }}
+      />,
+    );
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveAttribute("data-category", "flow");
+  });
+
+  it("renders grip icon", () => {
+    render(
+      <DraggableNodeItem
+        nodeType="task"
+        label="Task"
+        icon="⚙️"
+        category="run_ai"
+        payload={{ kind: "primitive", nodeType: "task" }}
+      />,
+    );
+    expect(screen.getByText("⋮⋮")).toBeInTheDocument();
+  });
+
+  it("applies gc-draggable-node-item class", () => {
+    render(
+      <DraggableNodeItem
+        nodeType="task"
+        label="Task"
+        payload={{ kind: "primitive", nodeType: "task" }}
+      />,
+    );
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveClass("gc-draggable-node-item");
+  });
 });

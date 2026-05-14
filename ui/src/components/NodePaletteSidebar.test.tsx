@@ -112,4 +112,20 @@ describe("NodePaletteSidebar", () => {
     render(<NodePaletteSidebar {...defaultProps} />);
     expect(screen.getByRole("complementary")).toBeInTheDocument();
   });
+
+  it("renders node items with icons", () => {
+    render(<NodePaletteSidebar {...defaultProps} />);
+    // Start node should have play icon
+    expect(screen.getByText("▶️")).toBeInTheDocument();
+    // Task node should have gear icon
+    expect(screen.getByText("⚙️")).toBeInTheDocument();
+  });
+
+  it("renders node items with category colors via data attribute", () => {
+    render(<NodePaletteSidebar {...defaultProps} />);
+    const items = screen.getAllByRole("listitem");
+    // At least one item should have data-category attribute
+    const flowItems = items.filter(item => item.getAttribute("data-category") === "flow");
+    expect(flowItems.length).toBeGreaterThan(0);
+  });
 });

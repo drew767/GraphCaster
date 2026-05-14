@@ -1,15 +1,20 @@
 // Copyright Aura. All Rights Reserved.
 
 import { useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   GC_DRAG_NODE_MIME_TYPE,
   encodeNodeDragData,
   type NodeDragPayload,
 } from "../graph/nodeDragDrop";
+import type { NodeCategoryColorId } from "../graph/nodeCategoryColors";
+import "./DraggableNodeItem.css";
 
 export interface DraggableNodeItemProps {
   nodeType: string;
   label: string;
+  icon?: string;
+  category?: NodeCategoryColorId;
   payload: NodeDragPayload;
   onClick?: () => void;
 }
@@ -17,9 +22,12 @@ export interface DraggableNodeItemProps {
 export function DraggableNodeItem({
   nodeType: _nodeType,
   label,
+  icon,
+  category = "default",
   payload,
   onClick,
 }: DraggableNodeItemProps) {
+  const { t } = useTranslation();
   const ghostRef = useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = useCallback(
@@ -28,10 +36,10 @@ export function DraggableNodeItem({
       dt.setData(GC_DRAG_NODE_MIME_TYPE, encodeNodeDragData(payload));
       dt.effectAllowed = "copy";
 
-      // Create custom drag ghost
+      // Create custom drag ghost with icon
       const ghost = document.createElement("div");
       ghost.className = "gc-drag-ghost";
-      ghost.textContent = label;
+      ghost.textContent = icon ? `${icon} ${label}` : label;
       ghost.style.position = "absolute";
       ghost.style.top = "-9999px";
       ghost.style.left = "-9999px";
@@ -39,7 +47,7 @@ export function DraggableNodeItem({
       ghostRef.current = ghost;
       dt.setDragImage(ghost, 12, 12);
     },
-    [payload, label],
+    [payload, label, icon],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -62,15 +70,19 @@ export function DraggableNodeItem({
   return (
     <li
       role="listitem"
+      className="gc-draggable-node-item"
+      data-category={category}
       draggable
       tabIndex={0}
-      aria-label={`${label}. Drag to canvas or press Enter to add.`}
+      aria-label={`${label}. ${t("app.canvas.nodeItemDragHint")}`}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={onClick}
       onKeyDown={handleKeyDown}
     >
-      {label}
+      {icon && <span className="gc-draggable-node-item__icon">{icon}</span>}
+      <span className="gc-draggable-node-item__label">{label}</span>
+      <span className="gc-draggable-node-item__grip" aria-hidden="true">⋮⋮</span>
     </li>
   );
 }

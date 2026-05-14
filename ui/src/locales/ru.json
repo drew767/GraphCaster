@@ -34,6 +34,7 @@
       "addNodeFilterPh": "Фильтр по типу…",
       "addNodeNoMatch": "Нет подходящего типа.",
       "addNodeNoGraphs": "Нет графов в workspace. Добавьте графы в привязанную папку.",
+      "nodeItemDragHint": "Перетащите на полотно или нажмите Enter для добавления",
       "addNodeCategoryGroup": "Фильтр по категории",
       "addNodeCategory": {
         "all": "Все",
