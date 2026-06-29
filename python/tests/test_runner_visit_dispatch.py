@@ -105,10 +105,11 @@ def test_fork_worker_preserves_extra_keys_on_existing_node_output() -> None:
     assert entry["nodeType"] == "task"
 
 
-def test_runner_visit_shim_delegates_to_registry() -> None:
-    """Calling ``runner._run_python_code_visit`` should route through the registry
-    function for ``python_code`` — when there's no actual code, it returns a
-    non-ok outcome rather than crashing."""
+def test_dispatch_visit_routes_node_type_to_registry_entry(monkeypatch) -> None:
+    """``dispatch_visit`` must invoke the function registered in ``VISIT_BY_TYPE``
+    for the node's type, passing ``fork_parallel_worker=False``."""
+    from graph_caster.runner import dispatch_tables
+
     doc = GraphDocument(
         schema_version=1,
         graph_id="g",
@@ -127,10 +128,54 @@ def test_runner_visit_shim_delegates_to_registry() -> None:
             )
         ],
     )
-    events: list[dict[str, Any]] = []
-    runner = GraphRunner(doc, sink=lambda e: events.append(e))
-    # The shim just delegates; assert it is callable and matches the registry.
-    assert runner._run_python_code_visit is not VISIT_FN_BY_NODE_TYPE["python_code"]
-    # The wrapper produces the same return tuple shape: (outcome, used_pin).
-    # We don't execute python code here; the test just guards the dispatch
-    # plumbing is wired the right way.
+    runner = GraphRunner(doc, sink=lambda _e: None)
+    node = runner._node_by_id["py1"]
+    ctx: dict[str, Any] = {"node_outputs": {}}
+
+    calls: list[dict[str, Any]] = []
+
+    def _stub(runner_arg, node_arg, ctx_arg, step_q_arg, *, fork_parallel_worker):
+        calls.append(
+            {
+                "runner": runner_arg,
+                "node": node_arg,
+                "ctx": ctx_arg,
+                "fork_parallel_worker": fork_parallel_worker,
+            }
+        )
+        return ("ok", False)
+
+    patched = dict(dispatch_tables.VISIT_BY_TYPE)
+    patched["python_code"] = _stub
+    monkeypatch.setattr(dispatch_tables, "VISIT_BY_TYPE", patched)
+
+    from graph_caster.step_queue import StepQueue
+
+    step_q = StepQueue("py1")
+    result = dispatch_tables.dispatch_visit(runner, node, ctx, step_q)
+
+    assert result == ("ok", False)
+    assert len(calls) == 1
+    assert calls[0]["runner"] is runner
+    assert calls[0]["node"] is node
+    assert calls[0]["ctx"] is ctx
+    assert calls[0]["fork_parallel_worker"] is False
+
+
+def test_dispatch_visit_returns_none_for_unregistered_type() -> None:
+    """Control-flow types (``exit``) are not in ``VISIT_BY_TYPE``; dispatch returns ``None``."""
+    from graph_caster.runner.dispatch_tables import dispatch_visit
+    from graph_caster.step_queue import StepQueue
+
+    doc = GraphDocument(
+        schema_version=1,
+        graph_id="g",
+        title="t",
+        nodes=[
+            Node(id="exit1", type="exit", position={"x": 0, "y": 0}, data={}),
+        ],
+        edges=[],
+    )
+    runner = GraphRunner(doc, sink=lambda _e: None)
+    node = runner._node_by_id["exit1"]
+    assert dispatch_visit(runner, node, {}, StepQueue("exit1")) is None

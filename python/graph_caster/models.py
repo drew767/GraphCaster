@@ -1,10 +1,20 @@
 # Copyright GraphCaster. All Rights Reserved.
+#
+# TODO: migrate consumers to graph_caster.contract.document.Document.
+# This dataclass-based mirror stays for backward compatibility while
+# the SSOT moves to schemas/graph-document.schema.json + the pydantic
+# models in graph_caster.contract.
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
 from typing import Any
+
+# Re-export the pydantic contract under an underscore name so existing
+# call-sites of GraphDocument continue to work unchanged. New code should
+# import from graph_caster.contract.document directly.
+from graph_caster.contract.document import Document as _PydanticDocument  # noqa: F401
 
 # Non-executable canvas frames (editor-only); runner and static graph checks skip these like edges.
 EDITOR_FRAME_NODE_TYPES: frozenset[str] = frozenset({"comment", "group"})

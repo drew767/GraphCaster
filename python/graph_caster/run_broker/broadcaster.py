@@ -6,9 +6,11 @@ import asyncio
 import atexit
 import json
 import logging
+import os
 import queue
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, wait as futures_wait
 from dataclasses import dataclass, field
@@ -40,11 +42,21 @@ class FanOutMsg:
     payload: str | int
 
 
+def _default_replay_buffer_size() -> int:
+    raw = (os.environ.get("GC_RUN_BROKER_REPLAY_BUFFER") or "").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 1024
+    return max(0, min(65_536, n))
+
+
 @dataclass
 class RunBroadcasterConfig:
     max_sub_queue_depth: int = 8192
     backpressure_emit_interval_sec: float = 0.1
     use_priority_queue: bool = False
+    replay_buffer_size: int = field(default_factory=_default_replay_buffer_size)
 
 
 SubscriberQueue = queue.Queue[FanOutMsg] | PriorityBoundedQueue[FanOutMsg]
@@ -80,6 +92,7 @@ def _stream_backpressure_line(run_id: str, dropped: int) -> str:
             "type": "stream_backpressure",
             "runId": run_id,
             "droppedOutputLines": dropped,
+            "droppedSinceLastNotify": dropped,
             "reason": "subscriber_queue_full",
         },
         separators=(",", ":"),
@@ -98,6 +111,14 @@ def _out_priority_for_delivery(msg: FanOutMsg, droppable: bool) -> MessagePriori
     return MessagePriority.NORMAL
 
 
+@dataclass(frozen=True)
+class _ReplayRecord:
+    """One captured outbound msg with its stamped seq (for ring-buffer replay)."""
+
+    seq: int
+    msg: FanOutMsg
+
+
 class RunBroadcaster:
     _BACKPRESSURE_PUT_TIMEOUT_SEC = 0.35
 
@@ -114,6 +135,7 @@ class RunBroadcaster:
             max_sub_queue_depth=max(1, cfg.max_sub_queue_depth),
             backpressure_emit_interval_sec=cfg.backpressure_emit_interval_sec,
             use_priority_queue=cfg.use_priority_queue,
+            replay_buffer_size=max(0, cfg.replay_buffer_size),
         )
         self._subs: list[_SubscriberSlot] = []
         self._lock = threading.Lock()
@@ -121,21 +143,34 @@ class RunBroadcaster:
         self._droppable_output_drops = 0
         self._relay_fanout_hook = relay_fanout_hook
         self._seq_gen = SequenceGenerator()
+        # Ring buffer of recently broadcast outbound messages. Keyed by stamped
+        # seq for stdout JSON; non-seq messages (err/exit/raw stdout) are stored
+        # with the most recent stamped seq for relative ordering. Only used for
+        # sequence-aware reconnect via subscribe_with_replay(since_seq=N).
+        self._replay: deque[_ReplayRecord] = deque(maxlen=self._config.replay_buffer_size or 1)
+        self._replay_enabled = self._config.replay_buffer_size > 0
 
-    def _stamp_json_out(self, msg: FanOutMsg) -> FanOutMsg:
-        """Attach monotonic ``seq`` to JSON object payloads on the ``out`` channel."""
+    def _stamp_json_out(self, msg: FanOutMsg) -> tuple[FanOutMsg, int]:
+        """Attach monotonic ``seq`` to JSON object payloads on the ``out`` channel.
+
+        Returns ``(stamped_msg, seq)``. ``seq`` is 0 when the message is not a
+        JSON-encoded stdout line (err / exit / raw stdout text) and so does not
+        get its own sequence — these are still captured into the ring buffer
+        but keyed by the most recent stamped seq for ordering purposes.
+        """
         if msg.kind != "out" or not isinstance(msg.payload, str):
-            return msg
+            return msg, 0
         payload_str = msg.payload.strip()
         if not payload_str.startswith("{"):
-            return msg
+            return msg, 0
         try:
             obj = json.loads(payload_str)
         except json.JSONDecodeError:
-            return msg
-        obj["seq"] = self._seq_gen.next_seq()
+            return msg, 0
+        seq = self._seq_gen.next_seq()
+        obj["seq"] = seq
         stamped_payload = json.dumps(obj, separators=(",", ":"))
-        return FanOutMsg(msg.kind, stamped_payload)
+        return FanOutMsg(msg.kind, stamped_payload), seq
 
     def subscribe(self) -> SubscriberQueue:
         if self._config.use_priority_queue:
@@ -167,25 +202,23 @@ class RunBroadcaster:
             prev_last = sub.last_emit_mono
             sub.last_emit_mono = now
             warn = FanOutMsg("out", _stream_backpressure_line(self._run_id, n))
+        # Backpressure notifications are themselves non-droppable: CRITICAL on the
+        # priority queue path (evicts lowest item or blocks), and an unconditional
+        # blocking put on the plain Queue path. The client MUST learn about drops.
         if isinstance(sub.queue, PriorityBoundedQueue):
-            dropped = sub.queue.try_put(warn, MessagePriority.HIGH)
-            if dropped:
-                try:
-                    sub.queue.put(warn, MessagePriority.HIGH, timeout=self._BACKPRESSURE_PUT_TIMEOUT_SEC)
-                except TimeoutError:
-                    with sub.bp_lock:
-                        sub.dropped_since_emit += n
-                        sub.last_emit_mono = prev_last
-            return
-        try:
-            sub.queue.put_nowait(warn)
-        except queue.Full:
             try:
-                sub.queue.put(warn, timeout=self._BACKPRESSURE_PUT_TIMEOUT_SEC)
-            except queue.Full:
+                sub.queue.put(warn, MessagePriority.CRITICAL, timeout=self._BACKPRESSURE_PUT_TIMEOUT_SEC)
+            except TimeoutError:
                 with sub.bp_lock:
                     sub.dropped_since_emit += n
                     sub.last_emit_mono = prev_last
+            return
+        try:
+            sub.queue.put(warn, timeout=self._BACKPRESSURE_PUT_TIMEOUT_SEC)
+        except queue.Full:
+            with sub.bp_lock:
+                sub.dropped_since_emit += n
+                sub.last_emit_mono = prev_last
 
     def _deliver_to_sub(self, sub: _SubscriberSlot, msg: FanOutMsg, droppable: bool) -> None:
         pq = sub.queue
@@ -226,11 +259,49 @@ class RunBroadcaster:
             "droppableOutputDrops": drops,
         }
 
+    def _record_for_replay(self, stamped_msg: FanOutMsg, seq: int) -> None:
+        """Append a broadcast event to the ring buffer for late-subscriber replay."""
+        if not self._replay_enabled:
+            return
+        if seq == 0:
+            seq = self._seq_gen.current()
+        with self._lock:
+            self._replay.append(_ReplayRecord(seq=seq, msg=stamped_msg))
+
+    def replay_since(self, since_seq: int) -> list[FanOutMsg]:
+        """Return buffered messages with ``seq > since_seq``, oldest first."""
+        if not self._replay_enabled:
+            return []
+        with self._lock:
+            return [r.msg for r in self._replay if r.seq > since_seq]
+
+    def subscribe_with_replay(self, since_seq: int) -> tuple[SubscriberQueue, list[FanOutMsg]]:
+        """Return (live queue, replay snapshot) so callers can drain replay then attach live.
+
+        The replay snapshot is captured **under the same lock** as the new
+        subscriber registration so we don't double-deliver events that arrive
+        between the snapshot and ``subscribe()``.
+        """
+        if self._config.use_priority_queue:
+            q: SubscriberQueue = PriorityBoundedQueue(maxsize=self._config.max_sub_queue_depth)
+        else:
+            q = queue.Queue(maxsize=self._config.max_sub_queue_depth)
+        slot = _SubscriberSlot(queue=q)
+        with self._lock:
+            snapshot = (
+                [r.msg for r in self._replay if r.seq > since_seq]
+                if self._replay_enabled and since_seq >= 0
+                else []
+            )
+            self._subs.append(slot)
+        return q, snapshot
+
     def broadcast(self, msg: FanOutMsg) -> None:
-        stamped_msg = self._stamp_json_out(msg)
+        stamped_msg, stamped_seq = self._stamp_json_out(msg)
         droppable = False
         if stamped_msg.kind == "out":
             droppable = _is_droppable_out_line(str(stamped_msg.payload))
+        self._record_for_replay(stamped_msg, stamped_seq)
         with self._lock:
             subs = list(self._subs)
         if len(subs) <= 1:
@@ -256,7 +327,8 @@ class RunBroadcaster:
         priority: MessagePriority = MessagePriority.NORMAL,
     ) -> None:
         """Broadcast with explicit priority (used when ``use_priority_queue`` is enabled)."""
-        stamped_msg = self._stamp_json_out(msg)
+        stamped_msg, stamped_seq = self._stamp_json_out(msg)
+        self._record_for_replay(stamped_msg, stamped_seq)
         with self._lock:
             subs = list(self._subs)
 
@@ -272,6 +344,23 @@ class RunBroadcaster:
                 self._relay_fanout_hook(stamped_msg)
             except Exception:
                 _LOG.debug("relay_fanout_hook failed", exc_info=True)
+
+    async def stream_replay(self, replay: list[FanOutMsg]):
+        """Yield SSE chunks for a pre-captured replay snapshot (server-side ring buffer).
+
+        Mirrors the ``stream_queue`` envelope so the SSE handler can pipe the
+        replay first then attach the live queue without the client noticing.
+        """
+        for msg in replay:
+            if msg.kind == "out":
+                line = str(msg.payload)
+                for segment in line.split("\n"):
+                    yield f"data: {segment}\n"
+                yield "\n"
+            elif msg.kind == "err":
+                yield f"event: err\ndata: {msg.payload}\n\n"
+            elif msg.kind == "exit":
+                yield f"event: exit\ndata: {json.dumps({'code': msg.payload})}\n\n"
 
     async def stream_queue(self, q: SubscriberQueue):
         try:

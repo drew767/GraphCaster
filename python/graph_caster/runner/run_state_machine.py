@@ -40,7 +40,6 @@ from graph_caster.runner.run_helpers import (
     normalize_run_id_candidate,
     prepare_context,
     run_mode_wire,
-    task_has_process_command,
 )
 from graph_caster.step_queue import ExecutionFrame, StepQueue
 from graph_caster.validate import (
@@ -533,9 +532,11 @@ def _run_node_body(
             return "break"
         return "noop"
 
-    visit_fn = _TYPED_VISITS.get(node.type)
-    if visit_fn is not None:
-        outcome, used_pin = visit_fn(runner, node, ctx, step_q)
+    from graph_caster.runner.dispatch_tables import dispatch_visit
+
+    outcome_pair = dispatch_visit(runner, node, ctx, step_q)
+    if outcome_pair is not None:
+        outcome, used_pin = outcome_pair
         if outcome == "continue":
             otel_tracing.mark_current_span_error(f"{node.type}_continue_non_ok")
             return "continue"
@@ -543,43 +544,7 @@ def _run_node_body(
             otel_tracing.mark_current_span_error(f"{node.type}_break_non_ok")
             return "break"
         return ("ok", used_pin)
-    if node.type == "task" and task_has_process_command(node):
-        outcome, used_pin = runner._run_subprocess_task_visit(
-            node, ctx, step_q, fork_parallel_worker=False
-        )
-        if outcome == "continue":
-            otel_tracing.mark_current_span_error("task_continue_non_ok")
-            return "continue"
-        if outcome == "break":
-            otel_tracing.mark_current_span_error("task_break_non_ok")
-            return "break"
-        return ("ok", used_pin)
     return "noop"
-
-
-# Map of node-type → bound-method-name on GraphRunner. Resolved at call-time
-# so that subclassing or attribute overrides still work.
-def _bind_visit(method_name: str):
-    def _inner(runner: Any, node: Node, ctx: dict[str, Any], step_q: StepQueue):
-        return getattr(runner, method_name)(node, ctx, step_q, fork_parallel_worker=False)
-
-    return _inner
-
-
-_TYPED_VISITS: dict[str, Any] = {
-    "http_request": _bind_visit("_run_http_request_visit"),
-    "rag_query": _bind_visit("_run_rag_query_visit"),
-    "rag_index": _bind_visit("_run_rag_index_visit"),
-    "python_code": _bind_visit("_run_python_code_visit"),
-    "set_variable": _bind_visit("_run_set_variable_visit"),
-    "delay": _bind_visit("_run_delay_visit"),
-    "debounce": _bind_visit("_run_debounce_visit"),
-    "wait_for": _bind_visit("_run_wait_for_visit"),
-    "trigger_webhook": _bind_visit("_run_trigger_webhook_visit"),
-    "trigger_schedule": _bind_visit("_run_trigger_schedule_visit"),
-    "llm_agent": _bind_visit("_run_llm_agent_visit"),
-    "agent": _bind_visit("_run_agent_visit"),
-}
 
 
 def run_from_root_finally(runner: Any, ctx: dict[str, Any], nd0: int, root_span: Any) -> None:

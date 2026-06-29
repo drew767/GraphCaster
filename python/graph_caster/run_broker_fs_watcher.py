@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal, NamedTuple
 
+from graph_caster.run_broker.watcher import TriggerEvent, WatcherRunner
+
 logger = logging.getLogger(__name__)
 
 
@@ -270,6 +272,13 @@ class FilesystemWatcher:
         self._file_mtimes: dict[Path, float] = {}
         self._metrics = _Metrics()
 
+    @property
+    def poll_interval_seconds(self) -> float:
+        """Cooperative sleep between ticks — minimum across loaded triggers."""
+        if self._states:
+            return max(0.1, min(s.trigger.poll_interval_sec for s in self._states.values()))
+        return self._default_poll_sec
+
     def list_triggers(self) -> list[WatchedTrigger]:
         """Return a snapshot of currently loaded watched triggers."""
         return [s.trigger for s in self._states.values()]
@@ -362,8 +371,10 @@ class FilesystemWatcher:
         self._states = new_states
         self._metrics.set_trigger_count(len(self._states))
 
-    async def _poll_trigger(self, state: _TriggerPollState) -> None:
-        """Single poll tick for one trigger."""
+    async def _compute_fires(
+        self, state: _TriggerPollState
+    ) -> list[tuple[EventKind, Path, float]]:
+        """Scan one trigger; mutate state.last_snapshot; return pending fires (no dispatch)."""
         trigger = state.trigger
 
         if not trigger.path.exists():
@@ -373,7 +384,7 @@ class FilesystemWatcher:
                 trigger.graph_id,
                 trigger.node_id,
             )
-            return
+            return []
 
         now = self._clock()
         try:
@@ -391,7 +402,7 @@ class FilesystemWatcher:
             )
             state.error_count += 1
             self._metrics.inc_error(trigger.graph_id)
-            return
+            return []
 
         prev = state.last_snapshot
         fires: list[tuple[EventKind, Path, float]] = []
@@ -441,37 +452,51 @@ class FilesystemWatcher:
                 del new_snapshot[path]
 
         state.last_snapshot = new_snapshot
+        return fires
 
-        for event_kind, fired_path, mtime in fires:
-            logger.info(
-                "FsWatcher: firing %s/%s event=%s path=%s",
+    async def _dispatch_fire(
+        self,
+        state: _TriggerPollState,
+        event_kind: EventKind,
+        fired_path: Path,
+        mtime: float,
+    ) -> None:
+        trigger = state.trigger
+        logger.info(
+            "FsWatcher: firing %s/%s event=%s path=%s",
+            trigger.graph_id,
+            trigger.node_id,
+            event_kind,
+            fired_path,
+        )
+        try:
+            await self._broker_client.start_run(
+                graph_id=trigger.graph_id,
+                start_node_id=trigger.node_id,
+                source="filesystem",
+                payload={
+                    "event": event_kind,
+                    "path": str(fired_path),
+                    "mtime": mtime,
+                },
+            )
+            state.fire_count += 1
+            self._metrics.inc_fire(trigger.graph_id, trigger.node_id, event_kind)
+        except Exception as exc:
+            logger.error(
+                "FsWatcher: start_run failed for %s/%s: %s",
                 trigger.graph_id,
                 trigger.node_id,
-                event_kind,
-                fired_path,
+                exc,
             )
-            try:
-                await self._broker_client.start_run(
-                    graph_id=trigger.graph_id,
-                    start_node_id=trigger.node_id,
-                    source="filesystem",
-                    payload={
-                        "event": event_kind,
-                        "path": str(fired_path),
-                        "mtime": mtime,
-                    },
-                )
-                state.fire_count += 1
-                self._metrics.inc_fire(trigger.graph_id, trigger.node_id, event_kind)
-            except Exception as exc:
-                logger.error(
-                    "FsWatcher: start_run failed for %s/%s: %s",
-                    trigger.graph_id,
-                    trigger.node_id,
-                    exc,
-                )
-                state.error_count += 1
-                self._metrics.inc_error(trigger.graph_id)
+            state.error_count += 1
+            self._metrics.inc_error(trigger.graph_id)
+
+    async def _poll_trigger(self, state: _TriggerPollState) -> None:
+        """Single poll tick for one trigger — scan + dispatch via broker_client."""
+        fires = await self._compute_fires(state)
+        for event_kind, fired_path, mtime in fires:
+            await self._dispatch_fire(state, event_kind, fired_path, mtime)
 
     async def _poll_all(self) -> None:
         """Poll every loaded trigger once."""
@@ -487,6 +512,12 @@ class FilesystemWatcher:
                 )
                 state.error_count += 1
                 self._metrics.inc_error(state.trigger.graph_id)
+
+    async def tick(self) -> list[TriggerEvent]:
+        """Watcher protocol: poll all triggers + reload-if-changed; events fire inline."""
+        await self._poll_all()
+        await self._maybe_reload()
+        return []
 
     async def _maybe_reload(self) -> None:
         """Reload triggers if graphs_dir mtime or any graph file mtime changed."""
@@ -510,48 +541,32 @@ class FilesystemWatcher:
                 return
 
     async def run(self) -> None:
-        """Main watcher loop.
+        """Thin wrapper: drive self via shared WatcherRunner.
 
-        Runs until ``stop()`` is called or the task is cancelled.
-        On each tick: reload graphs if dir/file mtime changed, then poll all triggers.
-        Uses the minimum poll interval across all loaded triggers (or default_poll_sec).
+        Events fire inline through ``broker_client.start_run`` (see ``_dispatch_fire``),
+        so the runner's dispatch is a no-op.
         """
-        import anyio
-
         if not _fs_watcher_enabled():
             logger.info(
                 "FsWatcher: disabled (set GC_RUN_BROKER_FS_WATCHER=on to enable)."
             )
             return
 
+        async def _noop(_ev: TriggerEvent) -> None:
+            return
+
+        self._runner = WatcherRunner(dispatch=_noop)
         self._running = True
-        logger.info(
-            "FsWatcher: starting, graphs_dir=%s",
-            self._graphs_dir,
-        )
-        await self.reload()
-
-        while self._running:
-            await self._poll_all()
-            await self._maybe_reload()
-
-            # Use minimum poll interval across triggers, or default
-            if self._states:
-                poll_sec = min(
-                    s.trigger.poll_interval_sec for s in self._states.values()
-                )
-                poll_sec = max(0.1, poll_sec)
-            else:
-                poll_sec = self._default_poll_sec
-
-            try:
-                await anyio.sleep(poll_sec)
-            except anyio.get_cancelled_exc_class():
-                break
-
-        self._running = False
-        logger.info("FsWatcher: stopped.")
+        logger.info("FsWatcher: starting, graphs_dir=%s", self._graphs_dir)
+        try:
+            await self._runner.run(self)
+        finally:
+            self._running = False
+            logger.info("FsWatcher: stopped.")
 
     def stop(self) -> None:
         """Signal the run loop to stop after the current tick."""
         self._running = False
+        runner = getattr(self, "_runner", None)
+        if runner is not None:
+            runner.stop()

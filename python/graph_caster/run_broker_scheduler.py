@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
+from graph_caster.run_broker.watcher import TriggerEvent, WatcherRunner
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -189,6 +191,11 @@ class Scheduler:
 
         self._fires_total: dict[str, int] = {}
         self._missed_total: dict[str, int] = {}
+
+    @property
+    def poll_interval_seconds(self) -> float:
+        """Cooperative sleep between ticks (env-configurable, default 5.0s)."""
+        return self._tick
 
     def list_jobs(self) -> list[ScheduledJob]:
         """Return a snapshot of currently loaded scheduled jobs."""
@@ -367,14 +374,14 @@ class Scheduler:
                     exc,
                 )
 
+    async def tick(self) -> list[TriggerEvent]:
+        """Watcher protocol: check fire times + reload-if-changed; jobs fire inline."""
+        await self._tick_once()
+        await self._maybe_reload()
+        return []
+
     async def run(self) -> None:
-        """Main scheduler loop.
-
-        Runs until ``stop()`` is called or the task is cancelled.
-        On each tick: reload graphs if dir/file mtime changed, then fire due jobs.
-        """
-        import anyio
-
+        """Thin wrapper: drive self via shared WatcherRunner."""
         if not _scheduler_enabled():
             logger.info(
                 "Scheduler: disabled (set GC_RUN_BROKER_SCHEDULER=on to enable)."
@@ -387,24 +394,21 @@ class Scheduler:
             )
             return
 
+        async def _noop(_ev: TriggerEvent) -> None:
+            return
+
+        self._runner = WatcherRunner(dispatch=_noop)
         self._running = True
         logger.info(
             "Scheduler: starting, graphs_dir=%s, tick=%.1fs",
             self._graphs_dir,
             self._tick,
         )
-        await self.reload()
-
-        while self._running:
-            await self._tick_once()
-            await self._maybe_reload()
-            try:
-                await anyio.sleep(self._tick)
-            except anyio.get_cancelled_exc_class():
-                break
-
-        self._running = False
-        logger.info("Scheduler: stopped.")
+        try:
+            await self._runner.run(self)
+        finally:
+            self._running = False
+            logger.info("Scheduler: stopped.")
 
     async def _maybe_reload(self) -> None:
         """Reload schedule if graphs_dir mtime or any file mtime changed."""
@@ -430,3 +434,6 @@ class Scheduler:
     def stop(self) -> None:
         """Signal the run loop to stop after the current tick."""
         self._running = False
+        runner = getattr(self, "_runner", None)
+        if runner is not None:
+            runner.stop()

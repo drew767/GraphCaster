@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal
 
+from graph_caster.run_broker.watcher import TriggerEvent, WatcherRunner
+
 logger = logging.getLogger(__name__)
 
 
@@ -542,6 +544,13 @@ class PollWatcher:
         else:
             self._state_dir = self._graphs_dir.parent / ".graphcaster" / "poll-state"
 
+    @property
+    def poll_interval_seconds(self) -> float:
+        """Cooperative sleep between ticks — minimum across loaded triggers (>= 1.0s)."""
+        if self._triggers:
+            return max(1.0, min(t.interval_sec for t in self._triggers.values()))
+        return 5.0
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -785,45 +794,36 @@ class PollWatcher:
                 self._metrics.inc_error(trigger.graph_id, trigger.node_id, "http")
 
     # ------------------------------------------------------------------
-    # Main loop
+    # Watcher protocol + run wrapper
     # ------------------------------------------------------------------
 
+    async def tick(self) -> list[TriggerEvent]:
+        """Watcher protocol: poll all triggers + reload-if-changed; events fire inline."""
+        await self._poll_all()
+        await self._maybe_reload()
+        return []
+
     async def run(self) -> None:
-        """Main poller loop.
-
-        Runs until ``stop()`` is called or the task is cancelled.
-        Sleeps for the minimum interval across all loaded triggers (or 5 s).
-        """
-        import anyio
-
+        """Thin wrapper: drive self via shared WatcherRunner."""
         if not _poller_enabled():
             logger.info("Poller: disabled (set GC_RUN_BROKER_POLLER=on to enable).")
             return
 
+        async def _noop(_ev: TriggerEvent) -> None:
+            return
+
+        self._runner = WatcherRunner(dispatch=_noop)
         self._running = True
         logger.info("Poller: starting, graphs_dir=%s", self._graphs_dir)
-        await self.reload()
-
-        while self._running:
-            await self._poll_all()
-            await self._maybe_reload()
-
-            if self._triggers:
-                sleep_sec = min(
-                    t.interval_sec for t in self._triggers.values()
-                )
-                sleep_sec = max(1.0, sleep_sec)
-            else:
-                sleep_sec = 5.0
-
-            try:
-                await anyio.sleep(sleep_sec)
-            except anyio.get_cancelled_exc_class():
-                break
-
-        self._running = False
-        logger.info("Poller: stopped.")
+        try:
+            await self._runner.run(self)
+        finally:
+            self._running = False
+            logger.info("Poller: stopped.")
 
     def stop(self) -> None:
         """Signal the run loop to stop after the current tick."""
         self._running = False
+        runner = getattr(self, "_runner", None)
+        if runner is not None:
+            runner.stop()

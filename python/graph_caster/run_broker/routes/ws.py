@@ -52,7 +52,22 @@ def make_ws_run_handler(reg: RunBrokerRegistry):
             await websocket.close(code=WS_CLOSE_VIEWER_REJECT)
             return
         await websocket.accept()
-        q = entry.broadcaster.subscribe()
+
+        raw_since = websocket.query_params.get("since_seq")
+        since_seq = -1
+        if raw_since is not None:
+            try:
+                v = int(raw_since)
+                if v >= 0:
+                    since_seq = v
+            except (TypeError, ValueError):
+                since_seq = -1
+        if since_seq >= 0:
+            q, replay_msgs = entry.broadcaster.subscribe_with_replay(since_seq)
+            for rmsg in replay_msgs:
+                await websocket.send_json(broker_ws_payload_from_fanout(run_id, rmsg))
+        else:
+            q = entry.broadcaster.subscribe()
 
         hb: HeartbeatManager | None = None
         interval = _ws_heartbeat_interval_sec()
