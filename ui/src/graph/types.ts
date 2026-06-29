@@ -1,4 +1,9 @@
 // Copyright GraphCaster. All Rights Reserved.
+//
+// TODO: migrate consumers to ui/src/contract; legacy mirror kept for compat.
+// Authoritative source: schemas/graph-document.schema.json (v1.20).
+// New code should import ContractDocument/ContractNode/ContractEdge from
+// ui/src/contract instead of the *Json aliases below.
 
 export type GraphNodeJson = {
   id: string;

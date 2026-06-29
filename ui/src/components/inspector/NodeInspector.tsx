@@ -8,7 +8,6 @@ import type { GraphDocumentJson } from "../../graph/types";
 import {
   GRAPH_NODE_TYPE_AI_ROUTE,
   GRAPH_NODE_TYPE_MERGE,
-  GRAPH_NODE_TYPE_MCP_TOOL,
   GRAPH_NODE_TYPE_HTTP_REQUEST,
   GRAPH_NODE_TYPE_RAG_QUERY,
   GRAPH_NODE_TYPE_RAG_INDEX,
@@ -16,7 +15,6 @@ import {
   GRAPH_NODE_TYPE_DEBOUNCE,
   GRAPH_NODE_TYPE_WAIT_FOR,
   GRAPH_NODE_TYPE_SET_VARIABLE,
-  GRAPH_NODE_TYPE_PYTHON_CODE,
   GRAPH_NODE_TYPE_LLM_AGENT,
   GRAPH_NODE_TYPE_AGENT,
   GRAPH_NODE_TYPE_GROUP,
@@ -25,7 +23,7 @@ import {
   GRAPH_NODE_TYPE_TRIGGER_SCHEDULE,
   isGraphDocumentFrameType,
 } from "../../graph/nodeKinds";
-import { useRunSession } from "../../run/runSessionStore";
+import { useRunSessionOutputs } from "../../run/runSessionStore";
 import { mergeModeFromNodeData, parseWaitForFileParamsFromData } from "../../graph/structureWarnings";
 import {
   type AppMessagePresentation,
@@ -33,14 +31,8 @@ import {
   presentationForInspectorSimple,
 } from "../../graph/openGraphErrorPresentation";
 import { safeExternalHttpUrl } from "../../lib/safeExternalUrl";
-import {
-  buildGcCursorAgentPayload,
-  cursorAgentUiValidationKey,
-  parseExtraArgsJson,
-  type GcCursorAgentCwdBase,
-} from "../../graph/cursorAgentPreset";
+import { INSPECTOR_REGISTRY } from "../../graph/inspectorRegistry";
 import type { GraphRefSnapshotLoadResult } from "../../graph/graphRefLazySnapshot";
-import { ExpressionAutocompleteInput } from "../ExpressionAutocompleteInput";
 import {
   GCPIN_PAYLOAD_WARN_BYTES,
   agentPromptFromNodeRaw,
@@ -81,7 +73,7 @@ export type NodeInspectorProps = {
 export function NodeInspector({
   selection,
   graphDocument,
-  expressionNodeIds,
+  expressionNodeIds: _expressionNodeIds,
   expressionEditorMonaco,
   setExpressionEditorMonaco,
   runLocked,
@@ -97,55 +89,9 @@ export function NodeInspector({
   runUntilThisNodeEnabled,
 }: NodeInspectorProps) {
   const { t } = useTranslation();
-  const runSession = useRunSession();
-
-  const expressionEditorMode = expressionEditorMonaco ? "monaco" : "native";
+  const nodeOutputSnapshots = useRunSessionOutputs();
 
   const [dataText, setDataText] = useState("{}");
-
-  const [caEnabled, setCaEnabled] = useState(false);
-  const [caPrompt, setCaPrompt] = useState("");
-  const [caPromptFile, setCaPromptFile] = useState("");
-  const [caCwdBase, setCaCwdBase] = useState<GcCursorAgentCwdBase>("workspace_root");
-  const [caCwdRelative, setCaCwdRelative] = useState("");
-  const [caModel, setCaModel] = useState("");
-  const [caOutputFormat, setCaOutputFormat] = useState("");
-  const [caExtraArgsJson, setCaExtraArgsJson] = useState("");
-  const [caPrintMode, setCaPrintMode] = useState(true);
-  const [caApplyFileChanges, setCaApplyFileChanges] = useState(false);
-
-  const [mcpTransport, setMcpTransport] = useState<"stdio" | "streamable_http">("stdio");
-  const [mcpToolName, setMcpToolName] = useState("");
-  const [mcpTimeoutSec, setMcpTimeoutSec] = useState("60");
-  const [mcpCommand, setMcpCommand] = useState("");
-  const [mcpServerUrl, setMcpServerUrl] = useState("");
-  const [mcpAllowInsecure, setMcpAllowInsecure] = useState(false);
-  const [mcpBearerKey, setMcpBearerKey] = useState("");
-  const [mcpArgsJson, setMcpArgsJson] = useState("{}");
-
-  const [httpUrl, setHttpUrl] = useState("");
-  const [httpMethod, setHttpMethod] = useState("GET");
-  const [httpHeadersJson, setHttpHeadersJson] = useState("{}");
-  const [httpBody, setHttpBody] = useState("");
-  const [httpTimeoutSec, setHttpTimeoutSec] = useState("30");
-  const [httpVerifyTls, setHttpVerifyTls] = useState(true);
-  const [httpParseResponse, setHttpParseResponse] = useState<"auto" | "json" | "text">("auto");
-  const [httpAuthKind, setHttpAuthKind] = useState<"none" | "basic" | "bearer">("none");
-  const [httpAuthUser, setHttpAuthUser] = useState("");
-  const [httpAuthPassword, setHttpAuthPassword] = useState("");
-  const [httpAuthToken, setHttpAuthToken] = useState("");
-
-  const [ragUrl, setRagUrl] = useState("");
-  const [ragQuery, setRagQuery] = useState("");
-  const [ragCollectionId, setRagCollectionId] = useState("");
-  const [ragTopK, setRagTopK] = useState("5");
-  const [ragMethod, setRagMethod] = useState("POST");
-  const [ragHeadersJson, setRagHeadersJson] = useState("{}");
-  const [ragBody, setRagBody] = useState("");
-  const [ragTimeoutSec, setRagTimeoutSec] = useState("60");
-  const [ragVerifyTls, setRagVerifyTls] = useState(true);
-  const [ragParseResponse, setRagParseResponse] = useState<"auto" | "json" | "text">("auto");
-  const [ragVectorBackend, setRagVectorBackend] = useState<"http" | "memory">("http");
 
   const [ragIndexCollectionId, setRagIndexCollectionId] = useState("");
   const [ragIndexText, setRagIndexText] = useState("");
@@ -159,9 +105,6 @@ export function NodeInspector({
   const [waitForPath, setWaitForPath] = useState("");
   const [waitForTimeoutSec, setWaitForTimeoutSec] = useState("300");
   const [waitForPollSec, setWaitForPollSec] = useState("0.25");
-
-  const [pyCode, setPyCode] = useState("");
-  const [pyTimeoutSec, setPyTimeoutSec] = useState("30");
 
   const [setVarName, setSetVarName] = useState("");
   const [setVarOperation, setSetVarOperation] = useState<"set" | "increment" | "append" | "delete">(
@@ -292,169 +235,6 @@ export function NodeInspector({
   );
 
   useEffect(() => {
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_TASK) {
-      const gca = isPlainObject(selection.raw.gcCursorAgent) ? selection.raw.gcCursorAgent : null;
-      setCaEnabled(gca != null);
-      if (gca != null) {
-        setCaPrompt(typeof gca.prompt === "string" ? gca.prompt : "");
-        setCaPromptFile(typeof gca.promptFile === "string" ? gca.promptFile : "");
-        const cb = gca.cwdBase;
-        setCaCwdBase(
-          cb === "graphs_root" || cb === "artifact_dir" ? (cb as GcCursorAgentCwdBase) : "workspace_root",
-        );
-        setCaCwdRelative(typeof gca.cwdRelative === "string" ? gca.cwdRelative : "");
-        setCaModel(typeof gca.model === "string" ? gca.model : "");
-        setCaOutputFormat(typeof gca.outputFormat === "string" ? gca.outputFormat : "");
-        setCaExtraArgsJson(Array.isArray(gca.extraArgs) ? JSON.stringify(gca.extraArgs) : "");
-        setCaPrintMode(gca.printMode !== false);
-        setCaApplyFileChanges(gca.applyFileChanges === true);
-      } else {
-        setCaPrompt("");
-        setCaPromptFile("");
-        setCaCwdBase("workspace_root");
-        setCaCwdRelative("");
-        setCaModel("");
-        setCaOutputFormat("");
-        setCaExtraArgsJson("");
-        setCaPrintMode(true);
-        setCaApplyFileChanges(false);
-      }
-    }
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_MCP_TOOL) {
-      const r = selection.raw;
-      setMcpTransport(r.transport === "streamable_http" ? "streamable_http" : "stdio");
-      setMcpToolName(typeof r.toolName === "string" ? r.toolName : "");
-      const ts = r.timeoutSec;
-      setMcpTimeoutSec(
-        typeof ts === "number" && Number.isFinite(ts)
-          ? String(ts)
-          : typeof ts === "string" && ts.trim() !== ""
-            ? ts.trim()
-            : "60",
-      );
-      setMcpCommand(typeof r.command === "string" ? r.command : "");
-      setMcpServerUrl(typeof r.serverUrl === "string" ? r.serverUrl : "");
-      setMcpAllowInsecure(r.allowInsecureLocalhost === true);
-      setMcpBearerKey(typeof r.bearerEnvKey === "string" ? r.bearerEnvKey : "");
-      const ar = r.arguments;
-      setMcpArgsJson(
-        JSON.stringify(ar != null && typeof ar === "object" && !Array.isArray(ar) ? ar : {}, null, 2),
-      );
-    }
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_HTTP_REQUEST) {
-      const r = selection.raw;
-      setHttpUrl(typeof r.url === "string" ? r.url : "");
-      const m0 = typeof r.method === "string" && r.method.trim() !== "" ? r.method.trim().toUpperCase() : "GET";
-      setHttpMethod(m0);
-      const hh = r.headers;
-      try {
-        setHttpHeadersJson(
-          JSON.stringify(hh != null && typeof hh === "object" && !Array.isArray(hh) ? hh : {}, null, 2),
-        );
-      } catch {
-        setHttpHeadersJson("{}");
-      }
-      setHttpBody(typeof r.body === "string" ? r.body : "");
-      const hts = r.timeoutSec;
-      setHttpTimeoutSec(
-        typeof hts === "number" && Number.isFinite(hts)
-          ? String(hts)
-          : typeof hts === "string" && hts.trim() !== ""
-            ? hts.trim()
-            : "30",
-      );
-      setHttpVerifyTls(r.verifyTls !== false);
-      const pr = typeof r.parseResponseBody === "string" ? r.parseResponseBody.trim().toLowerCase() : "auto";
-      setHttpParseResponse(pr === "json" || pr === "text" ? pr : "auto");
-      const auth = r.auth;
-      if (isPlainObject(auth)) {
-        const at = String(auth.type || "").toLowerCase();
-        if (at === "basic") {
-          setHttpAuthKind("basic");
-          setHttpAuthUser(typeof auth.username === "string" ? auth.username : "");
-          setHttpAuthPassword(typeof auth.password === "string" ? auth.password : "");
-          setHttpAuthToken("");
-        } else if (at === "bearer") {
-          setHttpAuthKind("bearer");
-          setHttpAuthToken(typeof auth.token === "string" ? auth.token : "");
-          setHttpAuthUser("");
-          setHttpAuthPassword("");
-        } else {
-          setHttpAuthKind("none");
-          setHttpAuthUser("");
-          setHttpAuthPassword("");
-          setHttpAuthToken("");
-        }
-      } else {
-        setHttpAuthKind("none");
-        setHttpAuthUser("");
-        setHttpAuthPassword("");
-        setHttpAuthToken("");
-      }
-    }
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_RAG_QUERY) {
-      const r = selection.raw;
-      const vb = String((r as Record<string, unknown>).vectorBackend ?? "").trim().toLowerCase();
-      setRagVectorBackend(vb === "memory" ? "memory" : "http");
-      setRagUrl(typeof r.url === "string" ? r.url : "");
-      setRagQuery(typeof r.query === "string" ? r.query : "");
-      setRagCollectionId(typeof r.collectionId === "string" ? r.collectionId : "");
-      const tk = r.topK;
-      setRagTopK(
-        typeof tk === "number" && Number.isFinite(tk)
-          ? String(Math.trunc(tk))
-          : typeof tk === "string" && tk.trim() !== ""
-            ? tk.trim()
-            : "5",
-      );
-      const rm = typeof r.method === "string" && r.method.trim() !== "" ? r.method.trim().toUpperCase() : "POST";
-      setRagMethod(rm);
-      const rh = r.headers;
-      try {
-        setRagHeadersJson(
-          JSON.stringify(rh != null && typeof rh === "object" && !Array.isArray(rh) ? rh : {}, null, 2),
-        );
-      } catch {
-        setRagHeadersJson("{}");
-      }
-      setRagBody(typeof r.body === "string" ? r.body : "");
-      const rts = r.timeoutSec;
-      setRagTimeoutSec(
-        typeof rts === "number" && Number.isFinite(rts)
-          ? String(rts)
-          : typeof rts === "string" && rts.trim() !== ""
-            ? rts.trim()
-            : "60",
-      );
-      setRagVerifyTls(r.verifyTls !== false);
-      const rpr = typeof r.parseResponseBody === "string" ? r.parseResponseBody.trim().toLowerCase() : "auto";
-      setRagParseResponse(rpr === "json" || rpr === "text" ? rpr : "auto");
-      const rauth = r.auth;
-      if (isPlainObject(rauth)) {
-        const at = String(rauth.type || "").toLowerCase();
-        if (at === "basic") {
-          setHttpAuthKind("basic");
-          setHttpAuthUser(typeof rauth.username === "string" ? rauth.username : "");
-          setHttpAuthPassword(typeof rauth.password === "string" ? rauth.password : "");
-          setHttpAuthToken("");
-        } else if (at === "bearer") {
-          setHttpAuthKind("bearer");
-          setHttpAuthToken(typeof rauth.token === "string" ? rauth.token : "");
-          setHttpAuthUser("");
-          setHttpAuthPassword("");
-        } else {
-          setHttpAuthKind("none");
-          setHttpAuthUser("");
-          setHttpAuthPassword("");
-          setHttpAuthToken("");
-        }
-      } else {
-        setHttpAuthKind("none");
-        setHttpAuthUser("");
-        setHttpAuthPassword("");
-        setHttpAuthToken("");
-      }
-    }
     if (selection.graphNodeType === GRAPH_NODE_TYPE_RAG_INDEX) {
       const r = selection.raw;
       const cid =
@@ -545,18 +325,6 @@ export function NodeInspector({
       } catch {
         setSetVarValueJson("null");
       }
-    }
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_PYTHON_CODE) {
-      const r = selection.raw;
-      setPyCode(typeof r.code === "string" ? r.code : "");
-      const pts = r.timeoutSec;
-      setPyTimeoutSec(
-        typeof pts === "number" && Number.isFinite(pts)
-          ? String(pts)
-          : typeof pts === "string" && pts.trim() !== ""
-            ? pts.trim()
-            : "30",
-      );
     }
     if (selection.graphNodeType === GRAPH_NODE_TYPE_LLM_AGENT) {
       const r = selection.raw;
@@ -679,213 +447,7 @@ export function NodeInspector({
       );
       return;
     }
-    let nextData: Record<string, unknown> = { ...parsed };
-    if (selection.graphNodeType === GRAPH_NODE_TYPE_TASK) {
-      if (caEnabled) {
-        const vKey = cursorAgentUiValidationKey({ prompt: caPrompt, promptFile: caPromptFile });
-        if (vKey != null) {
-          showInspectorError(presentationForInspectorSimple(t, vKey), vKey);
-          return;
-        }
-        try {
-          parseExtraArgsJson(caExtraArgsJson);
-        } catch {
-          showInspectorError(
-            presentationForInspectorSimple(t, "app.inspector.cursorAgentExtraArgsInvalid"),
-            "app.inspector.cursorAgentExtraArgsInvalid",
-          );
-          return;
-        }
-        nextData = {
-          ...nextData,
-          gcCursorAgent: buildGcCursorAgentPayload({
-            prompt: caPrompt,
-            promptFile: caPromptFile,
-            cwdBase: caCwdBase,
-            cwdRelative: caCwdRelative,
-            model: caModel,
-            outputFormat: caOutputFormat,
-            extraArgsJson: caExtraArgsJson,
-            printMode: caPrintMode,
-            applyFileChanges: caApplyFileChanges,
-          }),
-        };
-      } else {
-        const { gcCursorAgent: _rm, ...rest } = nextData;
-        nextData = { ...rest };
-      }
-    }
-    onApplyNodeData(selection.id, nextData);
-  };
-
-  const applyMcpFields = () => {
-    if (runLocked || selection.graphNodeType !== GRAPH_NODE_TYPE_MCP_TOOL) {
-      return;
-    }
-    let argsObj: Record<string, unknown>;
-    try {
-      const p = JSON.parse(mcpArgsJson);
-      if (!isPlainObject(p)) {
-        throw new Error("not_object");
-      }
-      argsObj = p;
-    } catch {
-      showInspectorError(
-        presentationForInspectorSimple(t, "app.inspector.mcpArgumentsInvalid"),
-        "app.inspector.mcpArgumentsInvalid",
-      );
-      return;
-    }
-    const toN = Number.parseFloat(mcpTimeoutSec);
-    const timeoutSec = Number.isFinite(toN) ? Math.min(600, Math.max(1, toN)) : 60;
-    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
-    const cmdTrim = mcpCommand.trim();
-    const next: Record<string, unknown> = {
-      ...base,
-      transport: mcpTransport,
-      toolName: mcpToolName.trim(),
-      timeoutSec,
-      arguments: argsObj,
-      allowInsecureLocalhost: mcpAllowInsecure,
-    };
-    if (cmdTrim !== "") {
-      next.command = mcpCommand;
-    } else {
-      delete next.command;
-    }
-    const urlTrim = mcpServerUrl.trim();
-    if (urlTrim !== "") {
-      next.serverUrl = mcpServerUrl;
-    } else {
-      delete next.serverUrl;
-    }
-    const beTrim = mcpBearerKey.trim();
-    if (beTrim !== "") {
-      next.bearerEnvKey = beTrim;
-    } else {
-      delete next.bearerEnvKey;
-    }
-    onApplyNodeData(selection.id, next);
-  };
-
-  const applyHttpRequestFields = () => {
-    if (runLocked || selection.graphNodeType !== GRAPH_NODE_TYPE_HTTP_REQUEST) {
-      return;
-    }
-    let headersObj: Record<string, unknown>;
-    try {
-      const p = JSON.parse(httpHeadersJson);
-      if (!isPlainObject(p)) {
-        throw new Error("not_object");
-      }
-      headersObj = p;
-    } catch {
-      showInspectorError(
-        presentationForInspectorSimple(t, "app.inspector.httpRequestHeadersInvalid"),
-        "app.inspector.httpRequestHeadersInvalid",
-      );
-      return;
-    }
-    const toN = Number.parseFloat(httpTimeoutSec);
-    const timeoutSec = Number.isFinite(toN) ? Math.min(3600, Math.max(0.5, toN)) : 30;
-    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
-    const next: Record<string, unknown> = {
-      ...base,
-      title: typeof base.title === "string" && base.title.trim() !== "" ? base.title : "HTTP request",
-      url: httpUrl,
-      method: httpMethod.trim() !== "" ? httpMethod.trim().toUpperCase() : "GET",
-      headers: headersObj,
-      timeoutSec,
-      verifyTls: httpVerifyTls,
-      parseResponseBody: httpParseResponse,
-    };
-    const bTrim = httpBody.trim();
-    if (bTrim !== "") {
-      next.body = httpBody;
-    } else {
-      delete next.body;
-    }
-    if (httpAuthKind === "basic") {
-      next.auth = { type: "basic", username: httpAuthUser, password: httpAuthPassword };
-    } else if (httpAuthKind === "bearer") {
-      next.auth = { type: "bearer", token: httpAuthToken };
-    } else {
-      delete next.auth;
-    }
-    onApplyNodeData(selection.id, next);
-  };
-
-  const applyRagQueryFields = () => {
-    if (runLocked || selection.graphNodeType !== GRAPH_NODE_TYPE_RAG_QUERY) {
-      return;
-    }
-    const toK = Number.parseInt(ragTopK, 10);
-    const topK = Number.isFinite(toK) ? Math.min(100, Math.max(1, toK)) : 5;
-    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
-    const title =
-      typeof base.title === "string" && base.title.trim() !== "" ? base.title : "RAG query";
-    const next: Record<string, unknown> = {
-      ...base,
-      title,
-      query: ragQuery,
-      topK,
-    };
-    const cTrim = ragCollectionId.trim();
-    if (cTrim !== "") {
-      next.collectionId = ragCollectionId;
-    } else {
-      delete next.collectionId;
-    }
-    if (ragVectorBackend === "memory") {
-      next.vectorBackend = "memory";
-      delete next.url;
-      delete next.method;
-      delete next.headers;
-      delete next.body;
-      delete next.auth;
-      delete next.timeoutSec;
-      delete next.verifyTls;
-      delete next.parseResponseBody;
-      onApplyNodeData(selection.id, next);
-      return;
-    }
-    delete next.vectorBackend;
-    let headersObj: Record<string, unknown>;
-    try {
-      const p = JSON.parse(ragHeadersJson);
-      if (!isPlainObject(p)) {
-        throw new Error("not_object");
-      }
-      headersObj = p;
-    } catch {
-      showInspectorError(
-        presentationForInspectorSimple(t, "app.inspector.httpRequestHeadersInvalid"),
-        "app.inspector.httpRequestHeadersInvalid",
-      );
-      return;
-    }
-    const toN = Number.parseFloat(ragTimeoutSec);
-    const timeoutSec = Number.isFinite(toN) ? Math.min(3600, Math.max(0.5, toN)) : 60;
-    next.url = ragUrl;
-    next.method = ragMethod.trim() !== "" ? ragMethod.trim().toUpperCase() : "POST";
-    next.headers = headersObj;
-    next.timeoutSec = timeoutSec;
-    next.verifyTls = ragVerifyTls;
-    next.parseResponseBody = ragParseResponse;
-    const bTrim = ragBody.trim();
-    if (bTrim !== "") {
-      next.body = ragBody;
-    } else {
-      delete next.body;
-    }
-    if (httpAuthKind === "basic") {
-      next.auth = { type: "basic", username: httpAuthUser, password: httpAuthPassword };
-    } else if (httpAuthKind === "bearer") {
-      next.auth = { type: "bearer", token: httpAuthToken };
-    } else {
-      delete next.auth;
-    }
-    onApplyNodeData(selection.id, next);
+    onApplyNodeData(selection.id, parsed);
   };
 
   const applyRagIndexFields = () => {
@@ -1054,22 +616,6 @@ export function NodeInspector({
     onApplyNodeData(selection.id, next);
   };
 
-  const applyPythonCodeFields = () => {
-    if (runLocked || selection.graphNodeType !== GRAPH_NODE_TYPE_PYTHON_CODE) {
-      return;
-    }
-    const toN = Number.parseFloat(pyTimeoutSec);
-    const timeoutSec = Number.isFinite(toN) ? Math.min(3600, Math.max(0.5, toN)) : 30;
-    const base = isPlainObject(selection.raw) ? { ...selection.raw } : {};
-    const next: Record<string, unknown> = {
-      ...base,
-      title: typeof base.title === "string" && base.title.trim() !== "" ? base.title : "Python code",
-      code: pyCode,
-      timeoutSec,
-    };
-    onApplyNodeData(selection.id, next);
-  };
-
   const applyLlmAgentFields = () => {
     if (runLocked || selection.graphNodeType !== GRAPH_NODE_TYPE_LLM_AGENT) {
       return;
@@ -1147,7 +693,6 @@ export function NodeInspector({
     onApplyNodeData(selection.id, next);
   };
 
-  // Helper that emits the StepCacheInspector with all required wiring.
   const renderStepCache = (opts?: { hideMarkDirtyButton?: boolean }) => (
     <StepCacheInspector
       nodeId={selection.id}
@@ -1160,6 +705,30 @@ export function NodeInspector({
       hideMarkDirtyButton={opts?.hideMarkDirtyButton ?? false}
     />
   );
+
+  const RegistryInspector = INSPECTOR_REGISTRY[selection.graphNodeType];
+  const registryNode = useMemo(
+    () => ({
+      id: selection.id,
+      type: selection.graphNodeType,
+      position: { x: 0, y: 0 },
+      data: isPlainObject(selection.raw) ? selection.raw : {},
+    }),
+    [selection.id, selection.graphNodeType, selection.raw],
+  );
+  const renderRegistry = (opts?: { withStepCache?: boolean }) =>
+    RegistryInspector ? (
+      <div className="gc-inspector-mcp">
+        <RegistryInspector
+          node={registryNode}
+          graphDocument={graphDocument}
+          runLocked={runLocked}
+          workspaceLinked={workspaceLinked}
+          onApplyNodeData={onApplyNodeData}
+        />
+        {opts?.withStepCache !== false ? renderStepCache() : null}
+      </div>
+    ) : null;
 
   return (
     <div className="gc-inspector-detail">
@@ -1227,634 +796,7 @@ export function NodeInspector({
           <p className="gc-inspector-edge-hint">{t("app.inspector.mergeModeHint")}</p>
         </div>
       ) : null}
-      {selection.graphNodeType === GRAPH_NODE_TYPE_MCP_TOOL ? (
-        <div className="gc-inspector-mcp">
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-transport">
-              {t("app.inspector.mcpTransport")}
-            </label>
-            <select
-              id="gc-inspector-mcp-transport"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={mcpTransport}
-              onChange={(ev) => {
-                const v = ev.target.value === "streamable_http" ? "streamable_http" : "stdio";
-                setMcpTransport(v);
-              }}
-            >
-              <option value="stdio">{t("app.inspector.mcpTransportStdio")}</option>
-              <option value="streamable_http">{t("app.inspector.mcpTransportHttp")}</option>
-            </select>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-tool">
-              {t("app.inspector.mcpToolName")}
-            </label>
-            <input
-              id="gc-inspector-mcp-tool"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={mcpToolName}
-              onChange={(ev) => {
-                setMcpToolName(ev.target.value);
-              }}
-            />
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-timeout">
-              {t("app.inspector.mcpTimeoutSec")}
-            </label>
-            <input
-              id="gc-inspector-mcp-timeout"
-              type="text"
-              inputMode="decimal"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={mcpTimeoutSec}
-              onChange={(ev) => {
-                setMcpTimeoutSec(ev.target.value);
-              }}
-            />
-          </div>
-          {mcpTransport === "stdio" ? (
-            <div className="gc-inspector-row gc-inspector-row--field">
-              <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-cmd">
-                {t("app.inspector.mcpCommand")}
-              </label>
-              <input
-                id="gc-inspector-mcp-cmd"
-                className="gc-inspector-condition-input"
-                disabled={runLocked}
-                value={mcpCommand}
-                onChange={(ev) => {
-                  setMcpCommand(ev.target.value);
-                }}
-              />
-              <p className="gc-inspector-edge-hint">{t("app.inspector.mcpCommandHint")}</p>
-            </div>
-          ) : (
-            <>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-url">
-                  {t("app.inspector.mcpServerUrl")}
-                </label>
-                <input
-                  id="gc-inspector-mcp-url"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={mcpServerUrl}
-                  onChange={(ev) => {
-                    setMcpServerUrl(ev.target.value);
-                  }}
-                />
-                <p className="gc-inspector-edge-hint">{t("app.inspector.mcpServerUrlHint")}</p>
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-bearer">
-                  {t("app.inspector.mcpBearerEnvKey")}
-                </label>
-                <input
-                  id="gc-inspector-mcp-bearer"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={mcpBearerKey}
-                  onChange={(ev) => {
-                    setMcpBearerKey(ev.target.value);
-                  }}
-                />
-                <p className="gc-inspector-edge-hint">{t("app.inspector.mcpBearerEnvKeyHint")}</p>
-                <p className="gc-inspector-edge-hint">{t("app.inspector.mcpOauthGithubHint")}</p>
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-insecure">
-                  {t("app.inspector.mcpAllowInsecureLocalhost")}
-                </label>
-                <input
-                  id="gc-inspector-mcp-insecure"
-                  type="checkbox"
-                  disabled={runLocked}
-                  checked={mcpAllowInsecure}
-                  onChange={(ev) => {
-                    setMcpAllowInsecure(ev.target.checked);
-                  }}
-                />
-              </div>
-            </>
-          )}
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-mcp-args">
-              {t("app.inspector.mcpArgumentsJson")}
-            </label>
-            <textarea
-              id="gc-inspector-mcp-args"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              rows={5}
-              value={mcpArgsJson}
-              onChange={(ev) => {
-                setMcpArgsJson(ev.target.value);
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            className="gc-btn gc-inspector-apply"
-            disabled={runLocked}
-            onClick={applyMcpFields}
-          >
-            {t("app.inspector.applyMcpSettings")}
-          </button>
-          {renderStepCache()}
-        </div>
-      ) : null}
-      {selection.graphNodeType === GRAPH_NODE_TYPE_HTTP_REQUEST ? (
-        <div className="gc-inspector-mcp">
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-url">
-              {t("app.inspector.httpRequestUrl")}
-            </label>
-            <ExpressionAutocompleteInput
-              key={`http-url-${selection.id}`}
-              id="gc-inspector-http-url"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              spellCheck={false}
-              value={httpUrl}
-              onChange={setHttpUrl}
-              nodeIds={expressionNodeIds}
-              editor={expressionEditorMode}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.httpRequestUrlHint")}</p>
-            <p className="gc-inspector-edge-hint">{t("app.inspector.expressionAutocompleteHint")}</p>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-method">
-              {t("app.inspector.httpRequestMethod")}
-            </label>
-            <select
-              id="gc-inspector-http-method"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={httpMethod}
-              onChange={(ev) => {
-                setHttpMethod(ev.target.value);
-              }}
-            >
-              <option value="GET">GET</option>
-              <option value="HEAD">HEAD</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="PATCH">PATCH</option>
-              <option value="DELETE">DELETE</option>
-              <option value="OPTIONS">OPTIONS</option>
-            </select>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-headers">
-              {t("app.inspector.httpRequestHeadersJson")}
-            </label>
-            <textarea
-              id="gc-inspector-http-headers"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              rows={4}
-              spellCheck={false}
-              value={httpHeadersJson}
-              onChange={(ev) => {
-                setHttpHeadersJson(ev.target.value);
-              }}
-            />
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-body">
-              {t("app.inspector.httpRequestBody")}
-            </label>
-            <textarea
-              id="gc-inspector-http-body"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              rows={4}
-              spellCheck={false}
-              value={httpBody}
-              onChange={(ev) => {
-                setHttpBody(ev.target.value);
-              }}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.httpRequestBodyHint")}</p>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-timeout">
-              {t("app.inspector.httpRequestTimeoutSec")}
-            </label>
-            <input
-              id="gc-inspector-http-timeout"
-              type="text"
-              inputMode="decimal"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={httpTimeoutSec}
-              onChange={(ev) => {
-                setHttpTimeoutSec(ev.target.value);
-              }}
-            />
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-verify">
-              {t("app.inspector.httpRequestVerifyTls")}
-            </label>
-            <input
-              id="gc-inspector-http-verify"
-              type="checkbox"
-              disabled={runLocked}
-              checked={httpVerifyTls}
-              onChange={(ev) => {
-                setHttpVerifyTls(ev.target.checked);
-              }}
-            />
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-parse">
-              {t("app.inspector.httpRequestParseBody")}
-            </label>
-            <select
-              id="gc-inspector-http-parse"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={httpParseResponse}
-              onChange={(ev) => {
-                const v = ev.target.value;
-                setHttpParseResponse(v === "json" || v === "text" ? v : "auto");
-              }}
-            >
-              <option value="auto">{t("app.inspector.httpRequestParseAuto")}</option>
-              <option value="json">{t("app.inspector.httpRequestParseJson")}</option>
-              <option value="text">{t("app.inspector.httpRequestParseText")}</option>
-            </select>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-http-auth-kind">
-              {t("app.inspector.httpRequestAuthKind")}
-            </label>
-            <select
-              id="gc-inspector-http-auth-kind"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={httpAuthKind}
-              onChange={(ev) => {
-                const v = ev.target.value;
-                setHttpAuthKind(v === "basic" || v === "bearer" ? v : "none");
-              }}
-            >
-              <option value="none">{t("app.inspector.httpRequestAuthNone")}</option>
-              <option value="basic">{t("app.inspector.httpRequestAuthBasic")}</option>
-              <option value="bearer">{t("app.inspector.httpRequestAuthBearer")}</option>
-            </select>
-          </div>
-          {httpAuthKind === "basic" ? (
-            <>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-http-auth-user">
-                  {t("app.inspector.httpRequestAuthUsername")}
-                </label>
-                <input
-                  id="gc-inspector-http-auth-user"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  autoComplete="off"
-                  value={httpAuthUser}
-                  onChange={(ev) => {
-                    setHttpAuthUser(ev.target.value);
-                  }}
-                />
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-http-auth-pass">
-                  {t("app.inspector.httpRequestAuthPassword")}
-                </label>
-                <input
-                  id="gc-inspector-http-auth-pass"
-                  type="password"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  autoComplete="off"
-                  value={httpAuthPassword}
-                  onChange={(ev) => {
-                    setHttpAuthPassword(ev.target.value);
-                  }}
-                />
-              </div>
-            </>
-          ) : null}
-          {httpAuthKind === "bearer" ? (
-            <div className="gc-inspector-row gc-inspector-row--field">
-              <label className="gc-inspector-k" htmlFor="gc-inspector-http-auth-token">
-                {t("app.inspector.httpRequestAuthToken")}
-              </label>
-              <input
-                id="gc-inspector-http-auth-token"
-                type="password"
-                className="gc-inspector-condition-input"
-                disabled={runLocked}
-                autoComplete="off"
-                value={httpAuthToken}
-                onChange={(ev) => {
-                  setHttpAuthToken(ev.target.value);
-                }}
-              />
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="gc-btn gc-inspector-apply"
-            disabled={runLocked}
-            onClick={applyHttpRequestFields}
-          >
-            {t("app.inspector.applyHttpRequestSettings")}
-          </button>
-          {renderStepCache()}
-        </div>
-      ) : null}
-      {selection.graphNodeType === GRAPH_NODE_TYPE_RAG_QUERY ? (
-        <div className="gc-inspector-mcp">
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-rag-vb">
-              {t("app.inspector.ragQueryVectorBackend")}
-            </label>
-            <select
-              id="gc-inspector-rag-vb"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={ragVectorBackend}
-              onChange={(ev) => {
-                const v = ev.target.value;
-                setRagVectorBackend(v === "memory" ? "memory" : "http");
-              }}
-            >
-              <option value="http">{t("app.inspector.ragQueryVectorBackendHttp")}</option>
-              <option value="memory">{t("app.inspector.ragQueryVectorBackendMemory")}</option>
-            </select>
-            <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryVectorBackendHint")}</p>
-          </div>
-          {ragVectorBackend !== "memory" ? (
-            <div className="gc-inspector-row gc-inspector-row--field">
-              <label className="gc-inspector-k" htmlFor="gc-inspector-rag-url">
-                {t("app.inspector.ragQueryUrl")}
-              </label>
-              <input
-                id="gc-inspector-rag-url"
-                className="gc-inspector-condition-input"
-                disabled={runLocked}
-                spellCheck={false}
-                value={ragUrl}
-                onChange={(ev) => {
-                  setRagUrl(ev.target.value);
-                }}
-              />
-              <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryUrlHint")}</p>
-            </div>
-          ) : null}
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-rag-query">
-              {t("app.inspector.ragQueryQueryText")}
-            </label>
-            <textarea
-              id="gc-inspector-rag-query"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              rows={3}
-              spellCheck={false}
-              value={ragQuery}
-              onChange={(ev) => {
-                setRagQuery(ev.target.value);
-              }}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryQueryHint")}</p>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-rag-collection">
-              {t("app.inspector.ragQueryCollectionId")}
-            </label>
-            <input
-              id="gc-inspector-rag-collection"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              spellCheck={false}
-              value={ragCollectionId}
-              onChange={(ev) => {
-                setRagCollectionId(ev.target.value);
-              }}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryCollectionHint")}</p>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-rag-topk">
-              {t("app.inspector.ragQueryTopK")}
-            </label>
-            <input
-              id="gc-inspector-rag-topk"
-              type="text"
-              inputMode="numeric"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={ragTopK}
-              onChange={(ev) => {
-                setRagTopK(ev.target.value);
-              }}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryTopKHint")}</p>
-          </div>
-          {ragVectorBackend !== "memory" ? (
-            <>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-method">
-                  {t("app.inspector.httpRequestMethod")}
-                </label>
-                <select
-                  id="gc-inspector-rag-method"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={ragMethod}
-                  onChange={(ev) => {
-                    setRagMethod(ev.target.value);
-                  }}
-                >
-                  <option value="GET">GET</option>
-                  <option value="HEAD">HEAD</option>
-                  <option value="POST">POST</option>
-                  <option value="PUT">PUT</option>
-                  <option value="PATCH">PATCH</option>
-                  <option value="DELETE">DELETE</option>
-                  <option value="OPTIONS">OPTIONS</option>
-                </select>
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-headers">
-                  {t("app.inspector.httpRequestHeadersJson")}
-                </label>
-                <textarea
-                  id="gc-inspector-rag-headers"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  rows={4}
-                  spellCheck={false}
-                  value={ragHeadersJson}
-                  onChange={(ev) => {
-                    setRagHeadersJson(ev.target.value);
-                  }}
-                />
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-body">
-                  {t("app.inspector.httpRequestBody")}
-                </label>
-                <textarea
-                  id="gc-inspector-rag-body"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  rows={4}
-                  spellCheck={false}
-                  value={ragBody}
-                  onChange={(ev) => {
-                    setRagBody(ev.target.value);
-                  }}
-                />
-                <p className="gc-inspector-edge-hint">{t("app.inspector.ragQueryBodyHint")}</p>
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-timeout">
-                  {t("app.inspector.httpRequestTimeoutSec")}
-                </label>
-                <input
-                  id="gc-inspector-rag-timeout"
-                  type="text"
-                  inputMode="decimal"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={ragTimeoutSec}
-                  onChange={(ev) => {
-                    setRagTimeoutSec(ev.target.value);
-                  }}
-                />
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-verify">
-                  {t("app.inspector.httpRequestVerifyTls")}
-                </label>
-                <input
-                  id="gc-inspector-rag-verify"
-                  type="checkbox"
-                  disabled={runLocked}
-                  checked={ragVerifyTls}
-                  onChange={(ev) => {
-                    setRagVerifyTls(ev.target.checked);
-                  }}
-                />
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-parse">
-                  {t("app.inspector.httpRequestParseBody")}
-                </label>
-                <select
-                  id="gc-inspector-rag-parse"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={ragParseResponse}
-                  onChange={(ev) => {
-                    const v = ev.target.value;
-                    setRagParseResponse(v === "json" || v === "text" ? v : "auto");
-                  }}
-                >
-                  <option value="auto">{t("app.inspector.httpRequestParseAuto")}</option>
-                  <option value="json">{t("app.inspector.httpRequestParseJson")}</option>
-                  <option value="text">{t("app.inspector.httpRequestParseText")}</option>
-                </select>
-              </div>
-              <div className="gc-inspector-row gc-inspector-row--field">
-                <label className="gc-inspector-k" htmlFor="gc-inspector-rag-auth-kind">
-                  {t("app.inspector.httpRequestAuthKind")}
-                </label>
-                <select
-                  id="gc-inspector-rag-auth-kind"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={httpAuthKind}
-                  onChange={(ev) => {
-                    const v = ev.target.value;
-                    setHttpAuthKind(v === "basic" || v === "bearer" ? v : "none");
-                  }}
-                >
-                  <option value="none">{t("app.inspector.httpRequestAuthNone")}</option>
-                  <option value="basic">{t("app.inspector.httpRequestAuthBasic")}</option>
-                  <option value="bearer">{t("app.inspector.httpRequestAuthBearer")}</option>
-                </select>
-              </div>
-              {httpAuthKind === "basic" ? (
-                <>
-                  <div className="gc-inspector-row gc-inspector-row--field">
-                    <label className="gc-inspector-k" htmlFor="gc-inspector-rag-auth-user">
-                      {t("app.inspector.httpRequestAuthUsername")}
-                    </label>
-                    <input
-                      id="gc-inspector-rag-auth-user"
-                      className="gc-inspector-condition-input"
-                      disabled={runLocked}
-                      autoComplete="off"
-                      value={httpAuthUser}
-                      onChange={(ev) => {
-                        setHttpAuthUser(ev.target.value);
-                      }}
-                    />
-                  </div>
-                  <div className="gc-inspector-row gc-inspector-row--field">
-                    <label className="gc-inspector-k" htmlFor="gc-inspector-rag-auth-pass">
-                      {t("app.inspector.httpRequestAuthPassword")}
-                    </label>
-                    <input
-                      id="gc-inspector-rag-auth-pass"
-                      type="password"
-                      className="gc-inspector-condition-input"
-                      disabled={runLocked}
-                      autoComplete="off"
-                      value={httpAuthPassword}
-                      onChange={(ev) => {
-                        setHttpAuthPassword(ev.target.value);
-                      }}
-                    />
-                  </div>
-                </>
-              ) : null}
-              {httpAuthKind === "bearer" ? (
-                <div className="gc-inspector-row gc-inspector-row--field">
-                  <label className="gc-inspector-k" htmlFor="gc-inspector-rag-auth-token">
-                    {t("app.inspector.httpRequestAuthToken")}
-                  </label>
-                  <input
-                    id="gc-inspector-rag-auth-token"
-                    type="password"
-                    className="gc-inspector-condition-input"
-                    disabled={runLocked}
-                    autoComplete="off"
-                    value={httpAuthToken}
-                    onChange={(ev) => {
-                      setHttpAuthToken(ev.target.value);
-                    }}
-                  />
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="gc-btn gc-inspector-apply"
-            disabled={runLocked}
-            onClick={applyRagQueryFields}
-          >
-            {t("app.inspector.applyRagQuerySettings")}
-          </button>
-          {renderStepCache()}
-        </div>
-      ) : null}
+      {RegistryInspector && selection.graphNodeType !== GRAPH_NODE_TYPE_TASK ? renderRegistry() : null}
       {selection.graphNodeType === GRAPH_NODE_TYPE_RAG_INDEX ? (
         <div className="gc-inspector-mcp">
           <p className="gc-inspector-edge-hint">{t("app.inspector.ragIndexHeading")}</p>
@@ -2173,52 +1115,6 @@ export function NodeInspector({
           </button>
         </div>
       ) : null}
-      {selection.graphNodeType === GRAPH_NODE_TYPE_PYTHON_CODE ? (
-        <div className="gc-inspector-mcp">
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-py-code">
-              {t("app.inspector.pythonCodeEditorLabel")}
-            </label>
-            <textarea
-              id="gc-inspector-py-code"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              rows={12}
-              spellCheck={false}
-              value={pyCode}
-              onChange={(ev) => {
-                setPyCode(ev.target.value);
-              }}
-            />
-            <p className="gc-inspector-edge-hint">{t("app.inspector.pythonCodeEditorHint")}</p>
-          </div>
-          <div className="gc-inspector-row gc-inspector-row--field">
-            <label className="gc-inspector-k" htmlFor="gc-inspector-py-timeout">
-              {t("app.inspector.pythonCodeTimeoutSec")}
-            </label>
-            <input
-              id="gc-inspector-py-timeout"
-              type="text"
-              inputMode="decimal"
-              className="gc-inspector-condition-input"
-              disabled={runLocked}
-              value={pyTimeoutSec}
-              onChange={(ev) => {
-                setPyTimeoutSec(ev.target.value);
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            className="gc-btn gc-inspector-apply"
-            disabled={runLocked}
-            onClick={applyPythonCodeFields}
-          >
-            {t("app.inspector.applyPythonCodeSettings")}
-          </button>
-          {renderStepCache()}
-        </div>
-      ) : null}
       {selection.graphNodeType === GRAPH_NODE_TYPE_LLM_AGENT ? (
         <div className="gc-inspector-mcp">
           {renderStepCache()}
@@ -2454,10 +1350,10 @@ export function NodeInspector({
                 className="gc-btn gc-inspector-apply"
                 disabled={
                   runLocked ||
-                  runSession.nodeOutputSnapshots[selection.id] === undefined
+                  nodeOutputSnapshots[selection.id] === undefined
                 }
                 onClick={() => {
-                  const snap = runSession.nodeOutputSnapshots[selection.id];
+                  const snap = nodeOutputSnapshots[selection.id];
                   if (snap === undefined) {
                     return;
                   }
@@ -2504,164 +1400,15 @@ export function NodeInspector({
             <p className="gc-inspector-edge-hint">{t("app.inspector.pinHint")}</p>
           </div>
           {renderStepCache()}
-          <div className="gc-inspector-pin">
-            <div className="gc-inspector-row gc-inspector-row--field">
-              <span className="gc-inspector-k">{t("app.inspector.cursorAgentHeading")}</span>
-              <label className="gc-inspector-pin-toggle">
-                <input
-                  type="checkbox"
-                  disabled={runLocked}
-                  checked={caEnabled}
-                  onChange={(ev) => {
-                    setCaEnabled(ev.target.checked);
-                  }}
-                />
-                <span>{t("app.inspector.cursorAgentEnabled")}</span>
-              </label>
-            </div>
-            {caEnabled ? (
-              <>
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-prompt">
-                  {t("app.inspector.cursorAgentPrompt")}
-                </label>
-                <textarea
-                  id="gc-ca-prompt"
-                  className="gc-inspector-data-textarea"
-                  rows={4}
-                  disabled={runLocked}
-                  spellCheck
-                  autoComplete="off"
-                  value={caPrompt}
-                  onChange={(ev) => {
-                    setCaPrompt(ev.target.value);
-                  }}
-                />
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-prompt-file">
-                  {t("app.inspector.cursorAgentPromptFile")}
-                </label>
-                <input
-                  id="gc-ca-prompt-file"
-                  className="gc-inspector-condition-input"
-                  type="text"
-                  disabled={runLocked}
-                  spellCheck={false}
-                  autoComplete="off"
-                  value={caPromptFile}
-                  onChange={(ev) => {
-                    setCaPromptFile(ev.target.value);
-                  }}
-                />
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-cwd-base">
-                  {t("app.inspector.cursorAgentCwdBase")}
-                </label>
-                <select
-                  id="gc-ca-cwd-base"
-                  className="gc-inspector-condition-input"
-                  disabled={runLocked}
-                  value={caCwdBase}
-                  onChange={(ev) => {
-                    const v = ev.target.value;
-                    setCaCwdBase(
-                      v === "graphs_root" || v === "artifact_dir" ? v : "workspace_root",
-                    );
-                  }}
-                >
-                  <option value="workspace_root">{t("app.inspector.cursorAgentCwdWorkspace")}</option>
-                  <option value="graphs_root">{t("app.inspector.cursorAgentCwdGraphs")}</option>
-                  <option value="artifact_dir">{t("app.inspector.cursorAgentCwdArtifact")}</option>
-                </select>
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-cwd-rel">
-                  {t("app.inspector.cursorAgentCwdRelative")}
-                </label>
-                <input
-                  id="gc-ca-cwd-rel"
-                  className="gc-inspector-condition-input"
-                  type="text"
-                  disabled={runLocked}
-                  spellCheck={false}
-                  autoComplete="off"
-                  value={caCwdRelative}
-                  onChange={(ev) => {
-                    setCaCwdRelative(ev.target.value);
-                  }}
-                />
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-model">
-                  {t("app.inspector.cursorAgentModel")}
-                </label>
-                <input
-                  id="gc-ca-model"
-                  className="gc-inspector-condition-input"
-                  type="text"
-                  disabled={runLocked}
-                  spellCheck={false}
-                  autoComplete="off"
-                  value={caModel}
-                  onChange={(ev) => {
-                    setCaModel(ev.target.value);
-                  }}
-                />
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-out-fmt">
-                  {t("app.inspector.cursorAgentOutputFormat")}
-                </label>
-                <input
-                  id="gc-ca-out-fmt"
-                  className="gc-inspector-condition-input"
-                  type="text"
-                  disabled={runLocked}
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder="text"
-                  value={caOutputFormat}
-                  onChange={(ev) => {
-                    setCaOutputFormat(ev.target.value);
-                  }}
-                />
-                <label className="gc-inspector-data-label" htmlFor="gc-ca-extra">
-                  {t("app.inspector.cursorAgentExtraArgs")}
-                </label>
-                <textarea
-                  id="gc-ca-extra"
-                  className="gc-inspector-data-textarea"
-                  rows={2}
-                  disabled={runLocked}
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder='["--stream-partial-output"]'
-                  value={caExtraArgsJson}
-                  onChange={(ev) => {
-                    setCaExtraArgsJson(ev.target.value);
-                  }}
-                />
-                <div className="gc-inspector-row gc-inspector-row--field">
-                  <label className="gc-inspector-pin-toggle">
-                    <input
-                      type="checkbox"
-                      disabled={runLocked}
-                      checked={caPrintMode}
-                      onChange={(ev) => {
-                        setCaPrintMode(ev.target.checked);
-                      }}
-                    />
-                    <span>{t("app.inspector.cursorAgentPrintMode")}</span>
-                  </label>
-                </div>
-                <div className="gc-inspector-row gc-inspector-row--field">
-                  <label className="gc-inspector-pin-toggle">
-                    <input
-                      type="checkbox"
-                      disabled={runLocked}
-                      checked={caApplyFileChanges}
-                      onChange={(ev) => {
-                        setCaApplyFileChanges(ev.target.checked);
-                      }}
-                    />
-                    <span>{t("app.inspector.cursorAgentApplyFiles")}</span>
-                  </label>
-                </div>
-                <p className="gc-inspector-edge-hint">{t("app.inspector.cursorAgentHint")}</p>
-              </>
-            ) : null}
-          </div>
+          {RegistryInspector ? (
+            <RegistryInspector
+              node={registryNode}
+              graphDocument={graphDocument}
+              runLocked={runLocked}
+              workspaceLinked={workspaceLinked}
+              onApplyNodeData={onApplyNodeData}
+            />
+          ) : null}
         </>
       ) : null}
       {isGraphDocumentFrameType(selection.graphNodeType) ? (

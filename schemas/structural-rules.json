@@ -1,0 +1,36 @@
+{
+  "$comment": "Declarative catalog of structural validation rules. Engines in python/graph_caster/structural_rules_engine.py and ui/src/contract/structuralRules.ts must register a handler for each id below. Parity is enforced by python/tests/contract/test_structural_rules_parity.py. NOTE: this is a proof-of-concept catalog containing the 5 hottest rules. Remaining 18 rules (ai_route_no_outgoing, ai_route_missing_route_descriptions, mcp_tool_empty_tool_name, mcp_tool_stdio_missing_command, mcp_tool_http_empty_url, mcp_tool_unknown_transport, rag_query_empty_url, rag_query_empty_query, rag_memory_empty_collection, rag_index_empty_collection_id, rag_index_empty_text, delay_invalid_duration, debounce_invalid_duration, wait_for_unknown_mode, wait_for_empty_path, wait_for_invalid_timeout, python_code_empty_code, set_variable_invalid_config, llm_agent_empty_command, agent_missing_prompt, trigger_webhook_invalid_path, trigger_webhook_duplicate_route, trigger_schedule_empty_cron) live in python/graph_caster/validate.py and ui/src/graph/structureWarnings.ts and are pending migration.",
+  "version": 1,
+  "rules": [
+    {
+      "id": "fork_few_outputs",
+      "severity": "warning",
+      "appliesTo": "fork",
+      "params": { "minOutputs": 2 }
+    },
+    {
+      "id": "barrier_merge_out_error_incoming",
+      "severity": "warning",
+      "appliesTo": "merge",
+      "params": { "mode": "barrier" }
+    },
+    {
+      "id": "barrier_merge_no_success_incoming",
+      "severity": "warning",
+      "appliesTo": "merge",
+      "params": { "mode": "barrier" }
+    },
+    {
+      "id": "merge_few_inputs",
+      "severity": "warning",
+      "appliesTo": "merge",
+      "params": { "minInputs": 2 }
+    },
+    {
+      "id": "http_request_empty_url",
+      "severity": "warning",
+      "appliesTo": "http_request",
+      "params": {}
+    }
+  ]
+}
