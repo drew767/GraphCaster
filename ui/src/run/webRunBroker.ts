@@ -4,7 +4,10 @@ import i18n from "../i18n";
 import { createNdjsonSeqReorderSink, type NdjsonSeqReorderSink } from "./ndjsonSeqReorder";
 import { applyRunnerNdjsonSideEffects } from "./runEventSideEffects";
 import * as store from "./runSessionStore";
-import { dispatchBrokerWebSocketJson } from "./webRunBrokerDispatch";
+import { SseTransport } from "./transport/SseTransport";
+import type { Transport } from "./transport/Transport";
+import { WsTransport } from "./transport/WsTransport";
+import { withReconnect } from "./transport/withReconnect";
 
 const DEFAULT_PREFIX = "/gc-run-broker";
 
@@ -26,67 +29,80 @@ export function runBrokerStreamRelativeStreamPath(runId: string): string {
   return path;
 }
 
+export function runBrokerWebSocketUrl(runId: string, viewerToken: string): string {
+  const base = getRunBrokerBasePath();
+  const path = `${base}/runs/${encodeURIComponent(runId)}/ws`;
+  const qp = new URLSearchParams();
+  qp.set("viewerToken", viewerToken);
+  const token = import.meta.env.VITE_GC_RUN_BROKER_TOKEN as string | undefined;
+  const t = token != null ? String(token).trim() : "";
+  if (t !== "") {
+    qp.set("token", t);
+  }
+  const loc = window.location;
+  const scheme = loc.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${loc.host}${path}?${qp.toString()}`;
+}
+
 /** Per-entry stream + creation timestamp; TTL sweep evicts entries older than `MAX_STREAM_LIFETIME_MS`. */
 type StreamEntry<T> = { stream: T; createdAt: number };
 
+// Per-run live transports (after Transport refactor). brokerStreams/brokerSockets
+// remain only to satisfy the existing TTL sweep test API (which registers
+// EventSource / WebSocket directly).
 const brokerStreams = new Map<string, StreamEntry<EventSource>>();
 const brokerSockets = new Map<string, StreamEntry<WebSocket>>();
+const liveTransports = new Map<string, StreamEntry<Transport>>();
 
 const ndjsonSeqSinksByRun = new Map<string, NdjsonSeqReorderSink>();
-
-/** When set, transient WS close must not reconnect (user cancel / stream replacement). */
-const wsReconnectSuppressed = new Set<string>();
+/** Reset between runs; used to detect server-side seq gaps and surface them to the console. */
+const lastSeqByRunId = new Map<string, number>();
 
 export const MAX_STREAM_LIFETIME_MS = 30 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 60_000;
 
+const RECONNECT_BASE_MS = 400;
+const RECONNECT_CAP_MS = 25_000;
+const RECONNECT_MAX_ATTEMPTS = 12;
+const RECONNECT_JITTER = 0.2;
+
 let sweepTimerId: ReturnType<typeof setInterval> | null = null;
 
-/** Closes any broker stream/socket older than the TTL. Returns the list of evicted run ids. */
 export function sweepExpiredBrokerStreams(now: number = Date.now()): string[] {
   const evicted: string[] = [];
   for (const [rid, entry] of Array.from(brokerStreams.entries())) {
     if (now - entry.createdAt > MAX_STREAM_LIFETIME_MS) {
-      try {
-        entry.stream.close();
-      } catch {
-        /* ignore */
-      }
+      try { entry.stream.close(); } catch { /* ignore */ }
       brokerStreams.delete(rid);
-      releaseNdjsonSeqSink(rid);
+      releaseRunResources(rid);
       evicted.push(rid);
     }
   }
   for (const [rid, entry] of Array.from(brokerSockets.entries())) {
     if (now - entry.createdAt > MAX_STREAM_LIFETIME_MS) {
-      try {
-        entry.stream.close();
-      } catch {
-        /* ignore */
-      }
+      try { entry.stream.close(); } catch { /* ignore */ }
       brokerSockets.delete(rid);
-      releaseNdjsonSeqSink(rid);
-      if (!evicted.includes(rid)) {
-        evicted.push(rid);
-      }
+      releaseRunResources(rid);
+      if (!evicted.includes(rid)) evicted.push(rid);
+    }
+  }
+  for (const [rid, entry] of Array.from(liveTransports.entries())) {
+    if (now - entry.createdAt > MAX_STREAM_LIFETIME_MS) {
+      try { entry.stream.close(); } catch { /* ignore */ }
+      liveTransports.delete(rid);
+      releaseRunResources(rid);
+      if (!evicted.includes(rid)) evicted.push(rid);
     }
   }
   return evicted;
 }
 
 function startSweepTimer(): void {
-  if (sweepTimerId != null) {
-    return;
-  }
-  if (typeof setInterval === "undefined") {
-    return;
-  }
-  sweepTimerId = setInterval(() => {
-    sweepExpiredBrokerStreams();
-  }, SWEEP_INTERVAL_MS);
+  if (sweepTimerId != null) return;
+  if (typeof setInterval === "undefined") return;
+  sweepTimerId = setInterval(() => { sweepExpiredBrokerStreams(); }, SWEEP_INTERVAL_MS);
 }
 
-/** Stops the sweep timer (test teardown). */
 export function __stopSweep(): void {
   if (sweepTimerId != null) {
     clearInterval(sweepTimerId);
@@ -94,57 +110,38 @@ export function __stopSweep(): void {
   }
 }
 
-/** Closes all live streams, clears reconnect-suppressed set and stops the sweep timer. */
 export function _resetWebRunBrokerForTests(): void {
   for (const entry of brokerStreams.values()) {
-    try {
-      entry.stream.close();
-    } catch {
-      /* ignore */
-    }
+    try { entry.stream.close(); } catch { /* ignore */ }
   }
   brokerStreams.clear();
   for (const entry of brokerSockets.values()) {
-    try {
-      entry.stream.close();
-    } catch {
-      /* ignore */
-    }
+    try { entry.stream.close(); } catch { /* ignore */ }
   }
   brokerSockets.clear();
+  for (const entry of liveTransports.values()) {
+    try { entry.stream.close(); } catch { /* ignore */ }
+  }
+  liveTransports.clear();
   ndjsonSeqSinksByRun.clear();
-  wsReconnectSuppressed.clear();
+  lastSeqByRunId.clear();
   __stopSweep();
 }
 
-/** Internal helpers for the TTL test suite — not used at runtime. */
 export function __peekLiveRunIdsForTest(): string[] {
   const ids: string[] = [];
-  for (const k of brokerStreams.keys()) {
-    ids.push(k);
-  }
-  for (const k of brokerSockets.keys()) {
-    if (!ids.includes(k)) {
-      ids.push(k);
-    }
-  }
+  for (const k of brokerStreams.keys()) ids.push(k);
+  for (const k of brokerSockets.keys()) if (!ids.includes(k)) ids.push(k);
+  for (const k of liveTransports.keys()) if (!ids.includes(k)) ids.push(k);
   return ids;
 }
 
-export function __registerEventSourceForTest(
-  runId: string,
-  es: EventSource,
-  createdAt: number,
-): void {
+export function __registerEventSourceForTest(runId: string, es: EventSource, createdAt: number): void {
   brokerStreams.set(runId, { stream: es, createdAt });
   startSweepTimer();
 }
 
-export function __registerWebSocketForTest(
-  runId: string,
-  ws: WebSocket,
-  createdAt: number,
-): void {
+export function __registerWebSocketForTest(runId: string, ws: WebSocket, createdAt: number): void {
   brokerSockets.set(runId, { stream: ws, createdAt });
   startSweepTimer();
 }
@@ -161,27 +158,13 @@ function ndjsonSeqSinkForRun(rid: string): NdjsonSeqReorderSink {
   return s;
 }
 
-function releaseNdjsonSeqSink(rid: string): void {
+function releaseRunResources(rid: string): void {
   const s = ndjsonSeqSinksByRun.get(rid);
   if (s != null) {
     s.reset();
     ndjsonSeqSinksByRun.delete(rid);
   }
-}
-
-const MAX_SSE_RECONNECT_ATTEMPTS = 12;
-const MAX_WS_RECONNECT_ATTEMPTS = 12;
-const SSE_BACKOFF_BASE_MS = 400;
-const SSE_BACKOFF_CAP_MS = 25_000;
-const WS_BACKOFF_BASE_MS = 400;
-const WS_BACKOFF_CAP_MS = 25_000;
-
-function sseReconnectDelayMs(attempt: number): number {
-  return Math.min(SSE_BACKOFF_CAP_MS, SSE_BACKOFF_BASE_MS * 2 ** attempt);
-}
-
-function wsReconnectDelayMs(attempt: number): number {
-  return Math.min(WS_BACKOFF_CAP_MS, WS_BACKOFF_BASE_MS * 2 ** attempt);
+  lastSeqByRunId.delete(rid);
 }
 
 function scheduleLaunchAfterRunExit(rid: string, code: number | null): void {
@@ -198,216 +181,113 @@ function runTransportIsWebSocket(): boolean {
   return String(v ?? "").trim().toLowerCase() === "ws";
 }
 
-export function runBrokerWebSocketUrl(runId: string, viewerToken: string): string {
-  const base = getRunBrokerBasePath();
-  const path = `${base}/runs/${encodeURIComponent(runId)}/ws`;
-  const qp = new URLSearchParams();
-  qp.set("viewerToken", viewerToken);
-  const token = import.meta.env.VITE_GC_RUN_BROKER_TOKEN as string | undefined;
-  const t = token != null ? String(token).trim() : "";
-  if (t !== "") {
-    qp.set("token", t);
+/**
+ * Detect a sequence gap from a freshly-arrived line and log it to the run console.
+ * Lines without `seq` are ignored. Lines with seq <= last seen are also ignored
+ * (handled by the seq sink). Only a forward jump > 1 surfaces as a gap warning.
+ */
+function maybeLogSeqGap(rid: string, line: string): void {
+  const trimmed = line.trim();
+  if (trimmed === "" || trimmed[0] !== "{") return;
+  let seq: unknown;
+  try {
+    const o = JSON.parse(trimmed) as { seq?: unknown };
+    seq = o.seq;
+  } catch { return; }
+  if (typeof seq !== "number" || !Number.isFinite(seq)) return;
+  const cur = lastSeqByRunId.get(rid) ?? 0;
+  if (seq > cur + 1 && cur > 0) {
+    const lost = seq - cur - 1;
+    store.runSessionAppendLineForRun(rid, `[host] event gap: lost ${String(lost)} events`);
   }
-  const loc = window.location;
-  const scheme = loc.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${loc.host}${path}?${qp.toString()}`;
+  if (seq > cur) lastSeqByRunId.set(rid, seq);
 }
 
-function attachWebBrokerSseRunStream(
-  rid: string,
-  attempt: number,
-  state: { exitReceived: boolean },
-): void {
-  const es = new EventSource(runBrokerStreamRelativeStreamPath(rid));
-  brokerStreams.set(rid, { stream: es, createdAt: Date.now() });
+function attachTransport(rid: string, viewerToken: string): void {
+  const isWs = runTransportIsWebSocket();
+  const inner = isWs ? new WsTransport() : new SseTransport();
+  const transport = withReconnect(inner, {
+    baseMs: RECONNECT_BASE_MS,
+    capMs: RECONNECT_CAP_MS,
+    maxAttempts: RECONNECT_MAX_ATTEMPTS,
+    jitter: RECONNECT_JITTER,
+  });
+  liveTransports.set(rid, { stream: transport, createdAt: Date.now() });
   startSweepTimer();
 
-  es.addEventListener("message", (e: MessageEvent<string>) => {
-    const line = e.data;
-    ndjsonSeqSinkForRun(rid).accept(line);
-  });
+  const sink = ndjsonSeqSinkForRun(rid);
+  const endpoint = isWs
+    ? runBrokerWebSocketUrl(rid, viewerToken)
+    : runBrokerStreamRelativeStreamPath(rid);
 
-  es.addEventListener("err", (e: MessageEvent<string>) => {
-    let text = e.data;
-    try {
-      const o = JSON.parse(e.data) as { line?: string };
-      if (typeof o.line === "string") {
-        text = o.line;
-      }
-    } catch {
-      /* use raw */
-    }
+  transport.on("line", (line) => {
+    maybeLogSeqGap(rid, line);
+    sink.accept(line);
+    // Refresh reopen config so a subsequent transient reconnect resumes from
+    // the latest flushed seq instead of the initial null. Cheap idempotent write.
+    const lastSeq = sink.lastFlushedSeq();
+    transport.setConfigForReopen?.({
+      runId: rid,
+      endpoint,
+      sinceSeq: lastSeq > 0 ? lastSeq : null,
+    });
+  });
+  transport.on("err", (text) => {
     store.runSessionAppendLineForRun(rid, `[stderr] ${text}`);
   });
-
-  es.addEventListener("exit", (e: MessageEvent<string>) => {
-    state.exitReceived = true;
-    let code: number | null = null;
-    try {
-      const o = JSON.parse(e.data) as { code?: number };
-      if (typeof o.code === "number") {
-        code = o.code;
-      }
-    } catch {
-      /* ignore */
-    }
+  transport.on("exit", (code) => {
     closeWebRunBrokerStreamForRun(rid);
     scheduleLaunchAfterRunExit(rid, code);
   });
-
-  es.onerror = () => {
-    if (!brokerStreams.has(rid)) {
-      return;
-    }
-    if (brokerStreams.get(rid)?.stream !== es) {
-      return;
-    }
-    es.close();
-    brokerStreams.delete(rid);
-    if (state.exitReceived) {
-      return;
-    }
-    if (attempt >= MAX_SSE_RECONNECT_ATTEMPTS) {
-      state.exitReceived = true;
+  transport.on("close", (reason) => {
+    if (reason === "exhausted") {
       store.runSessionAppendLineForRun(
         rid,
-        "[host] Run stream: reconnect attempts exhausted (SSE). Treating run as finished.",
+        isWs
+          ? "[host] Run stream: reconnect attempts exhausted (WebSocket). Treating run as finished."
+          : "[host] Run stream: reconnect attempts exhausted (SSE). Treating run as finished.",
       );
       scheduleLaunchAfterRunExit(rid, null);
-      return;
     }
-    window.setTimeout(() => {
-      attachWebBrokerSseRunStream(rid, attempt + 1, state);
-    }, sseReconnectDelayMs(attempt));
-  };
-}
+  });
 
-function attachWebBrokerWebSocket(
-  rid: string,
-  viewerToken: string,
-  attempt: number,
-  state: { exitReceived: boolean },
-): void {
-  const url = runBrokerWebSocketUrl(rid, viewerToken);
-  const ws = new WebSocket(url);
-  brokerSockets.set(rid, { stream: ws, createdAt: Date.now() });
-  startSweepTimer();
-
-  ws.onmessage = (ev: MessageEvent<string>) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(ev.data) as unknown;
-    } catch {
-      return;
-    }
-    if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const m = parsed as Record<string, unknown>;
-      if (m.channel === "ping") {
-        try {
-          ws.send(JSON.stringify({ type: "pong", runId: rid }));
-        } catch {
-          /* ignore */
-        }
-        return;
-      }
-    }
-    dispatchBrokerWebSocketJson(rid, parsed, {
-      appendLine: (line) => {
-        ndjsonSeqSinkForRun(rid).accept(line);
-      },
-      applyNdjson: (_line, _runId) => {
-        /* NDJSON side effects run in seq sink flush */
-      },
-      onExit: (code) => {
-        state.exitReceived = true;
-        closeWebRunBrokerStreamForRun(rid);
-        scheduleLaunchAfterRunExit(rid, code);
-      },
-    });
-  };
-
-  const scheduleReconnect = (): void => {
-    if (wsReconnectSuppressed.has(rid)) {
-      return;
-    }
-    if (state.exitReceived) {
-      return;
-    }
-    if (attempt >= MAX_WS_RECONNECT_ATTEMPTS) {
-      state.exitReceived = true;
-      store.runSessionAppendLineForRun(
-        rid,
-        "[host] Run stream: reconnect attempts exhausted (WebSocket). Treating run as finished.",
-      );
-      scheduleLaunchAfterRunExit(rid, null);
-      return;
-    }
-    window.setTimeout(() => {
-      attachWebBrokerWebSocket(rid, viewerToken, attempt + 1, state);
-    }, wsReconnectDelayMs(attempt));
-  };
-
-  ws.onerror = () => {
-    if (!brokerSockets.has(rid)) {
-      return;
-    }
-    brokerSockets.delete(rid);
-    try {
-      ws.close();
-    } catch {
-      /* ignore */
-    }
-    scheduleReconnect();
-  };
-
-  ws.onclose = () => {
-    if (brokerSockets.get(rid)?.stream === ws) {
-      brokerSockets.delete(rid);
-    }
-    if (state.exitReceived) {
-      return;
-    }
-    scheduleReconnect();
-  };
+  transport.open({ runId: rid, endpoint, sinceSeq: null });
 }
 
 export function closeWebRunBrokerStream(): void {
   for (const entry of brokerStreams.values()) {
-    entry.stream.close();
+    try { entry.stream.close(); } catch { /* ignore */ }
   }
   brokerStreams.clear();
   for (const entry of brokerSockets.values()) {
-    try {
-      entry.stream.close();
-    } catch {
-      /* ignore */
-    }
+    try { entry.stream.close(); } catch { /* ignore */ }
   }
   brokerSockets.clear();
+  for (const entry of liveTransports.values()) {
+    try { entry.stream.close(); } catch { /* ignore */ }
+  }
+  liveTransports.clear();
   ndjsonSeqSinksByRun.clear();
-  wsReconnectSuppressed.clear();
+  lastSeqByRunId.clear();
 }
 
 export function closeWebRunBrokerStreamForRun(runId: string): void {
-  const rid = runId.trim();
-  if (rid !== "") {
-    wsReconnectSuppressed.add(rid);
-  }
   const esEntry = brokerStreams.get(runId);
   if (esEntry != null) {
-    esEntry.stream.close();
+    try { esEntry.stream.close(); } catch { /* ignore */ }
     brokerStreams.delete(runId);
   }
   const wEntry = brokerSockets.get(runId);
   if (wEntry != null) {
-    try {
-      wEntry.stream.close();
-    } catch {
-      /* ignore */
-    }
+    try { wEntry.stream.close(); } catch { /* ignore */ }
     brokerSockets.delete(runId);
   }
-  releaseNdjsonSeqSink(runId);
+  const tEntry = liveTransports.get(runId);
+  if (tEntry != null) {
+    try { tEntry.stream.close(); } catch { /* ignore */ }
+    liveTransports.delete(runId);
+  }
+  releaseRunResources(runId);
 }
 
 export async function probeRunBrokerHealth(): Promise<boolean> {
@@ -500,19 +380,11 @@ export async function startWebBrokerRun(args: {
   }
 
   closeWebRunBrokerStreamForRun(rid);
-  wsReconnectSuppressed.delete(rid.trim());
 
-  if (runTransportIsWebSocket()) {
-    if (viewerToken === "") {
-      throw new Error("broker response missing viewerToken");
-    }
-    const wsState = { exitReceived: false };
-    attachWebBrokerWebSocket(rid, viewerToken, 0, wsState);
-    return;
+  if (runTransportIsWebSocket() && viewerToken === "") {
+    throw new Error("broker response missing viewerToken");
   }
-
-  const sseState = { exitReceived: false };
-  attachWebBrokerSseRunStream(rid, 0, sseState);
+  attachTransport(rid, viewerToken);
 }
 
 export async function cancelWebBrokerRun(runId: string): Promise<void> {
@@ -520,9 +392,12 @@ export async function cancelWebBrokerRun(runId: string): Promise<void> {
   if (wEntry != null && wEntry.stream.readyState === WebSocket.OPEN) {
     try {
       wEntry.stream.send(JSON.stringify({ type: "cancel_run", runId }));
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
+  }
+  // For new-style transports: send via Transport.send if possible.
+  const tEntry = liveTransports.get(runId);
+  if (tEntry != null && typeof tEntry.stream.send === "function") {
+    try { tEntry.stream.send(JSON.stringify({ type: "cancel_run", runId })); } catch { /* ignore */ }
   }
   const base = getRunBrokerBasePath();
   await fetch(`${base}/runs/${encodeURIComponent(runId)}/cancel`, {
@@ -591,9 +466,7 @@ export async function fetchPersistedRunSummary(
     throw new Error((await r.text()) || `HTTP ${r.status}`);
   }
   const j = (await r.json()) as { text?: string | null };
-  if (j.text == null) {
-    return null;
-  }
+  if (j.text == null) return null;
   return typeof j.text === "string" ? j.text : null;
 }
 
@@ -607,45 +480,26 @@ export type WebRunCatalogRow = {
   artifactRelPath: string;
 };
 
-function catalogStrField(
-  o: Record<string, unknown>,
-  camel: string,
-  snake: string,
-): string {
+function catalogStrField(o: Record<string, unknown>, camel: string, snake: string): string {
   const a = o[camel];
-  if (typeof a === "string" && a.trim() !== "") {
-    return a.trim();
-  }
+  if (typeof a === "string" && a.trim() !== "") return a.trim();
   const b = o[snake];
-  if (typeof b === "string" && b.trim() !== "") {
-    return b.trim();
-  }
+  if (typeof b === "string" && b.trim() !== "") return b.trim();
   return "";
 }
 
-function catalogOptionalStr(
-  o: Record<string, unknown>,
-  camel: string,
-  snake: string,
-): string | null {
+function catalogOptionalStr(o: Record<string, unknown>, camel: string, snake: string): string | null {
   const s = catalogStrField(o, camel, snake);
   return s === "" ? null : s;
 }
 
-/** Normalize broker JSON for run-catalog list (shared with tests). */
 export function parseRunCatalogListJson(data: unknown): WebRunCatalogRow[] {
-  if (typeof data !== "object" || data === null) {
-    return [];
-  }
+  if (typeof data !== "object" || data === null) return [];
   const raw = data as { items?: unknown };
-  if (!Array.isArray(raw.items)) {
-    return [];
-  }
+  if (!Array.isArray(raw.items)) return [];
   const out: WebRunCatalogRow[] = [];
   for (const it of raw.items) {
-    if (typeof it !== "object" || it === null) {
-      continue;
-    }
+    if (typeof it !== "object" || it === null) continue;
     const o = it as Record<string, unknown>;
     const runId = catalogStrField(o, "runId", "run_id");
     const rootGraphId = catalogStrField(o, "rootGraphId", "root_graph_id");
@@ -659,9 +513,7 @@ export function parseRunCatalogListJson(data: unknown): WebRunCatalogRow[] {
     const finishedAt = catalogStrField(o, "finishedAt", "finished_at");
     const artifactRelPath = catalogStrField(o, "artifactRelPath", "artifact_relpath");
     const startedAt = catalogOptionalStr(o, "startedAt", "started_at");
-    if (!runId || !rootGraphId || !runDirName || !status || !finishedAt) {
-      continue;
-    }
+    if (!runId || !rootGraphId || !runDirName || !status || !finishedAt) continue;
     out.push({ runId, rootGraphId, runDirName, status, startedAt, finishedAt, artifactRelPath });
   }
   return out;
@@ -683,13 +535,9 @@ export async function fetchRunCatalogList(
     offset: options?.offset ?? 0,
   };
   const gid = options?.graphId != null ? String(options.graphId).trim() : "";
-  if (gid !== "") {
-    body.graphId = gid;
-  }
+  if (gid !== "") body.graphId = gid;
   const st = options?.status != null ? String(options.status).trim() : "";
-  if (st !== "") {
-    body.status = st;
-  }
+  if (st !== "") body.status = st;
   const r = await fetch(`${base}/run-catalog/list`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...brokerHeaders() },
@@ -701,7 +549,6 @@ export async function fetchRunCatalogList(
   return parseRunCatalogListJson(await r.json());
 }
 
-/** Decimal count as string (same as CLI stdout); avoids precision loss for huge integers in JSON. */
 export async function fetchRunCatalogRebuild(artifactsBase: string): Promise<string> {
   const base = getRunBrokerBasePath();
   const r = await fetch(`${base}/run-catalog/rebuild`, {

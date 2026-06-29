@@ -76,7 +76,7 @@ import { GcBranchEdgeUiContext } from "./edges/GcBranchEdgeUiContext";
 import { GcCommentNode } from "./nodes/GcCommentNode";
 import { GcGroupNode } from "./nodes/GcGroupNode";
 import { GcFlowNode } from "./nodes/GcFlowNode";
-import { nodeRunOverlayMapsEqual, type NodeRunOverlayEntry } from "../run/nodeRunOverlay";
+import type { NodeRunOverlayEntry } from "../run/nodeRunOverlay";
 import { gcNodeClassNamesFor } from "../graph/nodeModeClassNames";
 import {
   useGraphMutationsStore,
@@ -309,36 +309,11 @@ const GraphCanvasInner = forwardRef<GraphCanvasHandle, Props>(
       [prefersColorSchemeDark],
     );
 
-    // Stabilize overlay map reference for effect deps when semantics are unchanged (see `useMemo` deps).
-    const overlayStabRef = useRef<{
-      rev: number;
-      map: Readonly<Record<string, NodeRunOverlayEntry>>;
-    } | null>(null);
-    const nodeRunOverlayForSync = useMemo(() => {
-      const overlayRev = nodeRunOverlayRevision ?? -1;
-      if (overlayStabRef.current === null) {
-        overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
-        return nodeRunOverlayById;
-      }
-      if (overlayRev === -1) {
-        if (!nodeRunOverlayMapsEqual(overlayStabRef.current.map, nodeRunOverlayById)) {
-          overlayStabRef.current = { rev: -1, map: nodeRunOverlayById };
-          return nodeRunOverlayById;
-        }
-        return overlayStabRef.current.map;
-      }
-      if (overlayRev !== overlayStabRef.current.rev) {
-        overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
-        return nodeRunOverlayById;
-      }
-      if (nodeRunOverlayById !== overlayStabRef.current.map) {
-        if (!nodeRunOverlayMapsEqual(overlayStabRef.current.map, nodeRunOverlayById)) {
-          overlayStabRef.current = { rev: overlayRev, map: nodeRunOverlayById };
-          return nodeRunOverlayById;
-        }
-      }
-      return overlayStabRef.current.map;
-    }, [nodeRunOverlayRevision, nodeRunOverlayById]);
+    // Overlay map reference is now stabilised at the store boundary via
+    // `useRunSessionVisual()` shallow-equal selector — no need for a local
+    // stabilisation ref. The `nodeRunOverlayRevision` prop still drives effect
+    // deps as before.
+    const nodeRunOverlayForSync = nodeRunOverlayById;
 
     const { onNodesChangeWrapped, onEdgesChangeWrapped } = useGraphCanvasNodesEdgesChangeGuards({
       structureLocked,

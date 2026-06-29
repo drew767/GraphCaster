@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
 import { useSaveWorkflow } from "./useSaveWorkflow";
-import { useBannerStore } from "../app/stores/bannerStore";
+import { useAppBannerStore } from "../app/stores/appBannerStore";
 import { useAutosaveStore } from "../app/stores/autosaveStore";
 
 vi.mock("react-i18next", () => ({
@@ -23,7 +23,7 @@ function busyResponse(): Response {
 }
 
 beforeEach(() => {
-  useBannerStore.getState().dismissAll();
+  useAppBannerStore.getState().dismissAll();
   useAutosaveStore.setState({ byWorkflow: {}, retryHandlers: {} });
   vi.useFakeTimers();
 });
@@ -69,7 +69,7 @@ describe("useSaveWorkflow — retry on 503", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.lastSaved).toBeTypeOf("number");
     // Retry banner was dismissed on success.
-    expect(useBannerStore.getState().banners).toEqual([]);
+    expect(useAppBannerStore.getState().banners).toEqual([]);
   });
 
   it("shows a banner while retrying", async () => {
@@ -86,13 +86,13 @@ describe("useSaveWorkflow — retry on 503", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(useBannerStore.getState().banners.length).toBe(1);
-    expect(useBannerStore.getState().banners[0].id).toBe("gc.save.retrying");
+    expect(useAppBannerStore.getState().banners.length).toBe(1);
+    expect(useAppBannerStore.getState().banners[0].id).toBe("gc.save.retrying");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
     await p;
-    expect(useBannerStore.getState().banners).toEqual([]);
+    expect(useAppBannerStore.getState().banners).toEqual([]);
   });
 });
 

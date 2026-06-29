@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRunSession } from "../../run/runSessionStore";
+import { useRunSessionConsole } from "../../run/runSessionStore";
 import { EmptyState } from "../ui/EmptyState/EmptyState";
 import { parseRunEventLine } from "../../run/parseRunEventLine";
 import { buildTraceTree, type NodeStep, type RunEvent } from "./traceTree";
@@ -24,7 +24,7 @@ type Props = {
 export function RunInspector({ open, onClose, onReplay, onNavigateToNode }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("timeline");
-  const { consoleLines, activeRunId, focusedRunId, replaySourceLabel } = useRunSession();
+  const { consoleLines, activeRunId, focusedRunId, replaySourceLabel } = useRunSessionConsole();
 
   const runId = focusedRunId ?? activeRunId;
   const isLive = runId != null && replaySourceLabel == null;

@@ -20,9 +20,11 @@ import { OnboardingTips } from "../components/OnboardingTips";
 import { TopBar } from "../components/TopBar";
 import { createMinimalGraphDocument } from "../graph/documentFactory";
 import { useCanvasSelection } from "./hooks/useCanvasSelection";
+import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import { useGraphDocumentHistory } from "./hooks/useGraphDocumentHistory";
 import { useModalsController } from "./hooks/useModalsController";
 import { useRunSessionController } from "./hooks/useRunSessionController";
+import { useWorkspaceManager } from "./hooks/useWorkspaceManager";
 import type {
   GraphDocumentJson,
   GraphDocumentSettingsPatch,
@@ -39,18 +41,7 @@ import {
   distributeSelectionPossible,
   type AlignDistributeOp,
 } from "../graph/canvasAlignSelection";
-import {
-  readGhostOffViewportEnabled,
-  writeGhostOffViewportEnabled,
-} from "../graph/canvasGhostOffViewport";
-import {
-  readRunMotionPreference,
-  writeRunMotionPreference,
-  type RunMotionPreference,
-} from "../graph/canvasRunMotion";
-import { readEdgeLabelsEnabled, writeEdgeLabelsEnabled } from "../graph/canvasEdgeLabels";
-import { readFollowRunPreference, writeFollowRunPreference } from "../graph/canvasFollowRun";
-import { readSnapGridEnabled, writeSnapGridEnabled } from "../graph/canvasSnapGrid";
+import { useSettingsStore } from "../stores/settingsStore";
 import {
   applyGroupSelection,
   applyUngroupSelection,
@@ -114,7 +105,6 @@ import {
   readWorkspaceGraphFile,
   readWorkspaceGraphFileWithFingerprint,
   sanitizeWorkspaceGraphFileName,
-  scanWorkspaceGraphs,
   supportsFileSystemAccess,
   workspaceDiskFingerprintConflicts,
   writeJsonFileToDir,
@@ -128,7 +118,8 @@ import {
   runSessionHasBlockingActivity,
   runSessionSetCurrentRootGraphId,
   runSessionSetFocusedRunId,
-  useRunSession,
+  useRunSessionLifecycle,
+  useRunSessionVisual,
 } from "../run/runSessionStore";
 import {
   markStepCacheDirtyWithNestedBubble,
@@ -193,10 +184,11 @@ export function AppShell({ onLangChange }: Props) {
   const { t } = useTranslation();
   const { push: pushToast } = useToast();
   useRunBridge();
-  const runSession = useRunSession();
+  const runSessionLifecycle = useRunSessionLifecycle();
+  const runSessionVisual = useRunSessionVisual();
   const runSessionBlocking =
-    runSession.liveRunIds.length > 0 || runSession.pendingRunCount > 0;
-  const hasLiveGraphRun = runSession.liveRunIds.length > 0;
+    runSessionLifecycle.liveRunIds.length > 0 || runSessionLifecycle.pendingRunCount > 0;
+  const hasLiveGraphRun = runSessionLifecycle.liveRunIds.length > 0;
   const { height, startDrag } = useConsoleHeight(168);
   const [graphDocument, setGraphDocument] = useState<GraphDocumentJson>(() => {
     const parsed = parseGraphDocumentJson(exampleDocument as unknown);
@@ -268,15 +260,17 @@ export function AppShell({ onLangChange }: Props) {
   );
   const [autosaveFailed, setAutosaveFailed] = useState(false);
   const lastAutosaveFailConsoleMsRef = useRef(0);
-  const [snapToGridEnabled, setSnapToGridEnabled] = useState(() => readSnapGridEnabled());
-  const [edgeLabelsEnabled, setEdgeLabelsEnabled] = useState(() => readEdgeLabelsEnabled());
-  const [ghostOffViewportEnabled, setGhostOffViewportEnabled] = useState(() =>
-    readGhostOffViewportEnabled(),
-  );
-  const [runMotionPreference, setRunMotionPreference] = useState<RunMotionPreference>(() =>
-    readRunMotionPreference(),
-  );
-  const [followRunEnabled, setFollowRunEnabled] = useState(() => readFollowRunPreference());
+  const snapToGridEnabled = useSettingsStore((s) => s.snapGridEnabled);
+  const setSnapToGridEnabled = useSettingsStore((s) => s.setSnapGridEnabled);
+  const edgeLabelsEnabled = useSettingsStore((s) => s.edgeLabelsEnabled);
+  const setEdgeLabelsEnabled = useSettingsStore((s) => s.setEdgeLabelsEnabled);
+  const ghostOffViewportEnabled = useSettingsStore((s) => s.ghostOffViewportEnabled);
+  const setGhostOffViewportEnabled = useSettingsStore((s) => s.setGhostOffViewportEnabled);
+  const runMotionPreference = useSettingsStore((s) => s.runMotion);
+  const setRunMotionPreference = useSettingsStore((s) => s.setRunMotion);
+  const followRunEnabled = useSettingsStore((s) => s.followRun);
+  const setFollowRunEnabled = useSettingsStore((s) => s.setFollowRun);
+  // graphStore intentionally not wired here — needs callback-style setters (prev => next) for graphDocument.
   const stepCacheDirtyCount = useStepCacheDirtyCount();
   const graphDocumentRef = useRef(graphDocument);
   graphDocumentRef.current = graphDocument;
@@ -333,83 +327,27 @@ export function AppShell({ onLangChange }: Props) {
     pushToast,
   });
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (runSessionHasBlockingActivity()) {
-        return;
-      }
-      if (isTextEditingTarget(e.target)) {
-        return;
-      }
-      const key = e.key.toLowerCase();
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod) {
-        return;
-      }
-      if (key === "z") {
-        if (e.shiftKey) {
-          e.preventDefault();
-          performRedo();
-        } else {
-          e.preventDefault();
-          performUndo();
-        }
-        return;
-      }
-      if (key === "y") {
-        e.preventDefault();
-        performRedo();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [performRedo, performUndo]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (isTextEditingTarget(e.target)) {
-        return;
-      }
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod || !e.shiftKey) {
-        return;
-      }
-      const k = e.key.toLowerCase();
-      if (k === "n") {
-        e.preventDefault();
-        setNodePaletteSidebarOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
+  const onToggleNodePaletteSidebar = useCallback(() => {
+    setNodePaletteSidebarOpen((prev) => !prev);
   }, []);
+
+  useGlobalShortcuts({
+    isBlocking: runSessionHasBlockingActivity,
+    onUndo: performUndo,
+    onRedo: performRedo,
+    onToggleNodePalette: onToggleNodePaletteSidebar,
+  });
 
   const bumpLayoutEpoch = useCallback(() => {
     setLayoutEpoch((n) => n + 1);
   }, []);
 
-  const rescanWorkspace = useCallback(async (dir: FileSystemDirectoryHandle) => {
-    graphRefSnapshotCacheRef.current.clear();
-    graphRefSnapshotInflightRef.current.clear();
-    try {
-      setWorkspaceIndex(await scanWorkspaceGraphs(dir));
-    } catch {
-      setWorkspaceIndex([]);
-    }
-  }, []);
-
-  const invalidateGraphRefSnapshotCacheForGraphId = useCallback((gid: string | null | undefined) => {
-    const t = (gid ?? "").trim();
-    if (t === "") {
-      return;
-    }
-    graphRefSnapshotCacheRef.current.delete(t);
-    graphRefSnapshotInflightRef.current.delete(t);
-  }, []);
+  const { rescanWorkspace, invalidateGraphRefSnapshotCacheForGraphId } =
+    useWorkspaceManager({
+      setWorkspaceIndex,
+      graphRefSnapshotCacheRef,
+      graphRefSnapshotInflightRef,
+    });
 
   const onNewGraph = useCallback(() => {
     nestedGraphRefStackRef.current = [];
@@ -1556,9 +1494,9 @@ export function AppShell({ onLangChange }: Props) {
   ]);
 
   const followRunCameraActive =
-    runSession.replaySourceLabel != null ||
-    (runSession.focusedRunId != null &&
-      runSession.liveRunIds.includes(runSession.focusedRunId));
+    runSessionLifecycle.replaySourceLabel != null ||
+    (runSessionLifecycle.focusedRunId != null &&
+      runSessionLifecycle.liveRunIds.includes(runSessionLifecycle.focusedRunId));
 
   return (
     <div className="app-root" data-gc-history-revision={historyTick}>
@@ -1583,30 +1521,15 @@ export function AppShell({ onLangChange }: Props) {
         onGroupSelection={performCanvasGroup}
         onUngroupSelection={performCanvasUngroup}
         snapToGridEnabled={snapToGridEnabled}
-        onSnapToGridChange={(on) => {
-          writeSnapGridEnabled(on);
-          setSnapToGridEnabled(on);
-        }}
+        onSnapToGridChange={setSnapToGridEnabled}
         ghostOffViewportEnabled={ghostOffViewportEnabled}
-        onGhostOffViewportChange={(on) => {
-          writeGhostOffViewportEnabled(on);
-          setGhostOffViewportEnabled(on);
-        }}
+        onGhostOffViewportChange={setGhostOffViewportEnabled}
         edgeLabelsEnabled={edgeLabelsEnabled}
-        onEdgeLabelsChange={(on) => {
-          writeEdgeLabelsEnabled(on);
-          setEdgeLabelsEnabled(on);
-        }}
+        onEdgeLabelsChange={setEdgeLabelsEnabled}
         followRunEnabled={followRunEnabled}
-        onFollowRunChange={(on) => {
-          writeFollowRunPreference(on);
-          setFollowRunEnabled(on);
-        }}
+        onFollowRunChange={setFollowRunEnabled}
         runMotionPreference={runMotionPreference}
-        onRunMotionPreferenceChange={(mode) => {
-          writeRunMotionPreference(mode);
-          setRunMotionPreference(mode);
-        }}
+        onRunMotionPreferenceChange={setRunMotionPreference}
         canAlignSelection={canAlignSelection}
         canDistributeSelection={canDistributeSelection}
         onAlignDistribute={performCanvasAlignDistribute}
@@ -1633,7 +1556,7 @@ export function AppShell({ onLangChange }: Props) {
           void onRunGraph();
         }}
         onRunHistory={openRunHistory}
-        canClearSettledRunVisual={runSession.canClearSettledRunVisual}
+        canClearSettledRunVisual={runSessionLifecycle.canClearSettledRunVisual}
         onClearSettledRunVisual={() => {
           runSessionClearSettledVisualForCurrentGraph();
         }}
@@ -1645,12 +1568,12 @@ export function AppShell({ onLangChange }: Props) {
         }}
         sessionBlocking={runSessionBlocking}
         hasLiveRun={hasLiveGraphRun}
-        liveRunIds={runSession.liveRunIds}
-        focusedRunId={runSession.focusedRunId}
+        liveRunIds={runSessionLifecycle.liveRunIds}
+        focusedRunId={runSessionLifecycle.focusedRunId}
         onFocusedRunChange={(rid) => {
           runSessionSetFocusedRunId(rid);
         }}
-        pendingRunCount={runSession.pendingRunCount}
+        pendingRunCount={runSessionLifecycle.pendingRunCount}
         runStartDisabled={runStartDisabled}
         runDesktopOnlyHint={false}
       />
@@ -2023,11 +1946,11 @@ export function AppShell({ onLangChange }: Props) {
               snapToGridEnabled={snapToGridEnabled}
               edgeLabelsEnabled={edgeLabelsEnabled}
               ghostOffViewportEnabled={ghostOffViewportEnabled}
-              runHighlightNodeId={runSession.activeNodeId}
-              nodeRunOverlayById={runSession.nodeRunOverlayByNodeId}
-              nodeRunOverlayRevision={runSession.nodeRunOverlayRevision}
-              highlightedRunEdgeId={runSession.highlightedRunEdgeId}
-              edgeRunOverlayRevision={runSession.edgeRunOverlayRevision}
+              runHighlightNodeId={runSessionVisual.activeNodeId}
+              nodeRunOverlayById={runSessionVisual.nodeRunOverlay}
+              nodeRunOverlayRevision={runSessionVisual.nodeRunOverlayRevision}
+              highlightedRunEdgeId={runSessionVisual.highlightedRunEdgeId}
+              edgeRunOverlayRevision={runSessionVisual.edgeRunOverlayRevision}
               runMotionPreference={runMotionPreference}
               followRunCameraEnabled={followRunEnabled}
               followRunCameraActive={followRunCameraActive}

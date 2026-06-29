@@ -21,7 +21,7 @@ interface BannerState {
 
 let _counter = 0;
 
-export const useBannerStore = create<BannerState>((set) => ({
+export const useAppBannerStore = create<BannerState>((set) => ({
   banners: [],
 
   push: (banner) => {

@@ -24,7 +24,7 @@ let mockSession: {
 const mockClear = vi.fn();
 
 vi.mock("../run/runSessionStore", () => ({
-  useRunSession: () => mockSession,
+  useRunSessionConsole: () => mockSession,
   runSessionClearConsole: () => mockClear(),
 }));
 

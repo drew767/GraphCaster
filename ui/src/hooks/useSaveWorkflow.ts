@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useBannerStore } from "../app/stores/bannerStore";
+import { useAppBannerStore } from "../app/stores/appBannerStore";
 import { useAutosaveStore } from "../app/stores/autosaveStore";
 
 const RETRY_DELAYS_MS = [1000, 2000, 4000];
@@ -55,8 +55,8 @@ export function useSaveWorkflow(
   options: UseSaveWorkflowOptions = {},
 ): UseSaveWorkflowReturn {
   const { t } = useTranslation();
-  const pushBanner = useBannerStore((s) => s.push);
-  const dismissBanner = useBannerStore((s) => s.dismiss);
+  const pushBanner = useAppBannerStore((s) => s.push);
+  const dismissBanner = useAppBannerStore((s) => s.dismiss);
   const markSaving = useAutosaveStore((s) => s.markSaving);
   const markSaved = useAutosaveStore((s) => s.markSaved);
   const markError = useAutosaveStore((s) => s.markError);

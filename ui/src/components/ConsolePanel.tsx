@@ -14,7 +14,7 @@ import { ExecutionTimeline } from "./ExecutionTimeline";
 import { useVirtualList } from "../hooks/useVirtualList";
 import { gcErrorTranslationKey } from "../lib/errorMessages";
 import { jsonHighlightedConsoleLine } from "../lib/jsonConsoleHighlight";
-import { runSessionClearConsole, useRunSession } from "../run/runSessionStore";
+import { runSessionClearConsole, useRunSessionConsole } from "../run/runSessionStore";
 
 type Props = {
   heightPx: number;
@@ -36,7 +36,7 @@ type IndexedConsoleRow = {
 
 export function ConsolePanel({ heightPx, onResizeStart, onNavigateToNode }: Props) {
   const { t } = useTranslation();
-  const { consoleLines, pythonBanner, replaySourceLabel } = useRunSession();
+  const { consoleLines, pythonBanner, replaySourceLabel } = useRunSessionConsole();
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const tailStickRef = useRef(true);
   const [filterMode, setFilterMode] = useState<ConsoleFilterMode>("all");

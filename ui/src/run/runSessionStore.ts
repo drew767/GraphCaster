@@ -1,6 +1,6 @@
 // Copyright GraphCaster. All Rights Reserved.
 
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 
 import {
   applyParsedRunEventToEdgeRunOverlay,
@@ -678,6 +678,138 @@ export function runSessionSetLastExitCode(code: number | null): void {
 
 export function useRunSession(): RunSessionSnapshot {
   return useSyncExternalStore(subscribeRunSession, getRunSessionSnapshot, getRunSessionSnapshot);
+}
+
+/**
+ * Shallow-equality helper for top-level keys of plain objects. Used by the
+ * selective hooks below to skip re-renders when the picked slice is unchanged.
+ */
+function shallowEqualObjects<T extends Record<string, unknown>>(a: T, b: T): boolean {
+  if (a === b) {
+    return true;
+  }
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) {
+    return false;
+  }
+  for (const k of ka) {
+    if (!Object.is(a[k], b[k])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Selective subscription helper. Wraps `useSyncExternalStore` so a subscriber
+ * only re-renders when the selected slice changes (per `isEqual`), instead of
+ * on every store emit (which happens on every console-line append).
+ *
+ * Component A re-rendering on console-line append while only reading
+ * `liveRunIds` is the single biggest cause of jank during long runs —
+ * subscribing through this helper neutralises that path.
+ */
+function useRunSessionSelected<T>(
+  selector: (s: RunSessionSnapshot) => T,
+  isEqual: (a: T, b: T) => boolean = Object.is,
+): T {
+  const lastRef = useRef<{ snap: RunSessionSnapshot; value: T } | null>(null);
+  const getSnap = (): T => {
+    const snap = getRunSessionSnapshot();
+    if (lastRef.current !== null && lastRef.current.snap === snap) {
+      return lastRef.current.value;
+    }
+    const next = selector(snap);
+    if (lastRef.current !== null && isEqual(lastRef.current.value, next)) {
+      // Snapshot changed but selected slice did not — keep old reference so
+      // useSyncExternalStore's Object.is check skips the re-render.
+      lastRef.current = { snap, value: lastRef.current.value };
+      return lastRef.current.value;
+    }
+    lastRef.current = { snap, value: next };
+    return next;
+  };
+  return useSyncExternalStore(subscribeRunSession, getSnap, getSnap);
+}
+
+export type RunSessionLifecycleSlice = {
+  liveRunIds: readonly string[];
+  pendingRunCount: number;
+  focusedRunId: string | null;
+  activeRunId: string | null;
+  replaySourceLabel: string | null;
+  canClearSettledRunVisual: boolean;
+};
+
+/** Subscribe to high-level run lifecycle (live ids, focus, replay state). */
+export function useRunSessionLifecycle(): RunSessionLifecycleSlice {
+  return useRunSessionSelected<RunSessionLifecycleSlice>(
+    (s) => ({
+      liveRunIds: s.liveRunIds,
+      pendingRunCount: s.pendingRunCount,
+      focusedRunId: s.focusedRunId,
+      activeRunId: s.activeRunId,
+      replaySourceLabel: s.replaySourceLabel,
+      canClearSettledRunVisual: s.canClearSettledRunVisual,
+    }),
+    shallowEqualObjects,
+  );
+}
+
+export type RunSessionVisualSlice = {
+  activeNodeId: string | null;
+  nodeRunOverlay: Readonly<Record<string, NodeRunOverlayEntry>>;
+  nodeRunOverlayRevision: number;
+  highlightedRunEdgeId: string | null;
+  edgeRunOverlayRevision: number;
+};
+
+/**
+ * Subscribe to the canvas-facing overlay slice. Re-renders only when the
+ * visible run overlay revision (node/edge), highlighted edge, or active node
+ * changes — not on every console-line append.
+ */
+export function useRunSessionVisual(): RunSessionVisualSlice {
+  return useRunSessionSelected<RunSessionVisualSlice>(
+    (s) => ({
+      activeNodeId: s.activeNodeId,
+      nodeRunOverlay: s.nodeRunOverlayByNodeId,
+      nodeRunOverlayRevision: s.nodeRunOverlayRevision,
+      highlightedRunEdgeId: s.highlightedRunEdgeId,
+      edgeRunOverlayRevision: s.edgeRunOverlayRevision,
+    }),
+    shallowEqualObjects,
+  );
+}
+
+export type RunSessionConsoleSlice = {
+  consoleLines: string[];
+  pythonBanner: string | null;
+  lastExitCode: number | null;
+  replaySourceLabel: string | null;
+  focusedRunId: string | null;
+  activeRunId: string | null;
+};
+
+/** Subscribe to the console-line slice (ConsolePanel, RunInspector). */
+export function useRunSessionConsole(): RunSessionConsoleSlice {
+  return useRunSessionSelected<RunSessionConsoleSlice>(
+    (s) => ({
+      consoleLines: s.consoleLines,
+      pythonBanner: s.pythonBanner,
+      lastExitCode: s.lastExitCode,
+      replaySourceLabel: s.replaySourceLabel,
+      focusedRunId: s.focusedRunId,
+      activeRunId: s.activeRunId,
+    }),
+    shallowEqualObjects,
+  );
+}
+
+/** Subscribe to per-node output snapshots (NodeInspector preview). */
+export function useRunSessionOutputs(): Record<string, Record<string, unknown>> {
+  return useRunSessionSelected((s) => s.nodeOutputSnapshots);
 }
 
 export function runSessionResetForTest(): void {

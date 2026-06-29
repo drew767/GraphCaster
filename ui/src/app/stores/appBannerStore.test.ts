@@ -3,22 +3,22 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useBannerStore } from "./bannerStore";
+import { useAppBannerStore } from "./appBannerStore";
 
-describe("bannerStore", () => {
+describe("appBannerStore", () => {
   afterEach(() => {
     act(() => {
-      useBannerStore.getState().dismissAll();
+      useAppBannerStore.getState().dismissAll();
     });
   });
 
   it("starts with empty banners", () => {
-    const { result } = renderHook(() => useBannerStore());
+    const { result } = renderHook(() => useAppBannerStore());
     expect(result.current.banners).toEqual([]);
   });
 
   it("push adds a banner and returns its id", () => {
-    const { result } = renderHook(() => useBannerStore());
+    const { result } = renderHook(() => useAppBannerStore());
 
     let returnedId: string;
     act(() => {
@@ -32,7 +32,7 @@ describe("bannerStore", () => {
   });
 
   it("dismiss removes the banner with matching id", () => {
-    const { result } = renderHook(() => useBannerStore());
+    const { result } = renderHook(() => useAppBannerStore());
 
     let id1: string;
     let id2: string;
@@ -50,7 +50,7 @@ describe("bannerStore", () => {
   });
 
   it("dismissAll clears all banners", () => {
-    const { result } = renderHook(() => useBannerStore());
+    const { result } = renderHook(() => useAppBannerStore());
 
     act(() => {
       result.current.push({ type: "success", message: "A" });

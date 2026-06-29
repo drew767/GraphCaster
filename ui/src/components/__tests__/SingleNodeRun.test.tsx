@@ -15,22 +15,29 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../../run/runSessionStore", () => ({
-  useRunSession: () => ({
-    consoleLines: [],
-    activeRunId: null,
+  useRunSessionOutputs: () => ({}),
+  useRunSessionLifecycle: () => ({
     liveRunIds: [],
-    focusedRunId: null,
     pendingRunCount: 0,
-    activeNodeId: null,
-    pythonBanner: null,
-    lastExitCode: null,
-    nodeOutputSnapshots: {},
+    focusedRunId: null,
+    activeRunId: null,
     replaySourceLabel: null,
-    nodeRunOverlayByNodeId: {},
+    canClearSettledRunVisual: false,
+  }),
+  useRunSessionVisual: () => ({
+    activeNodeId: null,
+    nodeRunOverlay: {},
     nodeRunOverlayRevision: 0,
     highlightedRunEdgeId: null,
     edgeRunOverlayRevision: 0,
-    canClearSettledRunVisual: false,
+  }),
+  useRunSessionConsole: () => ({
+    consoleLines: [],
+    pythonBanner: null,
+    lastExitCode: null,
+    replaySourceLabel: null,
+    focusedRunId: null,
+    activeRunId: null,
   }),
   runSessionAppendLine: vi.fn(),
   getStepCacheDirtySnapshot: () => ({ ids: [] }),

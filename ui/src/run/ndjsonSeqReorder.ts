@@ -29,6 +29,8 @@ export function extractSeqFromNdjsonLine(line: string): number | null {
 export type NdjsonSeqReorderSink = {
   accept: (line: string) => void;
   reset: () => void;
+  /** Highest seq number flushed downstream (0 if none yet). Used to drive `since_seq` on reconnect. */
+  lastFlushedSeq: () => number;
 };
 
 /**
@@ -38,13 +40,19 @@ export type NdjsonSeqReorderSink = {
 export function createNdjsonSeqReorderSink(flush: (line: string) => void): NdjsonSeqReorderSink {
   /** Matches broker `SequenceGenerator`: first assigned seq is 1. */
   let nextSeq = 1;
+  let highestFlushed = 0;
   const pending = new Map<number, string>();
+
+  const flushAndTrack = (line: string, seq: number): void => {
+    flush(line);
+    if (seq > highestFlushed) highestFlushed = seq;
+  };
 
   const tryDrain = (): void => {
     while (pending.has(nextSeq)) {
       const ln = pending.get(nextSeq)!;
       pending.delete(nextSeq);
-      flush(ln);
+      flushAndTrack(ln, nextSeq);
       nextSeq += 1;
     }
   };
@@ -72,7 +80,7 @@ export function createNdjsonSeqReorderSink(flush: (line: string) => void): Ndjso
         return;
       }
       if (seq === nextSeq) {
-        flush(line);
+        flushAndTrack(line, seq);
         nextSeq += 1;
         tryDrain();
         return;
@@ -82,7 +90,11 @@ export function createNdjsonSeqReorderSink(flush: (line: string) => void): Ndjso
     },
     reset(): void {
       nextSeq = 1;
+      highestFlushed = 0;
       pending.clear();
+    },
+    lastFlushedSeq(): number {
+      return highestFlushed;
     },
   };
 }
